@@ -13,8 +13,8 @@ export async function GET(
   try {
     const { id } = await context.params
 
-    const { data, error } = await supabaseServer
-      .from('stock_adjustments')
+    const { data, error } = await (supabaseServer
+      .from('stock_adjustments') as any)
       .select('*')
       .eq('product_id', id)
       .order('created_at', { ascending: false })

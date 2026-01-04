@@ -47,12 +47,12 @@ export async function POST(
       )
     }
 
-    const previous_stock = product.stock
+    const previous_stock = (product as any).stock as number
     const difference = adjusted_stock - previous_stock
 
     // Create stock adjustment record
-    const { error: adjustmentError } = await supabaseServer
-      .from('stock_adjustments')
+    const { error: adjustmentError } = await (supabaseServer
+      .from('stock_adjustments') as any)
       .insert({
         product_id: id,
         previous_stock,
@@ -69,8 +69,8 @@ export async function POST(
     }
 
     // Update product stock
-    const { data: updatedProduct, error: updateError } = await supabaseServer
-      .from('products')
+    const { data: updatedProduct, error: updateError } = await (supabaseServer
+      .from('products') as any)
       .update({ stock: adjusted_stock })
       .eq('id', id)
       .select()
