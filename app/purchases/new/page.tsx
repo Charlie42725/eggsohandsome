@@ -1,0 +1,335 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { formatCurrency } from '@/lib/utils'
+import type { Product } from '@/types'
+
+type Vendor = {
+  id: string
+  vendor_code: string
+  vendor_name: string
+}
+
+type PurchaseItem = {
+  product_id: string
+  product?: Product
+  quantity: number
+  cost: number
+}
+
+export default function NewPurchasePage() {
+  const router = useRouter()
+  const [vendors, setVendors] = useState<Vendor[]>([])
+  const [vendorCode, setVendorCode] = useState('')
+  const [items, setItems] = useState<PurchaseItem[]>([])
+  const [searchKeyword, setSearchKeyword] = useState('')
+  const [searchResults, setSearchResults] = useState<Product[]>([])
+  const [searching, setSearching] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    fetchVendors()
+  }, [])
+
+  const fetchVendors = async () => {
+    try {
+      const res = await fetch('/api/vendors')
+      const data = await res.json()
+      if (data.ok) {
+        setVendors(data.data || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch vendors:', err)
+    }
+  }
+
+  const searchProducts = async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([])
+      setSearching(false)
+      return
+    }
+
+    setSearching(true)
+    try {
+      const res = await fetch(`/api/products/search?keyword=${encodeURIComponent(query)}&active_only=false`)
+      const data = await res.json()
+      console.log('Search API response:', data) // Debug log
+      if (data.ok) {
+        setSearchResults(data.data || [])
+        console.log('Search results:', data.data) // Debug log
+      } else {
+        console.error('Search API error:', data.error)
+        setSearchResults([])
+      }
+    } catch (err) {
+      console.error('Search error:', err)
+      setSearchResults([])
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  const addItem = (product: Product) => {
+    console.log('Adding product:', product) // Debug log
+    const existing = items.find((item) => item.product_id === product.id)
+    if (existing) {
+      setError('商品已在清單中')
+      setTimeout(() => setError(''), 3000)
+      return
+    }
+
+    setItems([
+      ...items,
+      {
+        product_id: product.id,
+        product,
+        quantity: 1,
+        cost: product.cost || 0,
+      },
+    ])
+    setSearchKeyword('')
+    setSearchResults([])
+    setError('')
+    console.log('Product added successfully') // Debug log
+  }
+
+  const updateItem = (index: number, field: 'quantity' | 'cost', value: number) => {
+    setItems(
+      items.map((item, i) =>
+        i === index ? { ...item, [field]: value } : item
+      )
+    )
+  }
+
+  const removeItem = (index: number) => {
+    setItems(items.filter((_, i) => i !== index))
+  }
+
+  const total = items.reduce((sum, item) => sum + item.quantity * item.cost, 0)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!vendorCode) {
+      setError('請選擇廠商')
+      return
+    }
+
+    if (items.length === 0) {
+      setError('請至少新增一項商品')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+
+    try {
+      const res = await fetch('/api/purchases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vendor_code: vendorCode,
+          items: items.map((item) => ({
+            product_id: item.product_id,
+            quantity: item.quantity,
+            cost: item.cost,
+          })),
+        }),
+      })
+
+      const data = await res.json()
+
+      if (data.ok) {
+        router.push('/purchases')
+      } else {
+        setError(data.error || '建立失敗')
+      }
+    } catch (err) {
+      setError('建立失敗')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4">
+      <div className="mx-auto max-w-4xl">
+        <h1 className="mb-6 text-3xl font-bold">新增進貨單</h1>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {error && (
+            <div className="rounded bg-red-50 p-3 text-red-700">{error}</div>
+          )}
+
+          {/* Vendor selection */}
+          <div className="rounded-lg bg-white p-6 shadow">
+            <label className="mb-2 block text-sm font-medium text-gray-900">
+              廠商 <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={vendorCode}
+              onChange={(e) => setVendorCode(e.target.value)}
+              className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+              required
+            >
+              <option value="">請選擇廠商</option>
+              {vendors.map((vendor) => (
+                <option key={vendor.id} value={vendor.vendor_code}>
+                  {vendor.vendor_code} - {vendor.vendor_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Product search */}
+          <div className="rounded-lg bg-white p-6 shadow">
+            <label className="mb-2 block text-sm font-medium text-gray-900">搜尋商品</label>
+            <input
+              type="text"
+              value={searchKeyword}
+              onChange={(e) => {
+                setSearchKeyword(e.target.value)
+                searchProducts(e.target.value)
+              }}
+              placeholder="輸入商品名稱或品號"
+              className="w-full rounded border border-gray-300 px-4 py-2 text-gray-900 placeholder:text-gray-900"
+            />
+
+            {/* Search status and results */}
+            {searching && (
+              <div className="mt-2 rounded border border-gray-200 bg-gray-50 p-3 text-center text-sm text-gray-900">
+                搜尋中...
+              </div>
+            )}
+
+            {!searching && searchKeyword && searchResults.length === 0 && (
+              <div className="mt-2 rounded border border-gray-200 bg-yellow-50 p-3 text-center text-sm text-gray-900">
+                找不到商品，請確認商品是否存在
+              </div>
+            )}
+
+            {!searching && searchResults.length > 0 && (
+              <div className="mt-2 max-h-60 overflow-y-auto rounded border border-gray-200">
+                {searchResults.map((product) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() => addItem(product)}
+                    className="w-full border-b border-gray-100 p-3 text-left hover:bg-gray-50"
+                  >
+                    <div className="font-medium text-gray-900">{product.name}</div>
+                    <div className="text-sm text-gray-900">
+                      {product.item_code} | 成本: {formatCurrency(product.cost)} | 庫存: {product.stock}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Items table */}
+          <div className="rounded-lg bg-white p-6 shadow">
+            <h2 className="mb-4 text-lg font-semibold text-gray-900">進貨明細</h2>
+
+            {items.length === 0 ? (
+              <p className="py-8 text-center text-gray-900">尚未新增商品</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="border-b bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-sm font-semibold text-gray-900">商品</th>
+                      <th className="px-4 py-2 text-center text-sm font-semibold text-gray-900">數量</th>
+                      <th className="px-4 py-2 text-right text-sm font-semibold text-gray-900">成本</th>
+                      <th className="px-4 py-2 text-right text-sm font-semibold text-gray-900">小計</th>
+                      <th className="px-4 py-2 text-center text-sm font-semibold text-gray-900">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {items.map((item, index) => (
+                      <tr key={index}>
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-gray-900">{item.product?.name}</div>
+                          <div className="text-sm text-gray-900">
+                            {item.product?.item_code}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) =>
+                              updateItem(index, 'quantity', parseInt(e.target.value) || 0)
+                            }
+                            min="1"
+                            className="w-20 rounded border border-gray-300 px-2 py-1 text-center text-gray-900"
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <input
+                            type="number"
+                            value={item.cost}
+                            onChange={(e) =>
+                              updateItem(index, 'cost', parseFloat(e.target.value) || 0)
+                            }
+                            min="0"
+                            step="0.01"
+                            className="w-28 rounded border border-gray-300 px-2 py-1 text-right text-gray-900"
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                          {formatCurrency(item.quantity * item.cost)}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => removeItem(index)}
+                            className="font-medium text-red-600 hover:text-red-700"
+                          >
+                            刪除
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="border-t bg-gray-50">
+                    <tr>
+                      <td colSpan={3} className="px-4 py-3 text-right font-semibold text-gray-900">
+                        合計
+                      </td>
+                      <td className="px-4 py-3 text-right text-lg font-bold text-gray-900">
+                        {formatCurrency(total)}
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 hover:bg-gray-50"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              disabled={loading || items.length === 0}
+              className="flex-1 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-gray-300"
+            >
+              {loading ? '建立中...' : '確認進貨'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}

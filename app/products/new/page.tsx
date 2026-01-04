@@ -1,0 +1,165 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+
+export default function NewProductPage() {
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+
+    const formData = new FormData(e.currentTarget)
+
+    const data = {
+      item_code: formData.get('item_code'),
+      name: formData.get('name'),
+      barcode: formData.get('barcode') || null,
+      price: parseFloat(formData.get('price') as string) || 0,
+      cost: parseFloat(formData.get('cost') as string) || 0,
+      unit: formData.get('unit') || '件',
+      allow_negative: formData.get('allow_negative') === 'on',
+    }
+
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+
+      const result = await res.json()
+
+      if (result.ok) {
+        router.push('/products')
+      } else {
+        setError(result.error || '建立失敗')
+      }
+    } catch (err) {
+      setError('建立失敗')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4">
+      <div className="mx-auto max-w-2xl">
+        <h1 className="mb-6 text-3xl font-bold">新增商品</h1>
+
+        <form onSubmit={handleSubmit} className="rounded-lg bg-white p-6 shadow">
+          {error && (
+            <div className="mb-4 rounded bg-red-50 p-3 text-red-700">{error}</div>
+          )}
+
+          <div className="mb-4">
+            <label className="mb-1 block text-sm font-medium text-gray-900">
+              品號 <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              name="item_code"
+              required
+              className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900 placeholder:text-gray-900"
+              placeholder="例：P0001"
+            />
+          </div>
+
+          <div className="mb-4">
+            <label className="mb-1 block text-sm font-medium text-gray-900">
+              商品名稱 <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              name="name"
+              required
+              className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+            />
+          </div>
+
+          <div className="mb-4">
+            <label className="mb-1 block text-sm font-medium text-gray-900">條碼</label>
+            <input
+              type="text"
+              name="barcode"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                }
+              }}
+              className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900 placeholder:text-gray-900"
+              placeholder="選填"
+            />
+          </div>
+
+          <div className="mb-4 grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-900">
+                售價 <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                name="price"
+                required
+                min="0"
+                step="0.01"
+                defaultValue="0"
+                className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-900">成本</label>
+              <input
+                type="number"
+                name="cost"
+                min="0"
+                step="0.01"
+                defaultValue="0"
+                className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+              />
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <label className="mb-1 block text-sm font-medium text-gray-900">單位</label>
+            <input
+              type="text"
+              name="unit"
+              defaultValue="件"
+              className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+            />
+          </div>
+
+          <div className="mb-6">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" name="allow_negative" className="h-4 w-4" />
+              <span className="text-sm text-gray-900">允許負庫存</span>
+            </label>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 hover:bg-gray-50"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-gray-300"
+            >
+              {loading ? '建立中...' : '建立商品'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
