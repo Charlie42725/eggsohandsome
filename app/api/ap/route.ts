@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch vendor details separately
-    const vendorCodes = [...new Set(accounts?.map(a => a.partner_code) || [])]
+    const vendorCodes = [...new Set((accounts as any[])?.map(a => a.partner_code) || [])]
     const { data: vendors } = await supabaseServer
       .from('vendors')
       .select('vendor_code, vendor_name')
@@ -51,10 +51,10 @@ export async function GET(request: NextRequest) {
 
     // Map vendor names to accounts
     const vendorsMap = new Map(
-      vendors?.map(v => [v.vendor_code, v]) || []
+      (vendors as any[])?.map(v => [v.vendor_code, v]) || []
     )
 
-    const accountsWithVendors = accounts?.map(account => ({
+    const accountsWithVendors = (accounts as any[])?.map(account => ({
       ...account,
       vendors: vendorsMap.get(account.partner_code) || null
     }))

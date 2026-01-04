@@ -92,8 +92,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert product
-    const { data: product, error } = await supabaseServer
-      .from('products')
+    const { data: product, error } = await (supabaseServer
+      .from('products') as any)
       .insert({
         ...data,
         stock: 0,

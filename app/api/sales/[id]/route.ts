@@ -14,8 +14,8 @@ export async function GET(
     const { id } = await context.params
 
     // Get sale
-    const { data: sale, error: saleError } = await supabaseServer
-      .from('sales')
+    const { data: sale, error: saleError } = await (supabaseServer
+      .from('sales') as any)
       .select('*')
       .eq('id', id)
       .single()
@@ -28,8 +28,8 @@ export async function GET(
     }
 
     // Get sale items with product details
-    const { data: items, error: itemsError } = await supabaseServer
-      .from('sale_items')
+    const { data: items, error: itemsError } = await (supabaseServer
+      .from('sale_items') as any)
       .select(`
         *,
         products:product_id (
@@ -72,8 +72,8 @@ export async function DELETE(
     const { id } = await context.params
 
     // Check if sale exists and get its status
-    const { data: sale, error: fetchError } = await supabaseServer
-      .from('sales')
+    const { data: sale, error: fetchError } = await (supabaseServer
+      .from('sales') as any)
       .select('status')
       .eq('id', id)
       .single()
@@ -87,8 +87,8 @@ export async function DELETE(
 
     // If confirmed, change to cancelled first (triggers rollback in DB)
     if (sale.status === 'confirmed') {
-      const { error: cancelError } = await supabaseServer
-        .from('sales')
+      const { error: cancelError } = await (supabaseServer
+        .from('sales') as any)
         .update({ status: 'cancelled' })
         .eq('id', id)
 
@@ -101,11 +101,11 @@ export async function DELETE(
     }
 
     // Delete sale items
-    await supabaseServer.from('sale_items').delete().eq('sale_id', id)
+    await (supabaseServer.from('sale_items') as any).delete().eq('sale_id', id)
 
     // Delete sale
-    const { error: deleteError } = await supabaseServer
-      .from('sales')
+    const { error: deleteError } = await (supabaseServer
+      .from('sales') as any)
       .delete()
       .eq('id', id)
 

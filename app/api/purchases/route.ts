@@ -14,8 +14,8 @@ export async function GET(request: NextRequest) {
     const keyword = searchParams.get('keyword')
     const productKeyword = searchParams.get('product_keyword')
 
-    let query = supabaseServer
-      .from('purchases')
+    let query = (supabaseServer
+      .from('purchases') as any)
       .select(`
         *,
         vendors (
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     // Filter by product if needed
     let filteredData = data
     if (productKeyword) {
-      filteredData = data?.filter(purchase => {
+      filteredData = data?.filter((purchase: any) => {
         const items = purchase.purchase_items || []
         return items.some((item: any) => 
           item.products?.name?.toLowerCase().includes(productKeyword.toLowerCase()) ||
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate summary for each purchase
-    const purchasesWithSummary = filteredData?.map(purchase => {
+    const purchasesWithSummary = filteredData?.map((purchase: any) => {
       const items = purchase.purchase_items || []
       const totalQuantity = items.reduce((sum: number, item: any) => sum + item.quantity, 0)
       const avgCost = items.length > 0
@@ -137,8 +137,8 @@ export async function POST(request: NextRequest) {
     const purchaseNo = generateCode('P', count || 0)
 
     // 1. Create purchase (draft)
-    const { data: purchase, error: purchaseError } = await supabaseServer
-      .from('purchases')
+    const { data: purchase, error: purchaseError } = await (supabaseServer
+      .from('purchases') as any)
       .insert({
         purchase_no: purchaseNo,
         vendor_code: draft.vendor_code,
@@ -165,13 +165,13 @@ export async function POST(request: NextRequest) {
       cost: item.cost,
     }))
 
-    const { error: itemsError } = await supabaseServer
-      .from('purchase_items')
+    const { error: itemsError } = await (supabaseServer
+      .from('purchase_items') as any)
       .insert(purchaseItems)
 
     if (itemsError) {
       // Rollback: delete the purchase
-      await supabaseServer.from('purchases').delete().eq('id', purchase.id)
+      await (supabaseServer.from('purchases') as any).delete().eq('id', purchase.id)
       return NextResponse.json(
         { ok: false, error: itemsError.message },
         { status: 500 }
@@ -182,8 +182,8 @@ export async function POST(request: NextRequest) {
     const total = draft.items.reduce((sum, item) => sum + (item.quantity * item.cost), 0)
 
     // 4. Update purchase to confirmed (database trigger will handle inventory update)
-    const { data: confirmedPurchase, error: confirmError } = await supabaseServer
-      .from('purchases')
+    const { data: confirmedPurchase, error: confirmError } = await (supabaseServer
+      .from('purchases') as any)
       .update({
         total,
         status: 'confirmed',

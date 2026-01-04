@@ -74,8 +74,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert vendor
-    const { data: vendor, error } = await supabaseServer
-      .from('vendors')
+    const { data: vendor, error } = await (supabaseServer
+      .from('vendors') as any)
       .insert(data)
       .select()
       .single()
@@ -88,6 +88,123 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ ok: true, data: vendor }, { status: 201 })
+  } catch (error) {
+    return NextResponse.json(
+      { ok: false, error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+// PUT /api/vendors?id=xxx - Update vendor
+export async function PUT(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json(
+        { ok: false, error: 'Vendor ID is required' },
+        { status: 400 }
+      )
+    }
+
+    const body = await request.json()
+
+    // Validate input (allow partial updates)
+    const validation = vendorSchema.partial().safeParse(body)
+    if (!validation.success) {
+      const error = fromZodError(validation.error)
+      return NextResponse.json(
+        { ok: false, error: error.message },
+        { status: 400 }
+      )
+    }
+
+    const data = validation.data
+
+    // If vendor_code is being changed, check if new code already exists
+    if (data.vendor_code) {
+      const { data: existing } = await supabaseServer
+        .from('vendors')
+        .select('id')
+        .eq('vendor_code', data.vendor_code)
+        .neq('id', id)
+        .single()
+
+      if (existing) {
+        return NextResponse.json(
+          { ok: false, error: 'Vendor code already exists' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Update vendor
+    const { data: vendor, error } = await (supabaseServer
+      .from('vendors') as any)
+      .update(data)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      return NextResponse.json(
+        { ok: false, error: error.message },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ ok: true, data: vendor })
+  } catch (error) {
+    return NextResponse.json(
+      { ok: false, error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+// DELETE /api/vendors?id=xxx - Delete vendor
+export async function DELETE(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json(
+        { ok: false, error: 'Vendor ID is required' },
+        { status: 400 }
+      )
+    }
+
+    // Check if vendor has related purchases
+    const { data: purchases } = await (supabaseServer
+      .from('purchases') as any)
+      .select('id')
+      .eq('vendor_code', (await (supabaseServer.from('vendors') as any).select('vendor_code').eq('id', id).single()).data?.vendor_code)
+      .limit(1)
+
+    if (purchases && purchases.length > 0) {
+      return NextResponse.json(
+        { ok: false, error: '此廠商有關聯的進貨記錄，無法刪除' },
+        { status: 400 }
+      )
+    }
+
+    // Delete vendor
+    const { error } = await (supabaseServer
+      .from('vendors') as any)
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      return NextResponse.json(
+        { ok: false, error: error.message },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ ok: true })
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: 'Internal server error' },

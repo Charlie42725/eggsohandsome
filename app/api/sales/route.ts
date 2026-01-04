@@ -15,8 +15,8 @@ export async function GET(request: NextRequest) {
     const keyword = searchParams.get('keyword')
     const productKeyword = searchParams.get('product_keyword')
 
-    let query = supabaseServer
-      .from('sales')
+    let query = (supabaseServer
+      .from('sales') as any)
       .select(`
         *,
         sale_items (
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     // Filter by product if needed
     let filteredData = data
     if (productKeyword) {
-      filteredData = data?.filter(sale => {
+      filteredData = data?.filter((sale: any) => {
         const items = sale.sale_items || []
         return items.some((item: any) => 
           item.snapshot_name?.toLowerCase().includes(productKeyword.toLowerCase()) ||
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate summary for each sale
-    const salesWithSummary = filteredData?.map(sale => {
+    const salesWithSummary = filteredData?.map((sale: any) => {
       const items = sale.sale_items || []
       const totalQuantity = items.reduce((sum: number, item: any) => sum + item.quantity, 0)
       const avgPrice = items.length > 0
@@ -126,8 +126,8 @@ export async function POST(request: NextRequest) {
 
     // Start transaction-like operations
     // 1. Create sale (draft)
-    const { data: sale, error: saleError } = await supabaseServer
-      .from('sales')
+    const { data: sale, error: saleError } = await (supabaseServer
+      .from('sales') as any)
       .insert({
         sale_no: saleNo,
         customer_code: draft.customer_code || null,
@@ -150,15 +150,15 @@ export async function POST(request: NextRequest) {
 
     // 2. Check stock availability for each item
     for (const item of draft.items) {
-      const { data: product } = await supabaseServer
-        .from('products')
+      const { data: product } = await (supabaseServer
+        .from('products') as any)
         .select('stock, allow_negative, name')
         .eq('id', item.product_id)
         .single()
 
       if (!product) {
         // Rollback: delete the sale
-        await supabaseServer.from('sales').delete().eq('id', sale.id)
+        await (supabaseServer.from('sales') as any).delete().eq('id', sale.id)
         return NextResponse.json(
           { ok: false, error: `Product not found: ${item.product_id}` },
           { status: 400 }
@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
 
       if (!product.allow_negative && product.stock < item.quantity) {
         // Rollback: delete the sale
-        await supabaseServer.from('sales').delete().eq('id', sale.id)
+        await (supabaseServer.from('sales') as any).delete().eq('id', sale.id)
         return NextResponse.json(
           {
             ok: false,
@@ -181,8 +181,8 @@ export async function POST(request: NextRequest) {
     // 3. Get product details and insert sale items (subtotal is auto-calculated by database)
     const saleItems = await Promise.all(
       draft.items.map(async (item) => {
-        const { data: product } = await supabaseServer
-          .from('products')
+        const { data: product } = await (supabaseServer
+          .from('products') as any)
           .select('name')
           .eq('id', item.product_id)
           .single()
@@ -197,13 +197,13 @@ export async function POST(request: NextRequest) {
       })
     )
 
-    const { error: itemsError } = await supabaseServer
-      .from('sale_items')
+    const { error: itemsError } = await (supabaseServer
+      .from('sale_items') as any)
       .insert(saleItems)
 
     if (itemsError) {
       // Rollback: delete the sale
-      await supabaseServer.from('sales').delete().eq('id', sale.id)
+      await (supabaseServer.from('sales') as any).delete().eq('id', sale.id)
       return NextResponse.json(
         { ok: false, error: itemsError.message },
         { status: 500 }
@@ -214,8 +214,8 @@ export async function POST(request: NextRequest) {
     const total = draft.items.reduce((sum, item) => sum + (item.quantity * item.price), 0)
 
     // 5. Update sale to confirmed (this will trigger DB functions for inventory and AR)
-    const { data: confirmedSale, error: confirmError } = await supabaseServer
-      .from('sales')
+    const { data: confirmedSale, error: confirmError } = await (supabaseServer
+      .from('sales') as any)
       .update({
         total,
         status: 'confirmed',
@@ -226,8 +226,8 @@ export async function POST(request: NextRequest) {
 
     if (confirmError) {
       // Rollback: delete items and sale
-      await supabaseServer.from('sale_items').delete().eq('sale_id', sale.id)
-      await supabaseServer.from('sales').delete().eq('id', sale.id)
+      await (supabaseServer.from('sale_items') as any).delete().eq('sale_id', sale.id)
+      await (supabaseServer.from('sales') as any).delete().eq('id', sale.id)
       return NextResponse.json(
         { ok: false, error: confirmError.message },
         { status: 500 }

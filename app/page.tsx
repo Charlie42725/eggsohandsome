@@ -6,7 +6,7 @@ export default function Home() {
       <div className="mx-auto max-w-7xl px-4 py-16">
         <div className="text-center">
           <h1 className="mb-4 text-5xl font-bold text-gray-900">
-            歡迎使用 ToyFlow ERP
+            歡迎使用 失控ERP
           </h1>
           <p className="mb-12 text-xl text-gray-900">
             簡單好用的 ERP 系統，專為小型商家設計

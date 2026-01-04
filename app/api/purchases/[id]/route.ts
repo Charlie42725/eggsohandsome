@@ -14,8 +14,8 @@ export async function GET(
     const { id } = await context.params
 
     // Get purchase
-    const { data: purchase, error: purchaseError } = await supabaseServer
-      .from('purchases')
+    const { data: purchase, error: purchaseError } = await (supabaseServer
+      .from('purchases') as any)
       .select('*')
       .eq('id', id)
       .single()
@@ -28,8 +28,8 @@ export async function GET(
     }
 
     // Get purchase items with product details
-    const { data: items, error: itemsError } = await supabaseServer
-      .from('purchase_items')
+    const { data: items, error: itemsError } = await (supabaseServer
+      .from('purchase_items') as any)
       .select(`
         *,
         products:product_id (

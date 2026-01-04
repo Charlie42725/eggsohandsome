@@ -59,8 +59,8 @@ export async function PATCH(
     const data = validation.data
 
     // Update product
-    const { data: product, error } = await supabaseServer
-      .from('products')
+    const { data: product, error } = await (supabaseServer
+      .from('products') as any)
       .update({
         ...data,
         updated_at: new Date().toISOString(),
@@ -126,8 +126,8 @@ export async function DELETE(
     }
 
     // 防呆機制 3: 檢查庫存是否為 0
-    const { data: product } = await supabaseServer
-      .from('products')
+    const { data: product } = await (supabaseServer
+      .from('products') as any)
       .select('stock, name')
       .eq('id', id)
       .single()
@@ -143,8 +143,8 @@ export async function DELETE(
     }
 
     // 執行刪除
-    const { error } = await supabaseServer
-      .from('products')
+    const { error } = await (supabaseServer
+      .from('products') as any)
       .delete()
       .eq('id', id)
 

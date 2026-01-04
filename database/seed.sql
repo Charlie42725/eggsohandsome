@@ -1,4 +1,4 @@
--- ToyFlow ERP - 種子資料
+-- 失控ERP - 種子資料
 -- 在 Supabase SQL Editor 執行此檔案
 
 -- 1. 建立測試廠商

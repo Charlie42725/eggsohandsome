@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ToyFlow ERP",
+  title: "失控ERP",
   description: "簡單好用的 ERP 系統",
 };
 

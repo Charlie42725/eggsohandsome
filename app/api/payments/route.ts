@@ -38,8 +38,8 @@ export async function POST(request: NextRequest) {
 
     // Verify all accounts are AP
     for (const allocation of draft.allocations) {
-      const { data: account } = await supabaseServer
-        .from('partner_accounts')
+      const { data: account } = await (supabaseServer
+        .from('partner_accounts') as any)
         .select('direction, balance')
         .eq('id', allocation.partner_account_id)
         .single()
@@ -67,8 +67,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Create settlement
-    const { data: settlement, error: settlementError } = await supabaseServer
-      .from('settlements')
+    const { data: settlement, error: settlementError } = await (supabaseServer
+      .from('settlements') as any)
       .insert({
         partner_type: draft.partner_type,
         partner_code: draft.partner_code,
@@ -89,8 +89,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Create allocations (trigger will handle updating partner_accounts)
-    const { error: allocationsError } = await supabaseServer
-      .from('settlement_allocations')
+    const { error: allocationsError } = await (supabaseServer
+      .from('settlement_allocations') as any)
       .insert(
         draft.allocations.map((a) => ({
           settlement_id: settlement.id,
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
 
     if (allocationsError) {
       // Rollback settlement
-      await supabaseServer.from('settlements').delete().eq('id', settlement.id)
+      await (supabaseServer.from('settlements') as any).delete().eq('id', settlement.id)
       return NextResponse.json(
         { ok: false, error: allocationsError.message },
         { status: 500 }

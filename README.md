@@ -1,4 +1,4 @@
-# ToyFlow ERP
+# 失控ERP
 
 簡單好用的 ERP 系統，專為小型商家設計。
 
