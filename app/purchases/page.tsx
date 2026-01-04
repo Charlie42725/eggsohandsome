@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
@@ -27,6 +27,9 @@ type Purchase = {
   item_count?: number
   total_quantity?: number
   avg_cost?: number
+  vendors?: {
+    vendor_name: string
+  }
   purchase_items?: PurchaseItem[]
 }
 
@@ -34,6 +37,8 @@ export default function PurchasesPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+  const [keyword, setKeyword] = useState('')
+  const [productKeyword, setProductKeyword] = useState('')
 
   const toggleRow = (id: string) => {
     const newExpanded = new Set(expandedRows)
@@ -48,7 +53,11 @@ export default function PurchasesPage() {
   const fetchPurchases = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/purchases')
+      const params = new URLSearchParams()
+      if (keyword) params.set('keyword', keyword)
+      if (productKeyword) params.set('product_keyword', productKeyword)
+
+      const res = await fetch(`/api/purchases?${params}`)
       const data = await res.json()
       if (data.ok) {
         setPurchases(data.data || [])
@@ -64,6 +73,11 @@ export default function PurchasesPage() {
     fetchPurchases()
   }, [])
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    fetchPurchases()
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="mx-auto max-w-7xl">
@@ -77,6 +91,36 @@ export default function PurchasesPage() {
           </Link>
         </div>
 
+        {/* Search */}
+        <div className="mb-6 rounded-lg bg-white p-4 shadow">
+          <form onSubmit={handleSearch} className="space-y-3">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder="搜尋進貨單號或廠商代碼"
+                className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 placeholder:text-gray-900"
+              />
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={productKeyword}
+                onChange={(e) => setProductKeyword(e.target.value)}
+                placeholder="搜尋商品名稱或品號"
+                className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 placeholder:text-gray-900"
+              />
+              <button
+                type="submit"
+                className="rounded bg-blue-600 px-6 py-2 font-medium text-white hover:bg-blue-700"
+              >
+                搜尋
+              </button>
+            </div>
+          </form>
+        </div>
+
         <div className="rounded-lg bg-white shadow">
           {loading ? (
             <div className="p-8 text-center text-gray-900">載入中...</div>
@@ -88,7 +132,7 @@ export default function PurchasesPage() {
                 <thead className="border-b bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">進貨單號</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">廠商代碼</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">廠商名稱</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">進貨日期</th>
                     <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900">商品數</th>
                     <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900">總數量</th>
@@ -99,9 +143,8 @@ export default function PurchasesPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {purchases.map((purchase) => (
-                    <>
+                    <React.Fragment key={purchase.id}>
                       <tr
-                        key={purchase.id}
                         className="hover:bg-gray-50 cursor-pointer"
                         onClick={() => toggleRow(purchase.id)}
                       >
@@ -113,7 +156,7 @@ export default function PurchasesPage() {
                             {purchase.purchase_no}
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-900">{purchase.vendor_code}</td>
+                        <td className="px-6 py-4 text-sm text-gray-900">{purchase.vendors?.vendor_name || purchase.vendor_code}</td>
                         <td className="px-6 py-4 text-sm text-gray-900">
                           {formatDate(purchase.purchase_date)}
                         </td>
@@ -184,7 +227,7 @@ export default function PurchasesPage() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>

@@ -25,7 +25,7 @@ export default function Navigation() {
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-8">
             <Link href="/" className="text-xl font-bold text-blue-600">
-              ToyFlow ERP
+              失控 ERP
             </Link>
             <div className="flex gap-4">
               {navItems.map((item) => (

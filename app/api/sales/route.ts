@@ -12,6 +12,8 @@ export async function GET(request: NextRequest) {
     const dateTo = searchParams.get('date_to')
     const customerCode = searchParams.get('customer_code')
     const source = searchParams.get('source')
+    const keyword = searchParams.get('keyword')
+    const productKeyword = searchParams.get('product_keyword')
 
     let query = supabaseServer
       .from('sales')
@@ -47,6 +49,10 @@ export async function GET(request: NextRequest) {
       query = query.eq('source', source)
     }
 
+    if (keyword) {
+      query = query.or(`sale_no.ilike.%${keyword}%,customer_code.ilike.%${keyword}%`)
+    }
+
     const { data, error } = await query
 
     if (error) {
@@ -56,8 +62,20 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Filter by product if needed
+    let filteredData = data
+    if (productKeyword) {
+      filteredData = data?.filter(sale => {
+        const items = sale.sale_items || []
+        return items.some((item: any) => 
+          item.snapshot_name?.toLowerCase().includes(productKeyword.toLowerCase()) ||
+          item.products?.item_code?.toLowerCase().includes(productKeyword.toLowerCase())
+        )
+      })
+    }
+
     // Calculate summary for each sale
-    const salesWithSummary = data?.map(sale => {
+    const salesWithSummary = filteredData?.map(sale => {
       const items = sale.sale_items || []
       const totalQuantity = items.reduce((sum: number, item: any) => sum + item.quantity, 0)
       const avgPrice = items.length > 0

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
 type SaleItem = {
@@ -36,6 +36,8 @@ export default function SalesPage() {
   const [sales, setSales] = useState<Sale[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+  const [keyword, setKeyword] = useState('')
+  const [productKeyword, setProductKeyword] = useState('')
 
   const toggleRow = (id: string) => {
     const newExpanded = new Set(expandedRows)
@@ -50,7 +52,11 @@ export default function SalesPage() {
   const fetchSales = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/sales')
+      const params = new URLSearchParams()
+      if (keyword) params.set('keyword', keyword)
+      if (productKeyword) params.set('product_keyword', productKeyword)
+
+      const res = await fetch(`/api/sales?${params}`)
       const data = await res.json()
       if (data.ok) {
         setSales(data.data || [])
@@ -66,11 +72,46 @@ export default function SalesPage() {
     fetchSales()
   }, [])
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    fetchSales()
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="mx-auto max-w-7xl">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-3xl font-bold text-gray-900">銷售記錄</h1>
+        </div>
+
+        {/* Search */}
+        <div className="mb-6 rounded-lg bg-white p-4 shadow">
+          <form onSubmit={handleSearch} className="space-y-3">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder="搜尋銷售單號或客戶代碼"
+                className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 placeholder:text-gray-900"
+              />
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={productKeyword}
+                onChange={(e) => setProductKeyword(e.target.value)}
+                placeholder="搜尋商品名稱或品號"
+                className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 placeholder:text-gray-900"
+              />
+              <button
+                type="submit"
+                className="rounded bg-blue-600 px-6 py-2 font-medium text-white hover:bg-blue-700"
+              >
+                搜尋
+              </button>
+            </div>
+          </form>
         </div>
 
         <div className="rounded-lg bg-white shadow">
@@ -97,9 +138,8 @@ export default function SalesPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {sales.map((sale) => (
-                    <>
+                    <React.Fragment key={sale.id}>
                       <tr
-                        key={sale.id}
                         className="hover:bg-gray-50 cursor-pointer"
                         onClick={() => toggleRow(sale.id)}
                       >
@@ -198,7 +238,7 @@ export default function SalesPage() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>

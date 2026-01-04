@@ -177,7 +177,7 @@ export default function ProductsPage() {
                         {formatCurrency(product.price)}
                       </td>
                       <td className="px-6 py-4 text-right text-sm text-gray-900">
-                        {formatCurrency(product.cost)}
+                        {formatCurrency(product.avg_cost)}
                       </td>
                       <td className="px-6 py-4 text-right text-sm">
                         <span

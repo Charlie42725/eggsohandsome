@@ -11,11 +11,16 @@ export async function GET(request: NextRequest) {
     const dateFrom = searchParams.get('date_from')
     const dateTo = searchParams.get('date_to')
     const vendorCode = searchParams.get('vendor_code')
+    const keyword = searchParams.get('keyword')
+    const productKeyword = searchParams.get('product_keyword')
 
     let query = supabaseServer
       .from('purchases')
       .select(`
         *,
+        vendors (
+          vendor_name
+        ),
         purchase_items (
           id,
           quantity,
@@ -42,6 +47,10 @@ export async function GET(request: NextRequest) {
       query = query.eq('vendor_code', vendorCode)
     }
 
+    if (keyword) {
+      query = query.or(`purchase_no.ilike.%${keyword}%,vendor_code.ilike.%${keyword}%`)
+    }
+
     const { data, error } = await query
 
     if (error) {
@@ -51,8 +60,20 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Filter by product if needed
+    let filteredData = data
+    if (productKeyword) {
+      filteredData = data?.filter(purchase => {
+        const items = purchase.purchase_items || []
+        return items.some((item: any) => 
+          item.products?.name?.toLowerCase().includes(productKeyword.toLowerCase()) ||
+          item.products?.item_code?.toLowerCase().includes(productKeyword.toLowerCase())
+        )
+      })
+    }
+
     // Calculate summary for each purchase
-    const purchasesWithSummary = data?.map(purchase => {
+    const purchasesWithSummary = filteredData?.map(purchase => {
       const items = purchase.purchase_items || []
       const totalQuantity = items.reduce((sum: number, item: any) => sum + item.quantity, 0)
       const avgCost = items.length > 0
@@ -121,6 +142,7 @@ export async function POST(request: NextRequest) {
       .insert({
         purchase_no: purchaseNo,
         vendor_code: draft.vendor_code,
+        is_paid: draft.is_paid,
         note: draft.note || null,
         status: 'draft',
         total: 0,
@@ -159,34 +181,7 @@ export async function POST(request: NextRequest) {
     // 3. Calculate total
     const total = draft.items.reduce((sum, item) => sum + (item.quantity * item.cost), 0)
 
-    // 4. Update inventory manually (bypassing trigger issues)
-    for (const item of draft.items) {
-      // Get current product info
-      const { data: product } = await supabaseServer
-        .from('products')
-        .select('stock, avg_cost')
-        .eq('id', item.product_id)
-        .single()
-
-      if (product) {
-        const newStock = product.stock + item.quantity
-        const newAvgCost =
-          product.stock === 0
-            ? item.cost
-            : ((product.avg_cost * product.stock) + (item.cost * item.quantity)) / newStock
-
-        // Update product stock and avg_cost
-        await supabaseServer
-          .from('products')
-          .update({
-            stock: newStock,
-            avg_cost: newAvgCost,
-          })
-          .eq('id', item.product_id)
-      }
-    }
-
-    // 5. Update purchase to confirmed
+    // 4. Update purchase to confirmed (database trigger will handle inventory update)
     const { data: confirmedPurchase, error: confirmError } = await supabaseServer
       .from('purchases')
       .update({

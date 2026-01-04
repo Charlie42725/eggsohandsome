@@ -14,6 +14,9 @@ type APAccount = {
   due_date: string
   status: string
   created_at: string
+  vendors?: {
+    vendor_name: string
+  }
 }
 
 export default function APPage() {
@@ -25,11 +28,15 @@ export default function APPage() {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'transfer' | 'cod'>('transfer')
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState('')
+  const [keyword, setKeyword] = useState('')
 
   const fetchAccounts = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/ap')
+      const params = new URLSearchParams()
+      if (keyword) params.set('keyword', keyword)
+
+      const res = await fetch(`/api/ap?${params}`)
       const data = await res.json()
       if (data.ok) {
         setAccounts(data.data || [])
@@ -44,6 +51,11 @@ export default function APPage() {
   useEffect(() => {
     fetchAccounts()
   }, [])
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    fetchAccounts()
+  }
 
   const toggleAccount = (id: string) => {
     setSelectedAccounts((prev) =>
@@ -190,6 +202,25 @@ export default function APPage() {
           </div>
         </div>
 
+        {/* Search */}
+        <div className="mb-6 rounded-lg bg-white p-4 shadow">
+          <form onSubmit={handleSearch} className="flex gap-2">
+            <input
+              type="text"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="搜尋廠商名稱或代碼"
+              className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 placeholder:text-gray-900"
+            />
+            <button
+              type="submit"
+              className="rounded bg-blue-600 px-6 py-2 font-medium text-white hover:bg-blue-700"
+            >
+              搜尋
+            </button>
+          </form>
+        </div>
+
         {/* Accounts table */}
         <div className="rounded-lg bg-white shadow">
           {loading ? (
@@ -223,7 +254,7 @@ export default function APPage() {
                       />
                     </th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                      廠商代碼
+                      廠商名稱
                     </th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
                       單據類型
@@ -262,7 +293,7 @@ export default function APPage() {
                           />
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
-                          {account.partner_code}
+                          {account.vendors?.vendor_name || account.partner_code}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
                           {account.ref_type === 'purchase' ? '進貨' : account.ref_type}

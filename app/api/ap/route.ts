@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     const vendorCode = searchParams.get('vendor_code')
     const status = searchParams.get('status')
     const dueBefore = searchParams.get('due_before')
+    const keyword = searchParams.get('keyword')
 
     let query = supabaseServer
       .from('partner_accounts')
@@ -28,7 +29,11 @@ export async function GET(request: NextRequest) {
       query = query.lte('due_date', dueBefore)
     }
 
-    const { data, error } = await query
+    if (keyword) {
+      query = query.ilike('partner_code', `%${keyword}%`)
+    }
+
+    const { data: accounts, error } = await query
 
     if (error) {
       return NextResponse.json(
@@ -37,7 +42,24 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ ok: true, data })
+    // Fetch vendor details separately
+    const vendorCodes = [...new Set(accounts?.map(a => a.partner_code) || [])]
+    const { data: vendors } = await supabaseServer
+      .from('vendors')
+      .select('vendor_code, vendor_name')
+      .in('vendor_code', vendorCodes)
+
+    // Map vendor names to accounts
+    const vendorsMap = new Map(
+      vendors?.map(v => [v.vendor_code, v]) || []
+    )
+
+    const accountsWithVendors = accounts?.map(account => ({
+      ...account,
+      vendors: vendorsMap.get(account.partner_code) || null
+    }))
+
+    return NextResponse.json({ ok: true, data: accountsWithVendors })
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: 'Internal server error' },

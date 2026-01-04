@@ -22,6 +22,7 @@ export default function NewPurchasePage() {
   const router = useRouter()
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [vendorCode, setVendorCode] = useState('')
+  const [isPaid, setIsPaid] = useState(false)
   const [items, setItems] = useState<PurchaseItem[]>([])
   const [searchKeyword, setSearchKeyword] = useState('')
   const [searchResults, setSearchResults] = useState<Product[]>([])
@@ -132,6 +133,7 @@ export default function NewPurchasePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           vendor_code: vendorCode,
+          is_paid: isPaid,
           items: items.map((item) => ({
             product_id: item.product_id,
             quantity: item.quantity,
@@ -182,6 +184,20 @@ export default function NewPurchasePage() {
                 </option>
               ))}
             </select>
+
+            {/* Payment status */}
+            <div className="mt-4 flex items-center">
+              <input
+                type="checkbox"
+                id="isPaid"
+                checked={isPaid}
+                onChange={(e) => setIsPaid(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="isPaid" className="ml-2 text-sm text-gray-900">
+                已付款（勾選後不會產生應付帳款）
+              </label>
+            </div>
           </div>
 
           {/* Product search */}

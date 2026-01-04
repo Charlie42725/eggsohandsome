@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     const customerCode = searchParams.get('customer_code')
     const status = searchParams.get('status')
     const dueBefore = searchParams.get('due_before')
+    const keyword = searchParams.get('keyword')
 
     let query = supabaseServer
       .from('partner_accounts')
@@ -28,7 +29,11 @@ export async function GET(request: NextRequest) {
       query = query.lte('due_date', dueBefore)
     }
 
-    const { data, error } = await query
+    if (keyword) {
+      query = query.ilike('partner_code', `%${keyword}%`)
+    }
+
+    const { data: accounts, error } = await query
 
     if (error) {
       return NextResponse.json(
@@ -37,7 +42,24 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ ok: true, data })
+    // Fetch customer details separately
+    const customerCodes = [...new Set(accounts?.map(a => a.partner_code) || [])]
+    const { data: customers } = await supabaseServer
+      .from('customers')
+      .select('customer_code, customer_name')
+      .in('customer_code', customerCodes)
+
+    // Map customer names to accounts
+    const customersMap = new Map(
+      customers?.map(c => [c.customer_code, c]) || []
+    )
+
+    const accountsWithCustomers = accounts?.map(account => ({
+      ...account,
+      customers: customersMap.get(account.partner_code) || null
+    }))
+
+    return NextResponse.json({ ok: true, data: accountsWithCustomers })
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: 'Internal server error' },

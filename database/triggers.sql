@@ -30,8 +30,8 @@ BEGIN
     JOIN products p ON p.id = si.product_id
     WHERE si.sale_id = NEW.id;
 
-    -- 如果未收款，建立應收帳款
-    IF NOT NEW.is_paid AND NEW.customer_code IS NOT NULL THEN
+    -- 如果未收款且有客戶代碼，建立應收帳款（散客不建立應收帳款）
+    IF NOT NEW.is_paid AND NEW.customer_code IS NOT NULL AND NEW.customer_code != '' THEN
       INSERT INTO partner_accounts (
         partner_type,
         partner_code,
@@ -127,26 +127,28 @@ BEGIN
     FROM purchase_items pi
     WHERE pi.purchase_id = NEW.id;
 
-    -- 建立應付帳款
-    INSERT INTO partner_accounts (
-      partner_type,
-      partner_code,
-      ref_type,
-      ref_id,
-      direction,
-      amount,
-      due_date,
-      status
-    ) VALUES (
-      'vendor',
-      NEW.vendor_code,
-      'purchase',
-      NEW.id,
-      'AP',
-      NEW.total,
-      NEW.purchase_date + INTERVAL '30 days',
-      'unpaid'
-    );
+    -- 建立應付帳款（只有當未付款且 vendor_code 不為空時）
+    IF NOT NEW.is_paid AND NEW.vendor_code IS NOT NULL THEN
+      INSERT INTO partner_accounts (
+        partner_type,
+        partner_code,
+        ref_type,
+        ref_id,
+        direction,
+        amount,
+        due_date,
+        status
+      ) VALUES (
+        'vendor',
+        NEW.vendor_code,
+        'purchase',
+        NEW.id,
+        'AP',
+        NEW.total,
+        NEW.purchase_date + INTERVAL '30 days',
+        'unpaid'
+      );
+    END IF;
 
   END IF;
 

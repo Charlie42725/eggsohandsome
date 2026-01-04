@@ -61,6 +61,7 @@ export const saleDraftSchema = z.object({
 // Purchase schemas
 export const purchaseDraftSchema = z.object({
   vendor_code: z.string().min(1, 'Vendor is required'),
+  is_paid: z.boolean().default(false),
   note: z.string().optional(),
   items: z.array(
     z.object({
