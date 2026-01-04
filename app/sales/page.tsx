@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, formatPaymentMethod } from '@/lib/utils'
 
 type SaleItem = {
   id: string
@@ -127,7 +127,7 @@ export default function SalesPage() {
                   <tr>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">銷售單號</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">客戶</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">來源</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">付款方式</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">銷售日期</th>
                     <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900">商品數</th>
                     <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900">總數量</th>
@@ -159,11 +159,7 @@ export default function SalesPage() {
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">{sale.customer_code || '散客'}</td>
                         <td className="px-6 py-4 text-sm text-gray-900">
-                          {sale.source === 'pos'
-                            ? 'POS'
-                            : sale.source === 'live'
-                            ? '直播'
-                            : '手動'}
+                          {formatPaymentMethod(sale.payment_method)}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">{formatDate(sale.sale_date)}</td>
                         <td className="px-6 py-4 text-right text-sm text-gray-900">

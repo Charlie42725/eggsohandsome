@@ -25,7 +25,7 @@ export default function APPage() {
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([])
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paymentAmount, setPaymentAmount] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'transfer' | 'cod'>('transfer')
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'transfer_cathay' | 'transfer_fubon' | 'transfer_esun' | 'transfer_union' | 'transfer_linepay' | 'cod'>('transfer_cathay')
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState('')
   const [keyword, setKeyword] = useState('')
@@ -389,7 +389,13 @@ export default function APPage() {
               >
                 <option value="cash">現金</option>
                 <option value="card">刷卡</option>
-                <option value="transfer">轉帳</option>
+                <optgroup label="轉帳">
+                  <option value="transfer_cathay">轉帳 - 國泰</option>
+                  <option value="transfer_fubon">轉帳 - 富邦</option>
+                  <option value="transfer_esun">轉帳 - 玉山</option>
+                  <option value="transfer_union">轉帳 - 聯邦</option>
+                  <option value="transfer_linepay">轉帳 - LINE Pay</option>
+                </optgroup>
                 <option value="cod">貨到付款</option>
               </select>
             </div>

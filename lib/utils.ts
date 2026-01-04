@@ -25,3 +25,19 @@ export function formatDate(date: string | Date): string {
   const day = String(d.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
+
+export function formatPaymentMethod(method: string): string {
+  const methodMap: Record<string, string> = {
+    'cash': '現金',
+    'card': '刷卡',
+    'transfer_cathay': '轉帳 - 國泰',
+    'transfer_fubon': '轉帳 - 富邦',
+    'transfer_esun': '轉帳 - 玉山',
+    'transfer_union': '轉帳 - 聯邦',
+    'transfer_linepay': '轉帳 - LINE Pay',
+    'cod': '貨到付款',
+    // 兼容舊的 'transfer' 值
+    'transfer': '轉帳',
+  }
+  return methodMap[method] || method
+}

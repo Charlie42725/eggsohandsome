@@ -48,13 +48,25 @@ export type SaleItem = {
   price: number
 }
 
+export type PaymentMethod =
+  | 'cash'
+  | 'card'
+  | 'transfer_cathay'
+  | 'transfer_fubon'
+  | 'transfer_esun'
+  | 'transfer_union'
+  | 'transfer_linepay'
+  | 'cod'
+
 export type SaleDraft = {
   customer_code?: string
   source: 'pos' | 'live' | 'manual'
-  payment_method: 'cash' | 'card' | 'transfer' | 'cod'
+  payment_method: PaymentMethod
   is_paid: boolean
   items: SaleItem[]
   note?: string
+  discount_type?: 'none' | 'percent' | 'amount'
+  discount_value?: number
 }
 
 export type PurchaseItem = {

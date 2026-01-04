@@ -2,29 +2,54 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { formatCurrency } from '@/lib/utils'
-import type { Product, SaleItem } from '@/types'
+import type { Product, SaleItem, PaymentMethod } from '@/types'
 
 type CartItem = SaleItem & {
   product: Product
 }
 
+type Customer = {
+  id: string
+  customer_code: string
+  customer_name: string
+  phone: string | null
+  is_active: boolean
+}
+
 export default function POSPage() {
   const [barcode, setBarcode] = useState('')
   const [cart, setCart] = useState<CartItem[]>([])
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'transfer' | 'cod'>('cash')
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
   const [isPaid, setIsPaid] = useState(true)
-  const [customerCode, setCustomerCode] = useState('')
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
+  const [customers, setCustomers] = useState<Customer[]>([])
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [searchResults, setSearchResults] = useState<Product[]>([])
   const [showQuickAdd, setShowQuickAdd] = useState(false)
+  const [discountType, setDiscountType] = useState<'none' | 'percent' | 'amount'>('none')
+  const [discountValue, setDiscountValue] = useState(0)
   const barcodeInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     // Auto-focus barcode input on mount
     barcodeInputRef.current?.focus()
+    // Fetch customers
+    fetchCustomers()
   }, [])
+
+  const fetchCustomers = async () => {
+    try {
+      const res = await fetch('/api/customers?active=true')
+      const data = await res.json()
+      if (data.ok) {
+        setCustomers(data.data || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch customers:', err)
+    }
+  }
 
   const searchProduct = async (query: string) => {
     if (!query.trim()) {
@@ -107,11 +132,27 @@ export default function POSPage() {
     setCart((prev) => prev.filter((item) => item.product_id !== productId))
   }
 
-  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
+
+  // Calculate discount
+  let discountAmount = 0
+  if (discountType === 'percent') {
+    discountAmount = (subtotal * discountValue) / 100
+  } else if (discountType === 'amount') {
+    discountAmount = discountValue
+  }
+
+  const total = Math.max(0, subtotal - discountAmount)
 
   const handleCheckout = async () => {
     if (cart.length === 0) {
       setError('購物車是空的')
+      return
+    }
+
+    // 如果是散客但未收款，要求先建立客戶
+    if (!selectedCustomer && !isPaid) {
+      setError('未收款訂單需要選擇客戶，請先建立客戶或選擇已有客戶')
       return
     }
 
@@ -123,11 +164,13 @@ export default function POSPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          customer_code: customerCode || undefined,
+          customer_code: selectedCustomer?.customer_code || undefined,
           source: 'pos',
           payment_method: paymentMethod,
           is_paid: isPaid,
           note: note || undefined,
+          discount_type: discountType,
+          discount_value: discountValue,
           items: cart.map((item) => ({
             product_id: item.product_id,
             quantity: item.quantity,
@@ -141,10 +184,12 @@ export default function POSPage() {
       if (data.ok) {
         // Success - clear cart and reset
         setCart([])
-        setCustomerCode('')
+        setSelectedCustomer(null)
         setPaymentMethod('cash')
         setIsPaid(true)
         setNote('')
+        setDiscountType('none')
+        setDiscountValue(0)
         alert(`銷售完成！單號：${data.data.sale_no}`)
         barcodeInputRef.current?.focus()
       } else {
@@ -295,28 +340,80 @@ export default function POSPage() {
               <h2 className="mb-4 text-xl font-semibold text-gray-900">結帳</h2>
 
               <div className="mb-4">
-                <label className="mb-2 block text-sm font-medium text-gray-900">客戶代碼（選填）</label>
-                <input
-                  type="text"
-                  value={customerCode}
-                  onChange={(e) => setCustomerCode(e.target.value)}
-                  placeholder="留空為散客"
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900 placeholder:text-gray-900"
-                />
+                <label className="mb-2 block text-sm font-medium text-gray-900">客戶（選填）</label>
+                <select
+                  value={selectedCustomer?.id || ''}
+                  onChange={(e) => {
+                    const customer = customers.find(c => c.id === e.target.value)
+                    setSelectedCustomer(customer || null)
+                  }}
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                >
+                  <option value="">散客</option>
+                  {customers.map((customer) => (
+                    <option key={customer.id} value={customer.id}>
+                      {customer.customer_name}
+                      {customer.phone ? ` (${customer.phone})` : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="mb-4">
                 <label className="mb-2 block text-sm font-medium text-gray-900">付款方式</label>
                 <select
                   value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value as any)}
+                  onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
                   className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
                 >
                   <option value="cash">現金</option>
                   <option value="card">刷卡</option>
-                  <option value="transfer">轉帳</option>
+                  <optgroup label="轉帳">
+                    <option value="transfer_cathay">轉帳 - 國泰</option>
+                    <option value="transfer_fubon">轉帳 - 富邦</option>
+                    <option value="transfer_esun">轉帳 - 玉山</option>
+                    <option value="transfer_union">轉帳 - 聯邦</option>
+                    <option value="transfer_linepay">轉帳 - LINE Pay</option>
+                  </optgroup>
                   <option value="cod">貨到付款</option>
                 </select>
+              </div>
+
+              <div className="mb-4">
+                <label className="mb-2 block text-sm font-medium text-gray-900">折扣</label>
+                <div className="flex gap-2 mb-2">
+                  <select
+                    value={discountType}
+                    onChange={(e) => {
+                      setDiscountType(e.target.value as any)
+                      if (e.target.value === 'none') {
+                        setDiscountValue(0)
+                      }
+                    }}
+                    className="w-32 rounded border border-gray-300 px-3 py-2 text-gray-900"
+                  >
+                    <option value="none">無折扣</option>
+                    <option value="percent">百分比</option>
+                    <option value="amount">固定金額</option>
+                  </select>
+                  {discountType !== 'none' && (
+                    <input
+                      type="number"
+                      value={discountValue}
+                      onChange={(e) => setDiscountValue(parseFloat(e.target.value) || 0)}
+                      min="0"
+                      max={discountType === 'percent' ? 100 : subtotal}
+                      step={discountType === 'percent' ? 1 : 0.01}
+                      className="flex-1 rounded border border-gray-300 px-3 py-2 text-gray-900"
+                      placeholder={discountType === 'percent' ? '折扣%' : '折扣金額'}
+                    />
+                  )}
+                </div>
+                {discountType !== 'none' && discountAmount > 0 && (
+                  <p className="text-sm text-gray-600">
+                    折扣金額: -{formatCurrency(discountAmount)}
+                  </p>
+                )}
               </div>
 
               <div className="mb-4">
@@ -343,9 +440,21 @@ export default function POSPage() {
               </div>
 
               <div className="mb-6 border-t border-gray-200 pt-4">
-                <div className="flex justify-between text-2xl font-bold">
-                  <span className="text-gray-900">合計</span>
-                  <span className="text-blue-600">{formatCurrency(total)}</span>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-gray-900">
+                    <span>小計</span>
+                    <span>{formatCurrency(subtotal)}</span>
+                  </div>
+                  {discountAmount > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span>折扣</span>
+                      <span>-{formatCurrency(discountAmount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-2xl font-bold border-t border-gray-200 pt-2">
+                    <span className="text-gray-900">合計</span>
+                    <span className="text-blue-600">{formatCurrency(total)}</span>
+                  </div>
                 </div>
               </div>
 

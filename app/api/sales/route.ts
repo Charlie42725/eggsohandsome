@@ -135,6 +135,8 @@ export async function POST(request: NextRequest) {
         payment_method: draft.payment_method,
         is_paid: draft.is_paid,
         note: draft.note || null,
+        discount_type: draft.discount_type || 'none',
+        discount_value: draft.discount_value || 0,
         status: 'draft',
         total: 0,
       })
@@ -210,8 +212,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 4. Calculate total from original items
-    const total = draft.items.reduce((sum, item) => sum + (item.quantity * item.price), 0)
+    // 4. Calculate total with discount
+    const subtotal = draft.items.reduce((sum, item) => sum + (item.quantity * item.price), 0)
+
+    let discountAmount = 0
+    if (draft.discount_type === 'percent') {
+      discountAmount = (subtotal * (draft.discount_value || 0)) / 100
+    } else if (draft.discount_type === 'amount') {
+      discountAmount = draft.discount_value || 0
+    }
+
+    const total = Math.max(0, subtotal - discountAmount)
 
     // 5. Update sale to confirmed (this will trigger DB functions for inventory and AR)
     const { data: confirmedSale, error: confirmError } = await (supabaseServer

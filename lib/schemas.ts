@@ -47,9 +47,20 @@ export const vendorSchema = z.object({
 export const saleDraftSchema = z.object({
   customer_code: z.string().optional(),
   source: z.enum(['pos', 'live', 'manual']).default('pos'),
-  payment_method: z.enum(['cash', 'card', 'transfer', 'cod']).default('cash'),
+  payment_method: z.enum([
+    'cash',
+    'card',
+    'transfer_cathay',
+    'transfer_fubon',
+    'transfer_esun',
+    'transfer_union',
+    'transfer_linepay',
+    'cod'
+  ]).default('cash'),
   is_paid: z.boolean().default(false),
   note: z.string().optional(),
+  discount_type: z.enum(['none', 'percent', 'amount']).default('none'),
+  discount_value: z.number().min(0, 'Discount must be positive').default(0),
   items: z.array(
     z.object({
       product_id: z.string().uuid(),
@@ -78,7 +89,16 @@ export const settlementSchema = z.object({
   partner_type: z.enum(['customer', 'vendor']),
   partner_code: z.string().min(1, 'Partner code is required'),
   direction: z.enum(['receipt', 'payment']),
-  method: z.enum(['cash', 'card', 'transfer', 'cod']).optional(),
+  method: z.enum([
+    'cash',
+    'card',
+    'transfer_cathay',
+    'transfer_fubon',
+    'transfer_esun',
+    'transfer_union',
+    'transfer_linepay',
+    'cod'
+  ]).optional(),
   amount: z.number().positive('Amount must be positive'),
   note: z.string().optional(),
   allocations: z.array(
