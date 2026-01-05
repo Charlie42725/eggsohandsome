@@ -84,8 +84,8 @@ export async function POST(request: NextRequest) {
     // Generate item_code if not provided
     if (!data.item_code) {
       // Find the maximum existing item_code number to avoid conflicts with manually inserted data
-      const { data: products } = await supabaseServer
-        .from('products')
+      const { data: products } = await (supabaseServer
+        .from('products') as any)
         .select('item_code')
         .like('item_code', 'I%')
         .order('item_code', { ascending: false })

@@ -8,19 +8,19 @@ export async function GET(request: NextRequest) {
     const itemCode = searchParams.get('item_code') || 'I0528'
 
     // Get product directly from database
-    const { data: product, error } = await supabaseServer
-      .from('products')
+    const { data: product, error } = await (supabaseServer
+      .from('products') as any)
       .select('*')
       .eq('item_code', itemCode)
       .single()
 
-    if (error) {
-      return NextResponse.json({ ok: false, error: error.message })
+    if (error || !product) {
+      return NextResponse.json({ ok: false, error: error?.message || 'Product not found' })
     }
 
     // Get any stock adjustments
-    const { data: adjustments } = await supabaseServer
-      .from('stock_adjustments')
+    const { data: adjustments } = await (supabaseServer
+      .from('stock_adjustments') as any)
       .select('*')
       .eq('product_id', product.id)
       .order('created_at', { ascending: false })

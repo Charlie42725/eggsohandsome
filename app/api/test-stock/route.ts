@@ -5,8 +5,8 @@ import { supabaseServer } from '@/lib/supabase/server'
 export async function GET(request: NextRequest) {
   try {
     // Get latest product
-    const { data: products } = await supabaseServer
-      .from('products')
+    const { data: products } = await (supabaseServer
+      .from('products') as any)
       .select('*')
       .order('created_at', { ascending: false })
       .limit(1)
@@ -18,8 +18,8 @@ export async function GET(request: NextRequest) {
     const product = products[0]
 
     // Get stock adjustments for this product
-    const { data: adjustments } = await supabaseServer
-      .from('stock_adjustments')
+    const { data: adjustments } = await (supabaseServer
+      .from('stock_adjustments') as any)
       .select('*')
       .eq('product_id', product.id)
       .order('created_at', { ascending: false })

@@ -4,7 +4,7 @@ import { supabaseServer } from '@/lib/supabase/server'
 export async function GET() {
   try {
     // Check for triggers on products and stock_adjustments tables
-    const { data: triggers, error } = await supabaseServer.rpc('check_triggers', {})
+    const { data: triggers, error } = await supabaseServer.rpc('check_triggers')
 
     if (error) {
       // If RPC doesn't exist, try direct query
@@ -20,10 +20,6 @@ export async function GET() {
         AND event_object_table IN ('products', 'stock_adjustments')
         ORDER BY event_object_table, trigger_name;
       `
-
-      // Since we can't execute raw SQL directly through Supabase client,
-      // let's check if there are any functions that might be modifying stock
-      const { data: functions } = await supabaseServer.rpc('get_functions', {}).catch(() => ({ data: null }))
 
       return NextResponse.json({
         ok: true,
