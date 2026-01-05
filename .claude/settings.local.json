@@ -6,7 +6,11 @@
       "Bash(ls:*)",
       "Bash(grep:*)",
       "Bash(cat:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(psql:*)",
+      "Bash(curl:*)",
+      "Bash(clip:*)",
+      "Bash(echo:*)"
     ]
   }
 }

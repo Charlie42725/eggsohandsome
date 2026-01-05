@@ -62,8 +62,12 @@ export async function GET(request: NextRequest) {
 
 // POST /api/products - Create new product
 export async function POST(request: NextRequest) {
+  const requestId = Math.random().toString(36).substring(7)
+  console.log(`[${requestId}] === POST /api/products START ===`)
+
   try {
     const body = await request.json()
+    console.log(`[${requestId}] Request body:`, body)
 
     // Validate input
     const validation = productSchema.safeParse(body)
@@ -79,11 +83,26 @@ export async function POST(request: NextRequest) {
 
     // Generate item_code if not provided
     if (!data.item_code) {
-      const { count } = await supabaseServer
+      // Find the maximum existing item_code number to avoid conflicts with manually inserted data
+      const { data: products } = await supabaseServer
         .from('products')
-        .select('*', { count: 'exact', head: true })
+        .select('item_code')
+        .like('item_code', 'I%')
+        .order('item_code', { ascending: false })
+        .limit(1)
 
-      data.item_code = generateCode('I', count || 0)
+      let maxNumber = 0
+      if (products && products.length > 0) {
+        const lastCode = products[0].item_code
+        // Extract number from format I0001, I0002, etc.
+        const match = lastCode.match(/^I(\d+)$/)
+        if (match) {
+          maxNumber = parseInt(match[1])
+        }
+      }
+
+      // generateCode adds 1 internally, so pass maxNumber directly
+      data.item_code = generateCode('I', maxNumber)
     }
 
     // Check if item_code already exists
@@ -118,21 +137,29 @@ export async function POST(request: NextRequest) {
 
     // Insert product
     // If initial stock is provided, set avg_cost to cost value
+    const insertData = {
+      ...data,
+      avg_cost: data.stock > 0 ? data.cost : 0,
+    }
+
+    console.log(`[${requestId}] Inserting with stock:`, insertData.stock)
+
     const { data: product, error } = await (supabaseServer
       .from('products') as any)
-      .insert({
-        ...data,
-        avg_cost: data.stock > 0 ? data.cost : 0,
-      })
+      .insert(insertData)
       .select()
       .single()
 
     if (error) {
+      console.log(`[${requestId}] Insert error:`, error)
       return NextResponse.json(
         { ok: false, error: error.message },
         { status: 500 }
       )
     }
+
+    console.log(`[${requestId}] Insert returned stock:`, product?.stock)
+    console.log(`[${requestId}] === POST /api/products END ===`)
 
     return NextResponse.json({ ok: true, data: product }, { status: 201 })
   } catch (error) {

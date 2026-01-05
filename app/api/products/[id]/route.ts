@@ -125,7 +125,40 @@ export async function DELETE(
       )
     }
 
-    // 防呆機制 3: 檢查庫存是否為 0
+    // 防呆機制 3: 檢查是否有庫存調整記錄
+    const { count: adjustmentCount } = await supabaseServer
+      .from('stock_adjustments')
+      .select('*', { count: 'exact', head: true })
+      .eq('product_id', id)
+
+    if (adjustmentCount && adjustmentCount > 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `無法刪除：此商品有 ${adjustmentCount} 筆庫存調整記錄`
+        },
+        { status: 400 }
+      )
+    }
+
+    // 防呆機制 4: 檢查庫存異動記錄（排除初始庫存記錄）
+    const { data: nonInitLogs, count: logCount } = await supabaseServer
+      .from('inventory_logs')
+      .select('*', { count: 'exact' })
+      .eq('product_id', id)
+      .neq('ref_type', 'init')
+
+    if (logCount && logCount > 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `無法刪除：此商品有 ${logCount} 筆庫存異動記錄（不含初始庫存）`
+        },
+        { status: 400 }
+      )
+    }
+
+    // 防呆機制 5: 檢查庫存是否為 0
     const { data: product } = await (supabaseServer
       .from('products') as any)
       .select('stock, name')
@@ -141,6 +174,13 @@ export async function DELETE(
         { status: 400 }
       )
     }
+
+    // 刪除初始庫存記錄（如果有）
+    await supabaseServer
+      .from('inventory_logs')
+      .delete()
+      .eq('product_id', id)
+      .eq('ref_type', 'init')
 
     // 執行刪除
     const { error } = await (supabaseServer

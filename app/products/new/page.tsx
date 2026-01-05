@@ -10,6 +10,12 @@ export default function NewProductPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+
+    // Prevent double submission
+    if (loading) {
+      return
+    }
+
     setLoading(true)
     setError('')
 
@@ -50,7 +56,16 @@ export default function NewProductPage() {
       <div className="mx-auto max-w-2xl">
         <h1 className="mb-6 text-3xl font-bold">新增商品</h1>
 
-        <form onSubmit={handleSubmit} className="rounded-lg bg-white p-6 shadow">
+        <form
+          onSubmit={handleSubmit}
+          onKeyDown={(e) => {
+            // Prevent Enter key from submitting the form (except from submit button)
+            if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'BUTTON') {
+              e.preventDefault()
+            }
+          }}
+          className="rounded-lg bg-white p-6 shadow"
+        >
           {error && (
             <div className="mb-4 rounded bg-red-50 p-3 text-red-700">{error}</div>
           )}
@@ -72,11 +87,6 @@ export default function NewProductPage() {
             <input
               type="text"
               name="barcode"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                }
-              }}
               className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900 placeholder:text-gray-900"
               placeholder="選填"
             />
