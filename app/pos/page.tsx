@@ -53,7 +53,7 @@ export default function POSPage() {
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch('/api/products?active=true')
+      const res = await fetch('/api/products?active=true&all=true')
       const data = await res.json()
       if (data.ok) {
         setProducts(data.data || [])

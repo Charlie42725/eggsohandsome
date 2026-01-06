@@ -10,7 +10,7 @@ export const productSchema = z.object({
   unit: z.string().default('件'),
   tags: z.array(z.string()).default([]),
   stock: z.number().min(0, 'Stock cannot be negative').default(0),
-  allow_negative: z.boolean().default(false),
+  allow_negative: z.boolean().default(true),
   is_active: z.boolean().default(true),
 })
 

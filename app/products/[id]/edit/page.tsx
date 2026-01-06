@@ -24,6 +24,7 @@ export default function EditProductPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
   // Stock adjustment states
   const [adjustments, setAdjustments] = useState<StockAdjustment[]>([])
@@ -69,6 +70,7 @@ export default function EditProductPage() {
     e.preventDefault()
     setSaving(true)
     setError('')
+    setSuccess('')
 
     const formData = new FormData(e.currentTarget)
 
@@ -80,6 +82,8 @@ export default function EditProductPage() {
       allow_negative: formData.get('allow_negative') === 'on',
     }
 
+    console.log('Updating product with data:', data)
+
     try {
       const res = await fetch(`/api/products/${productId}`, {
         method: 'PATCH',
@@ -88,13 +92,18 @@ export default function EditProductPage() {
       })
 
       const result = await res.json()
+      console.log('Update result:', result)
 
       if (result.ok) {
-        router.push('/products')
+        setSuccess('商品資訊已更新')
+        setProduct(result.data)
+        // Auto-hide success message after 3 seconds
+        setTimeout(() => setSuccess(''), 3000)
       } else {
         setError(result.error || '更新失敗')
       }
     } catch (err) {
+      console.error('Update error:', err)
       setError('更新失敗')
     } finally {
       setSaving(false)
@@ -314,6 +323,10 @@ export default function EditProductPage() {
             <div className="mb-4 rounded bg-red-50 p-3 text-red-700">{error}</div>
           )}
 
+          {success && (
+            <div className="mb-4 rounded bg-green-50 p-3 text-green-700">{success}</div>
+          )}
+
           <div className="mb-4">
             <label className="mb-1 block text-sm font-medium text-gray-900">
               商品名稱 <span className="text-red-500">*</span>
@@ -322,6 +335,7 @@ export default function EditProductPage() {
               type="text"
               name="name"
               required
+              key={`name-${product.name}`}
               defaultValue={product.name}
               className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
             />
@@ -332,6 +346,7 @@ export default function EditProductPage() {
             <input
               type="text"
               name="barcode"
+              key={`barcode-${product.barcode}`}
               defaultValue={product.barcode || ''}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -354,18 +369,22 @@ export default function EditProductPage() {
                 required
                 min="0"
                 step="0.01"
+                key={`price-${product.price}`}
                 defaultValue={product.price}
                 className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-900">成本</label>
+              <label className="mb-1 block text-sm font-medium text-gray-900">
+                成本 <span className="text-xs text-gray-500">（參考成本，可隨時修改）</span>
+              </label>
               <input
                 type="number"
                 name="cost"
                 min="0"
                 step="0.01"
+                key={`cost-${product.cost}`}
                 defaultValue={product.cost}
                 className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
               />

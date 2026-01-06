@@ -58,7 +58,21 @@ export async function PATCH(
 
     const updateData = validation.data
 
-    // Update product (stock and avg_cost excluded by schema)
+    // If updating cost, check if we should also update avg_cost
+    // (only if product has no purchase records, meaning it's just initial stock)
+    if (updateData.cost !== undefined) {
+      const { count: purchaseCount } = await supabaseServer
+        .from('purchase_items')
+        .select('*', { count: 'exact', head: true })
+        .eq('product_id', id)
+
+      // If no purchase records, update avg_cost along with cost
+      if (purchaseCount === 0) {
+        (updateData as any).avg_cost = updateData.cost
+      }
+    }
+
+    // Update product (stock excluded by schema, avg_cost conditionally included)
     const { data: product, error } = await (supabaseServer
       .from('products') as any)
       .update({

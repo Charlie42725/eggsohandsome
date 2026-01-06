@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const keyword = searchParams.get('keyword') || ''
     const active = searchParams.get('active')
+    const all = searchParams.get('all') === 'true' // New parameter to get all products
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = 50
 
@@ -28,10 +29,12 @@ export async function GET(request: NextRequest) {
       query = query.or(`name.ilike.%${keyword}%,item_code.ilike.%${keyword}%,barcode.ilike.%${keyword}%`)
     }
 
-    // Apply pagination
-    const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
-    query = query.range(from, to)
+    // Apply pagination (unless all=true)
+    if (!all) {
+      const from = (page - 1) * pageSize
+      const to = from + pageSize - 1
+      query = query.range(from, to)
+    }
 
     const { data, error, count } = await query
 
