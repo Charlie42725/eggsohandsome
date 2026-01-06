@@ -6,6 +6,8 @@ import type { Product, SaleItem, PaymentMethod } from '@/types'
 
 type CartItem = SaleItem & {
   product: Product
+  ichiban_kuji_prize_id?: string
+  ichiban_kuji_id?: string
 }
 
 type Customer = {
@@ -63,9 +65,23 @@ export default function POSPage() {
   const [showDrafts, setShowDrafts] = useState(false)
   const [showTodaySales, setShowTodaySales] = useState(false)
 
+  // Quick add customer
+  const [showQuickAddCustomer, setShowQuickAddCustomer] = useState(false)
+  const [newCustomerName, setNewCustomerName] = useState('')
+  const [newCustomerPhone, setNewCustomerPhone] = useState('')
+  const [addingCustomer, setAddingCustomer] = useState(false)
+  const phoneInputRef = useRef<HTMLInputElement>(null)
+
+  // Inventory mode (products or ichiban kuji)
+  const [inventoryMode, setInventoryMode] = useState<'products' | 'ichiban'>('products')
+  const [ichibanKujis, setIchibanKujis] = useState<any[]>([])
+  const [selectedKuji, setSelectedKuji] = useState<any | null>(null)
+  const [expandedKujiId, setExpandedKujiId] = useState<string | null>(null)
+
   useEffect(() => {
     fetchCustomers()
     fetchProducts()
+    fetchIchibanKujis()
     fetchDrafts()
     fetchTodaySales()
   }, [])
@@ -84,13 +100,25 @@ export default function POSPage() {
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch('/api/products?active=true')
+      const res = await fetch('/api/products')
       const data = await res.json()
       if (data.ok) {
         setProducts(data.data || [])
       }
     } catch (err) {
       console.error('Failed to fetch products:', err)
+    }
+  }
+
+  const fetchIchibanKujis = async () => {
+    try {
+      const res = await fetch('/api/ichiban-kuji?active=true')
+      const data = await res.json()
+      if (data.ok) {
+        setIchibanKujis(data.data || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch ichiban kujis:', err)
     }
   }
 
@@ -119,12 +147,28 @@ export default function POSPage() {
     }
   }
 
-  const addToCart = (product: Product) => {
+  const addToCart = (product: Product, ichibanInfo?: { kuji_id: string; prize_id: string }) => {
     setCart((prev) => {
-      const existing = prev.find((item) => item.product_id === product.id)
+      // For ichiban kuji, don't stack quantities
+      if (ichibanInfo) {
+        return [
+          ...prev,
+          {
+            product_id: product.id,
+            quantity: 1,
+            price: product.price,
+            product,
+            ichiban_kuji_id: ichibanInfo.kuji_id,
+            ichiban_kuji_prize_id: ichibanInfo.prize_id,
+          },
+        ]
+      }
+
+      // For regular products, stack quantities
+      const existing = prev.find((item) => item.product_id === product.id && !item.ichiban_kuji_prize_id)
       if (existing) {
         return prev.map((item) =>
-          item.product_id === product.id
+          item.product_id === product.id && !item.ichiban_kuji_prize_id
             ? { ...item, quantity: item.quantity + 1 }
             : item
         )
@@ -141,6 +185,30 @@ export default function POSPage() {
     })
   }
 
+  const addIchibanPrize = (kuji: any, prize: any) => {
+    if (prize.remaining <= 0) {
+      alert('此賞別已售完')
+      return
+    }
+
+    // Add to cart
+    const product: Product = {
+      id: prize.product_id,
+      item_code: prize.products.item_code,
+      name: `【${kuji.name}】${prize.prize_tier} - ${prize.products.name}`,
+      unit: prize.products.unit,
+      price: kuji.price || 0,
+      cost: prize.products.cost || 0,
+      stock: prize.remaining,
+      avg_cost: 0,
+      allow_negative: false,
+      is_active: true,
+      tags: [],
+    }
+
+    addToCart(product, { kuji_id: kuji.id, prize_id: prize.id })
+  }
+
   const updateQuantity = (productId: string, quantity: number) => {
     if (quantity <= 0) {
       removeFromCart(productId)
@@ -153,11 +221,79 @@ export default function POSPage() {
     )
   }
 
-  const removeFromCart = (productId: string) => {
-    setCart((prev) => prev.filter((item) => item.product_id !== productId))
+  const removeFromCart = (productId: string, index?: number) => {
+    setCart((prev) => {
+      if (index !== undefined) {
+        // Remove specific item at index (for ichiban items)
+        return prev.filter((_, i) => i !== index)
+      } else {
+        // Remove all items with this product_id (for regular products)
+        return prev.filter((item) => item.product_id !== productId)
+      }
+    })
   }
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  // Calculate combo price adjustments for ichiban kuji
+  const applyComboPrice = () => {
+    const ichibanGroups: { [kuji_id: string]: { items: CartItem[], kuji: any } } = {}
+
+    // Group ichiban items by kuji_id
+    cart.forEach(item => {
+      if (item.ichiban_kuji_id) {
+        if (!ichibanGroups[item.ichiban_kuji_id]) {
+          const kuji = ichibanKujis.find(k => k.id === item.ichiban_kuji_id)
+          ichibanGroups[item.ichiban_kuji_id] = { items: [], kuji }
+        }
+        ichibanGroups[item.ichiban_kuji_id].items.push(item)
+      }
+    })
+
+    let adjustedCart = [...cart]
+
+    // Apply combo prices
+    Object.keys(ichibanGroups).forEach(kuji_id => {
+      const group = ichibanGroups[kuji_id]
+      const totalCount = group.items.reduce((sum, item) => sum + item.quantity, 0)
+      const comboPrices = (group.kuji?.combo_prices || []).sort((a: any, b: any) => b.draws - a.draws)
+      const originalPrice = group.kuji?.price || 0
+
+      if (comboPrices.length === 0) return
+
+      // Greedy algorithm: use largest combo first, then smaller combos, then original price
+      let remaining = totalCount
+      let totalComboPrice = 0
+      let comboDrawsUsed = 0
+
+      for (const combo of comboPrices) {
+        const sets = Math.floor(remaining / combo.draws)
+        if (sets > 0) {
+          totalComboPrice += sets * combo.price
+          comboDrawsUsed += sets * combo.draws
+          remaining -= sets * combo.draws
+        }
+      }
+
+      // Remaining items use original price
+      const remainingPrice = remaining * originalPrice
+      const totalPrice = totalComboPrice + remainingPrice
+
+      // Calculate average price per item
+      const avgPrice = totalPrice / totalCount
+
+      // Apply this average price to all items in this group
+      adjustedCart = adjustedCart.map(item => {
+        if (item.ichiban_kuji_id === kuji_id) {
+          return { ...item, price: avgPrice }
+        }
+        return item
+      })
+    })
+
+    return adjustedCart
+  }
+
+  const cartWithComboPrice = applyComboPrice()
+  const subtotal = cartWithComboPrice.reduce((sum, item) => sum + item.price * item.quantity, 0)
 
   let discountAmount = 0
   if (discountType === 'percent') {
@@ -168,6 +304,20 @@ export default function POSPage() {
 
   const total = Math.max(0, subtotal - discountAmount)
 
+  // Get combo price info for display
+  const getIchibanComboInfo = (kuji_id: string) => {
+    const items = cart.filter(item => item.ichiban_kuji_id === kuji_id)
+    const totalCount = items.reduce((sum, item) => sum + item.quantity, 0)
+    const kuji = ichibanKujis.find(k => k.id === kuji_id)
+    const comboPrices = kuji?.combo_prices || []
+
+    const applicableCombo = comboPrices
+      .filter((combo: any) => combo.draws <= totalCount)
+      .sort((a: any, b: any) => b.draws - a.draws)[0]
+
+    return { totalCount, applicableCombo, kuji }
+  }
+
   const handleCheckout = async () => {
     if (cart.length === 0) {
       setError('購物車是空的')
@@ -175,14 +325,23 @@ export default function POSPage() {
     }
 
     if (!selectedCustomer && !isPaid) {
-      setError('未收款訂單需要選擇客戶')
-      return
+      const shouldAddCustomer = confirm('未收款訂單需要選擇客戶\n\n要建立新客戶嗎？')
+      if (shouldAddCustomer) {
+        setShowQuickAddCustomer(true)
+        return
+      } else {
+        setError('未收款訂單需要選擇客戶')
+        return
+      }
     }
 
     setLoading(true)
     setError('')
 
     try {
+      // Use combo price adjusted cart for checkout
+      const checkoutCart = applyComboPrice()
+
       const res = await fetch('/api/sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -194,10 +353,12 @@ export default function POSPage() {
           note: note || undefined,
           discount_type: discountType,
           discount_value: discountValue,
-          items: cart.map((item) => ({
+          items: checkoutCart.map((item) => ({
             product_id: item.product_id,
             quantity: item.quantity,
             price: item.price,
+            ichiban_kuji_prize_id: item.ichiban_kuji_prize_id,
+            ichiban_kuji_id: item.ichiban_kuji_id,
           })),
         }),
       })
@@ -213,6 +374,7 @@ export default function POSPage() {
         setDiscountType('none')
         setDiscountValue(0)
         fetchTodaySales() // Refresh today's sales
+        fetchIchibanKujis() // Refresh ichiban kuji inventory
         alert(`銷售完成！單號：${data.data.sale_no}`)
       } else {
         setError(data.error || '結帳失敗')
@@ -234,6 +396,9 @@ export default function POSPage() {
     setError('')
 
     try {
+      // Use combo price adjusted cart for saving draft
+      const draftCart = applyComboPrice()
+
       const res = await fetch('/api/sale-drafts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -244,10 +409,12 @@ export default function POSPage() {
           note: note || null,
           discount_type: discountType,
           discount_value: discountValue,
-          items: cart.map((item) => ({
+          items: draftCart.map((item) => ({
             product_id: item.product_id,
             quantity: item.quantity,
             price: item.price,
+            ichiban_kuji_prize_id: item.ichiban_kuji_prize_id,
+            ichiban_kuji_id: item.ichiban_kuji_id,
           })),
         }),
       })
@@ -333,6 +500,63 @@ export default function POSPage() {
     }
   }
 
+  const handleQuickAddCustomer = async () => {
+    if (!newCustomerName.trim()) {
+      alert('請輸入客戶名稱')
+      return
+    }
+
+    if (!newCustomerPhone.trim()) {
+      alert('請輸入客戶電話')
+      return
+    }
+
+    setAddingCustomer(true)
+
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_name: newCustomerName.trim(),
+          phone: newCustomerPhone.trim(),
+        }),
+      })
+
+      const data = await res.json()
+
+      if (data.ok) {
+        // Create customer object immediately
+        const newCustomer: Customer = {
+          id: data.data.id,
+          customer_code: data.data.customer_code,
+          customer_name: data.data.customer_name,
+          phone: data.data.phone,
+          is_active: true,
+        }
+
+        // Select the newly created customer
+        setSelectedCustomer(newCustomer)
+
+        // Refresh customers list in background
+        fetchCustomers()
+
+        // Clear form and close modal
+        setNewCustomerName('')
+        setNewCustomerPhone('')
+        setShowQuickAddCustomer(false)
+
+        alert(`客戶 ${data.data.customer_name} 已建立並自動選擇`)
+      } else {
+        alert(`建立失敗：${data.error}`)
+      }
+    } catch (err) {
+      alert('建立失敗')
+    } finally {
+      setAddingCustomer(false)
+    }
+  }
+
   const filteredProducts = products.filter(p =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.item_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -369,31 +593,142 @@ export default function POSPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Left - Product Grid */}
         <div className="w-[500px] flex flex-col bg-white dark:bg-gray-800 p-4 overflow-hidden border-r-2 border-gray-300 dark:border-gray-700">
-          <div className="mb-3">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="掃描條碼或搜尋商品"
-              className="w-full border-2 border-gray-400 dark:border-gray-600 rounded px-3 py-2 text-sm text-black dark:text-gray-100 bg-white dark:bg-gray-700 focus:border-black dark:focus:border-blue-500 focus:outline-none"
-            />
+          {/* Mode Toggle */}
+          <div className="mb-3 flex gap-2">
+            <button
+              onClick={() => setInventoryMode('products')}
+              className={`flex-1 py-2 px-4 rounded-lg font-bold border-2 transition-all ${
+                inventoryMode === 'products'
+                  ? 'bg-blue-500 border-blue-600 text-white shadow-md'
+                  : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600'
+              }`}
+            >
+              商品庫
+            </button>
+            <button
+              onClick={() => setInventoryMode('ichiban')}
+              className={`flex-1 py-2 px-4 rounded-lg font-bold border-2 transition-all ${
+                inventoryMode === 'ichiban'
+                  ? 'bg-purple-500 border-purple-600 text-white shadow-md'
+                  : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600'
+              }`}
+            >
+              一番賞庫
+            </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
-            <div className="grid grid-cols-3 gap-2">
-              {filteredProducts.map((product) => (
-                <button
-                  key={product.id}
-                  onClick={() => addToCart(product)}
-                  className="bg-blue-500 hover:bg-blue-600 text-white rounded p-3 shadow hover:shadow-md transition-all active:scale-95 flex flex-col items-center justify-center min-h-[100px] border border-blue-600"
-                >
-                  <div className="text-sm font-bold text-center mb-1 line-clamp-2">{product.name}</div>
-                  <div className="text-lg font-bold">{formatCurrency(product.price)}</div>
-                  <div className="text-xs mt-1">庫存: {product.stock}</div>
-                </button>
-              ))}
+          {inventoryMode === 'products' && (
+            <>
+              <div className="mb-3">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="掃描條碼或搜尋商品"
+                  className="w-full border-2 border-gray-400 dark:border-gray-600 rounded px-3 py-2 text-sm text-black dark:text-gray-100 bg-white dark:bg-gray-700 focus:border-black dark:focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex-1 overflow-y-auto">
+                <div className="grid grid-cols-3 gap-2">
+                  {filteredProducts.map((product) => (
+                    <button
+                      key={product.id}
+                      onClick={() => addToCart(product)}
+                      className="bg-blue-500 hover:bg-blue-600 text-white rounded p-3 shadow hover:shadow-md transition-all active:scale-95 flex flex-col items-center justify-center min-h-[100px] border border-blue-600"
+                    >
+                      <div className="text-sm font-bold text-center mb-1 line-clamp-2">{product.name}</div>
+                      <div className="text-lg font-bold">{formatCurrency(product.price)}</div>
+                      <div className="text-xs mt-1">庫存: {product.stock}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {inventoryMode === 'ichiban' && (
+            <div className="flex-1 overflow-y-auto">
+              <div className="space-y-2">
+                {ichibanKujis.map((kuji) => {
+                  const totalRemaining = kuji.ichiban_kuji_prizes?.reduce((sum: number, p: any) => sum + p.remaining, 0) || 0
+                  const totalDraws = kuji.total_draws || 0
+                  const soldOut = totalRemaining === 0
+                  const isExpanded = expandedKujiId === kuji.id
+
+                  return (
+                    <div
+                      key={kuji.id}
+                      className={`border-2 rounded-lg ${
+                        soldOut
+                          ? 'border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 opacity-60'
+                          : 'border-purple-400 dark:border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                      }`}
+                    >
+                      <div
+                        className="p-3 cursor-pointer"
+                        onClick={() => setExpandedKujiId(isExpanded ? null : kuji.id)}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="font-bold text-black dark:text-gray-100 flex items-center gap-2">
+                            <span className="text-purple-600">{isExpanded ? '▼' : '▶'}</span>
+                            {kuji.name}
+                          </div>
+                          <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
+                            {formatCurrency(kuji.price || 0)}
+                          </div>
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          剩餘: {totalRemaining} / {totalDraws}
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="border-t-2 border-purple-300 dark:border-purple-600 p-2 space-y-1">
+                          {kuji.ichiban_kuji_prizes?.map((prize: any) => (
+                            <button
+                              key={prize.id}
+                              onClick={() => addIchibanPrize(kuji, prize)}
+                              disabled={prize.remaining <= 0}
+                              className={`w-full p-2 rounded-lg border-2 text-left transition-all ${
+                                prize.remaining <= 0
+                                  ? 'border-gray-300 dark:border-gray-600 bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                                  : 'border-purple-300 dark:border-purple-500 bg-white dark:bg-purple-900/10 hover:bg-purple-100 dark:hover:bg-purple-900/30 active:scale-95'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="font-bold text-sm text-black dark:text-gray-100">
+                                    {prize.prize_tier}
+                                  </div>
+                                  <div className="text-xs text-gray-600 dark:text-gray-400">
+                                    {prize.products.name}
+                                  </div>
+                                </div>
+                                <div className={`text-sm font-bold ${
+                                  prize.remaining <= 0
+                                    ? 'text-gray-400'
+                                    : 'text-purple-600 dark:text-purple-400'
+                                }`}>
+                                  剩 {prize.remaining}
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+                {ichibanKujis.length === 0 && (
+                  <div className="text-center text-gray-500 dark:text-gray-400 py-10">
+                    <div className="text-4xl mb-2">🎁</div>
+                    <div>目前沒有一番賞</div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Middle - Cart */}
@@ -417,50 +752,93 @@ export default function POSPage() {
                 <div className="text-black dark:text-gray-300">請點選商品</div>
               </div>
             ) : (
-              cart.map((item) => (
-                <div
-                  key={item.product_id}
-                  className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded p-2"
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex-1">
-                      <div className="font-bold text-sm text-black dark:text-gray-100">{item.product.name}</div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400">{formatCurrency(item.price)}</div>
-                    </div>
+              cartWithComboPrice.map((item, index) => {
+                const originalItem = cart[index]
+                const hasComboDiscount = item.ichiban_kuji_id && item.price !== originalItem.price
+
+                return (
+                  <div
+                    key={item.ichiban_kuji_prize_id ? `${item.product_id}-${index}` : item.product_id}
+                    className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded p-2"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex-1">
+                        <div className="font-bold text-sm text-black dark:text-gray-100">
+                          {item.product.name}
+                          {item.ichiban_kuji_prize_id && (
+                            <span className="ml-2 text-xs bg-purple-500 text-white px-2 py-0.5 rounded">一番賞</span>
+                          )}
+                          {hasComboDiscount && (
+                            <span className="ml-2 text-xs bg-green-500 text-white px-2 py-0.5 rounded">組合優惠</span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">
+                          {hasComboDiscount && (
+                            <span className="line-through mr-2">{formatCurrency(originalItem.price)}</span>
+                          )}
+                          {formatCurrency(item.price)}
+                        </div>
+                      </div>
                     <button
-                      onClick={() => removeFromCart(item.product_id)}
+                      onClick={() => removeFromCart(item.product_id, item.ichiban_kuji_prize_id ? index : undefined)}
                       className="text-red-600 hover:text-red-800 font-bold text-lg ml-2"
                     >
                       ×
                     </button>
                   </div>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
-                        className="w-7 h-7 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 rounded font-bold text-sm text-black dark:text-gray-100"
-                      >
-                        −
-                      </button>
-                      <span className="w-10 text-center font-bold text-sm text-black dark:text-gray-100">{item.quantity}</span>
-                      <button
-                        onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
-                        className="w-7 h-7 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 rounded font-bold text-sm text-black dark:text-gray-100"
-                      >
-                        +
-                      </button>
-                    </div>
+                    {!item.ichiban_kuji_prize_id ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
+                          className="w-7 h-7 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 rounded font-bold text-sm text-black dark:text-gray-100"
+                        >
+                          −
+                        </button>
+                        <span className="w-10 text-center font-bold text-sm text-black dark:text-gray-100">{item.quantity}</span>
+                        <button
+                          onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
+                          className="w-7 h-7 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 rounded font-bold text-sm text-black dark:text-gray-100"
+                        >
+                          +
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-purple-600 dark:text-purple-400 font-bold">x {item.quantity}</div>
+                    )}
                     <div className="text-base font-bold text-black dark:text-gray-100">
                       {formatCurrency(item.price * item.quantity)}
                     </div>
                   </div>
                 </div>
-              ))
+                )
+              })
             )}
           </div>
 
           {/* Total Display */}
           <div className="bg-white dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-700 p-6">
+            {/* Show combo price info */}
+            {cart.some(item => item.ichiban_kuji_id) && (() => {
+              const uniqueKujiIds = [...new Set(cart.filter(item => item.ichiban_kuji_id).map(item => item.ichiban_kuji_id!))]
+              return uniqueKujiIds.map(kuji_id => {
+                const info = getIchibanComboInfo(kuji_id)
+                if (info.applicableCombo) {
+                  return (
+                    <div key={kuji_id} className="mb-3 p-2 bg-green-50 dark:bg-green-900/20 border border-green-300 dark:border-green-600 rounded-lg">
+                      <div className="text-sm font-bold text-green-700 dark:text-green-400">
+                        🎉 {info.kuji?.name} 組合優惠
+                      </div>
+                      <div className="text-xs text-green-600 dark:text-green-500">
+                        {info.applicableCombo.draws} 抽 {formatCurrency(info.applicableCombo.price)} (已購 {info.totalCount} 抽)
+                      </div>
+                    </div>
+                  )
+                }
+                return null
+              })
+            })()}
+
             <div className="flex justify-between items-center mb-2">
               <span className="text-lg text-black dark:text-gray-300">小計</span>
               <span className="text-2xl font-bold text-black dark:text-gray-100">{formatCurrency(subtotal)}</span>
@@ -505,6 +883,12 @@ export default function POSPage() {
                   </option>
                 ))}
               </select>
+              <button
+                onClick={() => setShowQuickAddCustomer(true)}
+                className="w-full mt-2 bg-green-500 hover:bg-green-600 text-white font-bold px-3 py-2 rounded-lg text-sm transition-all"
+              >
+                + 新增客戶
+              </button>
             </div>
 
             {/* Payment Method - Button Grid */}
@@ -590,6 +974,16 @@ export default function POSPage() {
                   }`}
                 >
                   📦 貨到付款
+                </button>
+                <button
+                  onClick={() => setPaymentMethod('pending')}
+                  className={`py-3 px-4 rounded-lg font-bold border-2 transition-all ${
+                    paymentMethod === 'pending'
+                      ? 'bg-gray-400 border-gray-600 text-gray-900 shadow-md'
+                      : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  ❓ 待確定
                 </button>
               </div>
             </div>
@@ -787,6 +1181,72 @@ export default function POSPage() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Customer Modal */}
+      {showQuickAddCustomer && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" onClick={() => setShowQuickAddCustomer(false)}>
+          <div className="bg-white dark:bg-gray-800 w-[500px] rounded-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-green-500 text-white px-6 py-4 rounded-t-lg flex items-center justify-between">
+              <h2 className="text-xl font-bold">快速建立客戶</h2>
+              <button onClick={() => setShowQuickAddCustomer(false)} className="text-2xl hover:text-gray-200">×</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block font-bold mb-2 text-black dark:text-gray-100">
+                  客戶名稱 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newCustomerName}
+                  onChange={(e) => setNewCustomerName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      phoneInputRef.current?.focus()
+                    }
+                  }}
+                  placeholder="請輸入客戶名稱"
+                  className="w-full border-2 border-gray-400 dark:border-gray-600 rounded-lg px-4 py-3 text-lg text-black dark:text-gray-100 bg-white dark:bg-gray-700 focus:border-black dark:focus:border-blue-500 focus:outline-none"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-2 text-black dark:text-gray-100">
+                  客戶電話 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  ref={phoneInputRef}
+                  type="tel"
+                  value={newCustomerPhone}
+                  onChange={(e) => setNewCustomerPhone(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !addingCustomer) {
+                      handleQuickAddCustomer()
+                    }
+                  }}
+                  placeholder="請輸入客戶電話"
+                  className="w-full border-2 border-gray-400 dark:border-gray-600 rounded-lg px-4 py-3 text-lg text-black dark:text-gray-100 bg-white dark:bg-gray-700 focus:border-black dark:focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={handleQuickAddCustomer}
+                  disabled={addingCustomer}
+                  className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white font-bold py-3 rounded-lg transition-all"
+                >
+                  {addingCustomer ? '建立中...' : '建立客戶'}
+                </button>
+                <button
+                  onClick={() => setShowQuickAddCustomer(false)}
+                  className="flex-1 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 text-black dark:text-gray-100 font-bold py-3 rounded-lg transition-all"
+                >
+                  取消
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -146,7 +146,7 @@ export default function IchibanKujiPage() {
                   {kujis.map((kuji) => (
                     <React.Fragment key={kuji.id}>
                       <tr
-                        className="cursor-pointer hover:bg-gray-50"
+                        className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
                         onClick={() => toggleRow(kuji.id)}
                       >
                         <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -230,7 +230,7 @@ export default function IchibanKujiPage() {
                               )}
 
                               {/* 賞項明細 */}
-                              <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white p-4">
+                              <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
                                 <h4 className="mb-3 font-semibold text-gray-900 dark:text-gray-100">賞項明細</h4>
                               <table className="w-full">
                                 <thead className="border-b">
@@ -273,12 +273,12 @@ export default function IchibanKujiPage() {
                                     </tr>
                                   ))}
                                 </tbody>
-                                <tfoot className="border-t bg-gray-50">
+                                <tfoot className="border-t bg-gray-50 dark:bg-gray-900">
                                   <tr>
                                     <td colSpan={6} className="py-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
                                       總成本:
                                     </td>
-                                    <td className="py-2 text-right text-sm font-bold text-gray-900">
+                                    <td className="py-2 text-right text-sm font-bold text-gray-900 dark:text-gray-100">
                                       {formatCurrency(
                                         kuji.ichiban_kuji_prizes.reduce(
                                           (sum, prize) => sum + prize.products.cost * prize.quantity,

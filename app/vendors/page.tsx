@@ -362,7 +362,7 @@ export default function VendorsPage() {
                 <button
                   type="button"
                   onClick={closeEditModal}
-                  className="flex-1 rounded border border-gray-300 dark:border-gray-600 px-4 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-800 hover:bg-gray-50"
+                  className="flex-1 rounded border border-gray-300 dark:border-gray-600 px-4 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                   取消
                 </button>
