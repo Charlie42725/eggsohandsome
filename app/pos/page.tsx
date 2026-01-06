@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import Image from 'next/image'
 import { formatCurrency } from '@/lib/utils'
 import type { Product, SaleItem, PaymentMethod } from '@/types'
 
@@ -294,7 +295,16 @@ export default function POSPage() {
     <div className="h-screen bg-gray-100 flex flex-col overflow-hidden">
       {/* Header */}
       <div className="bg-white border-b-2 border-gray-300 px-6 py-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-black">POS 收銀系統</h1>
+        <div className="flex items-center gap-3">
+          <Image
+            src="/logo.jpg"
+            alt="ToyFlow ERP Logo"
+            width={48}
+            height={48}
+            className="rounded"
+          />
+          <h1 className="text-2xl font-bold text-black">POS 收銀系統</h1>
+        </div>
         <div className="text-sm text-black">{new Date().toLocaleString('zh-TW')}</div>
       </div>
 

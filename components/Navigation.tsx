@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 
 const navItems = [
@@ -25,8 +26,15 @@ export default function Navigation() {
       <div className="mx-auto max-w-7xl px-4">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-8">
-            <Link href="/" className="text-xl font-bold text-blue-600">
-              失控 ERP
+            <Link href="/" className="flex items-center gap-2">
+              <Image
+                src="/logo.jpg"
+                alt="ToyFlow ERP Logo"
+                width={40}
+                height={40}
+                className="rounded"
+              />
+              <span className="text-xl font-bold text-blue-600">失控 ERP</span>
             </Link>
             <div className="flex gap-4">
               {navItems.map((item) => (
