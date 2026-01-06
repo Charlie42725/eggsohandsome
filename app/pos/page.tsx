@@ -430,6 +430,16 @@ export default function POSPage() {
                 >
                   📦 貨到付款
                 </button>
+                <button
+                  onClick={() => setPaymentMethod('pending')}
+                  className={`py-2 px-2 rounded font-bold border-2 transition-all text-sm text-black ${
+                    paymentMethod === 'pending'
+                      ? 'bg-orange-400 border-orange-500'
+                      : 'bg-white border-gray-400 hover:bg-gray-100'
+                  }`}
+                >
+                  ⏳ 待確定
+                </button>
               </div>
             </div>
 

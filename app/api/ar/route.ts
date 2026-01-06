@@ -63,6 +63,7 @@ export async function GET(request: NextRequest) {
           id,
           sale_no,
           sale_date,
+          payment_method,
           sale_items (
             id,
             product_id,

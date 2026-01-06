@@ -36,6 +36,7 @@ export function formatPaymentMethod(method: string): string {
     'transfer_union': '轉帳 - 聯邦',
     'transfer_linepay': '轉帳 - LINE Pay',
     'cod': '貨到付款',
+    'pending': '待確定',
     // 兼容舊的 'transfer' 值
     'transfer': '轉帳',
   }

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase/server'
+import { saleUpdateSchema } from '@/lib/schemas'
+import { fromZodError } from 'zod-validation-error'
 
 type RouteContext = {
   params: Promise<{ id: string }>
@@ -55,6 +57,54 @@ export async function GET(
         items,
       },
     })
+  } catch (error) {
+    return NextResponse.json(
+      { ok: false, error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+// PATCH /api/sales/:id - Update sale payment method
+export async function PATCH(
+  request: NextRequest,
+  context: RouteContext
+) {
+  try {
+    const { id } = await context.params
+    const body = await request.json()
+
+    // Validate input
+    const validation = saleUpdateSchema.safeParse(body)
+    if (!validation.success) {
+      const error = fromZodError(validation.error)
+      return NextResponse.json(
+        { ok: false, error: error.message },
+        { status: 400 }
+      )
+    }
+
+    const { payment_method } = validation.data
+
+    // Update sale payment method
+    const { data: sale, error } = await (supabaseServer
+      .from('sales') as any)
+      .update({
+        payment_method,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      return NextResponse.json(
+        { ok: false, error: error.message },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ ok: true, data: sale })
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: 'Internal server error' },

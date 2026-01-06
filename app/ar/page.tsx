@@ -35,6 +35,7 @@ type ARAccount = {
     id: string
     sale_no: string
     sale_date: string
+    payment_method: string
     sale_items: SaleItem[]
   }
 }
@@ -61,6 +62,7 @@ export default function ARPageV2() {
   const [error, setError] = useState('')
   const [keyword, setKeyword] = useState('')
   const [currentCustomer, setCurrentCustomer] = useState<string | null>(null)
+  const [updatingPayment, setUpdatingPayment] = useState<string | null>(null)
 
   const fetchAccounts = async () => {
     setLoading(true)
@@ -285,6 +287,39 @@ export default function ARPageV2() {
     }
   }
 
+  const handleUpdatePaymentMethod = async (saleId: string, paymentMethod: string) => {
+    setUpdatingPayment(saleId)
+    try {
+      const res = await fetch(`/api/sales/${saleId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_method: paymentMethod })
+      })
+
+      const data = await res.json()
+
+      if (data.ok) {
+        // Update local state
+        setCustomerGroups(prevGroups =>
+          prevGroups.map(group => ({
+            ...group,
+            accounts: group.accounts.map(account =>
+              account.sales?.id === saleId && account.sales
+                ? { ...account, sales: { ...account.sales, payment_method: paymentMethod } }
+                : account
+            )
+          }))
+        )
+      } else {
+        alert('更新失敗: ' + (data.error || '未知錯誤'))
+      }
+    } catch (err) {
+      alert('更新失敗')
+    } finally {
+      setUpdatingPayment(null)
+    }
+  }
+
   const totalUnpaid = customerGroups.reduce((sum, g) => sum + g.total_balance, 0)
   const totalCustomers = customerGroups.filter(g => g.unpaid_count > 0).length
 
@@ -454,6 +489,34 @@ export default function ARPageV2() {
                                     <span className="font-medium text-gray-900">
                                       {account.ref_no}
                                     </span>
+                                    {account.sales && (
+                                      <span className="text-xs text-gray-500">
+                                        |
+                                      </span>
+                                    )}
+                                    {account.sales && (
+                                      <select
+                                        value={account.sales.payment_method}
+                                        onChange={(e) => handleUpdatePaymentMethod(account.sales!.id, e.target.value)}
+                                        disabled={updatingPayment === account.sales.id}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className={`text-xs rounded border px-2 py-0.5 ${
+                                          account.sales.payment_method === 'pending'
+                                            ? 'border-orange-400 bg-orange-50 text-orange-700'
+                                            : 'border-gray-300 bg-white text-gray-700'
+                                        }`}
+                                      >
+                                        <option value="cash">現金</option>
+                                        <option value="card">刷卡</option>
+                                        <option value="transfer_cathay">轉帳 - 國泰</option>
+                                        <option value="transfer_fubon">轉帳 - 富邦</option>
+                                        <option value="transfer_esun">轉帳 - 玉山</option>
+                                        <option value="transfer_union">轉帳 - 聯邦</option>
+                                        <option value="transfer_linepay">轉帳 - LINE Pay</option>
+                                        <option value="cod">貨到付款</option>
+                                        <option value="pending">待確定</option>
+                                      </select>
+                                    )}
                                     <span className={`text-xs ${isOverdue ? 'font-semibold text-red-600' : 'text-gray-500'}`}>
                                       到期: {formatDate(account.due_date)}
                                       {isOverdue && ' (逾期)'}

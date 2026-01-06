@@ -58,7 +58,8 @@ export const saleDraftSchema = z.object({
     'transfer_esun',
     'transfer_union',
     'transfer_linepay',
-    'cod'
+    'cod',
+    'pending'
   ]).default('cash'),
   is_paid: z.boolean().default(false),
   note: z.string().optional(),
@@ -71,6 +72,20 @@ export const saleDraftSchema = z.object({
       price: z.number().min(0, 'Price must be positive'),
     })
   ).min(1, 'At least one item is required'),
+})
+
+export const saleUpdateSchema = z.object({
+  payment_method: z.enum([
+    'cash',
+    'card',
+    'transfer_cathay',
+    'transfer_fubon',
+    'transfer_esun',
+    'transfer_union',
+    'transfer_linepay',
+    'cod',
+    'pending'
+  ])
 })
 
 // Purchase schemas

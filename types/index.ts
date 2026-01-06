@@ -57,6 +57,7 @@ export type PaymentMethod =
   | 'transfer_union'
   | 'transfer_linepay'
   | 'cod'
+  | 'pending'
 
 export type SaleDraft = {
   customer_code?: string
