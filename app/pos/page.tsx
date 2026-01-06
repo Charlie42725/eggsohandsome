@@ -16,6 +16,30 @@ type Customer = {
   is_active: boolean
 }
 
+type SaleDraft = {
+  id: string
+  customer_code: string | null
+  payment_method: PaymentMethod
+  is_paid: boolean
+  note: string | null
+  discount_type: 'none' | 'percent' | 'amount'
+  discount_value: number
+  items: CartItem[]
+  created_at: string
+  customers?: { customer_name: string }
+}
+
+type TodaySale = {
+  id: string
+  sale_no: string
+  customer_code: string | null
+  total: number
+  payment_method: PaymentMethod
+  is_paid: boolean
+  created_at: string
+  customers?: { customer_name: string }
+}
+
 export default function POSPage() {
   const [barcode, setBarcode] = useState('')
   const [cart, setCart] = useState<CartItem[]>([])
@@ -33,9 +57,17 @@ export default function POSPage() {
   const [discountValue, setDiscountValue] = useState(0)
   const barcodeInputRef = useRef<HTMLInputElement>(null)
 
+  // Draft orders and today's sales
+  const [drafts, setDrafts] = useState<SaleDraft[]>([])
+  const [todaySales, setTodaySales] = useState<TodaySale[]>([])
+  const [showDrafts, setShowDrafts] = useState(false)
+  const [showTodaySales, setShowTodaySales] = useState(false)
+
   useEffect(() => {
     fetchCustomers()
     fetchProducts()
+    fetchDrafts()
+    fetchTodaySales()
   }, [])
 
   const fetchCustomers = async () => {
@@ -59,6 +91,31 @@ export default function POSPage() {
       }
     } catch (err) {
       console.error('Failed to fetch products:', err)
+    }
+  }
+
+  const fetchDrafts = async () => {
+    try {
+      const res = await fetch('/api/sale-drafts')
+      const data = await res.json()
+      if (data.ok) {
+        setDrafts(data.data || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch drafts:', err)
+    }
+  }
+
+  const fetchTodaySales = async () => {
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      const res = await fetch(`/api/sales?date_from=${today}&date_to=${today}&source=pos`)
+      const data = await res.json()
+      if (data.ok) {
+        setTodaySales(data.data || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch today sales:', err)
     }
   }
 
@@ -155,6 +212,7 @@ export default function POSPage() {
         setNote('')
         setDiscountType('none')
         setDiscountValue(0)
+        fetchTodaySales() // Refresh today's sales
         alert(`銷售完成！單號：${data.data.sale_no}`)
       } else {
         setError(data.error || '結帳失敗')
@@ -163,6 +221,115 @@ export default function POSPage() {
       setError('結帳失敗')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSaveDraft = async () => {
+    if (cart.length === 0) {
+      setError('購物車是空的')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+
+    try {
+      const res = await fetch('/api/sale-drafts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_code: selectedCustomer?.customer_code || null,
+          payment_method: paymentMethod,
+          is_paid: isPaid,
+          note: note || null,
+          discount_type: discountType,
+          discount_value: discountValue,
+          items: cart.map((item) => ({
+            product_id: item.product_id,
+            quantity: item.quantity,
+            price: item.price,
+          })),
+        }),
+      })
+
+      const data = await res.json()
+
+      if (data.ok) {
+        setCart([])
+        setSelectedCustomer(null)
+        setPaymentMethod('cash')
+        setIsPaid(true)
+        setNote('')
+        setDiscountType('none')
+        setDiscountValue(0)
+        fetchDrafts()
+        alert('訂單已暫存')
+      } else {
+        setError(data.error || '暫存失敗')
+      }
+    } catch (err) {
+      setError('暫存失敗')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleLoadDraft = async (draft: SaleDraft) => {
+    setLoading(true)
+    try {
+      // Load product details for each item
+      const itemsWithProducts = await Promise.all(
+        draft.items.map(async (item: any) => {
+          const res = await fetch(`/api/products?active=true`)
+          const data = await res.json()
+          const product = data.data?.find((p: Product) => p.id === item.product_id)
+          return {
+            product_id: item.product_id,
+            quantity: item.quantity,
+            price: item.price,
+            product: product || { id: item.product_id, name: 'Unknown', price: item.price },
+          }
+        })
+      )
+
+      setCart(itemsWithProducts)
+      setSelectedCustomer(
+        draft.customer_code
+          ? customers.find((c) => c.customer_code === draft.customer_code) || null
+          : null
+      )
+      setPaymentMethod(draft.payment_method)
+      setIsPaid(draft.is_paid)
+      setNote(draft.note || '')
+      setDiscountType(draft.discount_type)
+      setDiscountValue(draft.discount_value)
+      setShowDrafts(false)
+
+      // Delete the draft
+      await fetch(`/api/sale-drafts/${draft.id}`, { method: 'DELETE' })
+      fetchDrafts()
+    } catch (err) {
+      setError('載入失敗')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteDraft = async (draftId: string) => {
+    if (!confirm('確定要刪除這個暫存訂單嗎？')) return
+
+    try {
+      const res = await fetch(`/api/sale-drafts/${draftId}`, { method: 'DELETE' })
+      const data = await res.json()
+
+      if (data.ok) {
+        fetchDrafts()
+        alert('已刪除')
+      } else {
+        setError(data.error || '刪除失敗')
+      }
+    } catch (err) {
+      setError('刪除失敗')
     }
   }
 
@@ -177,7 +344,26 @@ export default function POSPage() {
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 border-b-2 border-gray-300 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-black dark:text-gray-100">POS 收銀系統</h1>
-        <div className="text-sm text-black dark:text-gray-300">{new Date().toLocaleString('zh-TW')}</div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowDrafts(!showDrafts)}
+            className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-4 py-2 rounded-lg transition-all relative"
+          >
+            暫存訂單
+            {drafts.length > 0 && (
+              <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center">
+                {drafts.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setShowTodaySales(!showTodaySales)}
+            className="bg-blue-500 hover:bg-blue-600 text-white font-bold px-4 py-2 rounded-lg transition-all"
+          >
+            今日交易
+          </button>
+          <div className="text-sm text-black dark:text-gray-300">{new Date().toLocaleString('zh-TW')}</div>
+        </div>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
@@ -212,8 +398,16 @@ export default function POSPage() {
 
         {/* Middle - Cart */}
         <div className="flex-1 bg-gray-100 dark:bg-gray-900 flex flex-col border-r-2 border-gray-300 dark:border-gray-700">
-          <div className="bg-white dark:bg-gray-800 px-4 py-3 border-b-2 border-gray-300 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 px-4 py-3 border-b-2 border-gray-300 dark:border-gray-700 flex items-center justify-between">
             <h2 className="font-bold text-lg text-black dark:text-gray-100">購物清單</h2>
+            {cart.length > 0 && (
+              <button
+                onClick={() => setCart([])}
+                className="bg-red-500 hover:bg-red-600 text-white font-bold px-3 py-1 rounded text-sm transition-all"
+              >
+                清空
+              </button>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
@@ -466,24 +660,137 @@ export default function POSPage() {
 
           {/* Checkout Button - Fixed at bottom */}
           <div className="p-4 border-t-2 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
-            <button
-              onClick={handleCheckout}
-              disabled={loading || cart.length === 0}
-              className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-400 dark:disabled:bg-gray-600 text-black dark:text-white font-bold text-2xl py-6 rounded-lg shadow-md transition-all active:scale-95 disabled:cursor-not-allowed border-2 border-green-600 disabled:border-gray-500 dark:disabled:border-gray-600"
-            >
-              {loading ? '處理中...' : '結帳'}
-            </button>
-            {cart.length > 0 && (
+            <div className="flex gap-2">
               <button
-                onClick={() => setCart([])}
-                className="w-full mt-2 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 text-black dark:text-gray-100 font-bold text-lg py-3 rounded-lg transition-all border-2 border-gray-400 dark:border-gray-600"
+                onClick={handleCheckout}
+                disabled={loading || cart.length === 0}
+                className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 dark:disabled:bg-gray-600 text-white font-bold text-xl py-4 rounded-lg shadow-md transition-all active:scale-95 disabled:cursor-not-allowed border-2 border-green-600 disabled:border-gray-500 dark:disabled:border-gray-600"
               >
-                清空購物車
+                {loading ? '處理中...' : '結帳'}
               </button>
-            )}
+              {cart.length > 0 && (
+                <button
+                  onClick={handleSaveDraft}
+                  disabled={loading}
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 dark:disabled:bg-gray-600 text-white font-bold text-xl py-4 rounded-lg shadow-md transition-all active:scale-95 disabled:cursor-not-allowed border-2 border-orange-600 disabled:border-gray-500"
+                >
+                  暫存
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Draft Orders Sidebar */}
+      {showDrafts && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" onClick={() => setShowDrafts(false)}>
+          <div className="bg-white dark:bg-gray-800 w-[600px] max-h-[80vh] rounded-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-orange-500 text-white px-6 py-4 rounded-t-lg flex items-center justify-between">
+              <h2 className="text-xl font-bold">暫存訂單</h2>
+              <button onClick={() => setShowDrafts(false)} className="text-2xl hover:text-gray-200">×</button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[calc(80vh-80px)]">
+              {drafts.length === 0 ? (
+                <div className="text-center text-gray-500 dark:text-gray-400 py-10">
+                  <div className="text-4xl mb-2">📋</div>
+                  <div>目前沒有暫存訂單</div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {drafts.map((draft) => {
+                    const draftSubtotal = draft.items.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0)
+                    let draftDiscountAmount = 0
+                    if (draft.discount_type === 'percent') {
+                      draftDiscountAmount = (draftSubtotal * draft.discount_value) / 100
+                    } else if (draft.discount_type === 'amount') {
+                      draftDiscountAmount = draft.discount_value
+                    }
+                    const draftTotal = Math.max(0, draftSubtotal - draftDiscountAmount)
+
+                    return (
+                      <div key={draft.id} className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <div className="font-bold text-black dark:text-gray-100">
+                              {draft.customers?.customer_name || '散客'}
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              {new Date(draft.created_at).toLocaleString('zh-TW')}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xl font-bold text-black dark:text-gray-100">{formatCurrency(draftTotal)}</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">{draft.items.length} 項商品</div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 mt-3">
+                          <button
+                            onClick={() => handleLoadDraft(draft)}
+                            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded-lg transition-all"
+                          >
+                            載入
+                          </button>
+                          <button
+                            onClick={() => handleDeleteDraft(draft.id)}
+                            className="bg-red-500 hover:bg-red-600 text-white font-bold px-4 py-2 rounded-lg transition-all"
+                          >
+                            刪除
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Today's Sales Sidebar */}
+      {showTodaySales && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" onClick={() => setShowTodaySales(false)}>
+          <div className="bg-white dark:bg-gray-800 w-[600px] max-h-[80vh] rounded-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-blue-500 text-white px-6 py-4 rounded-t-lg flex items-center justify-between">
+              <h2 className="text-xl font-bold">今日交易</h2>
+              <button onClick={() => setShowTodaySales(false)} className="text-2xl hover:text-gray-200">×</button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[calc(80vh-80px)]">
+              {todaySales.length === 0 ? (
+                <div className="text-center text-gray-500 dark:text-gray-400 py-10">
+                  <div className="text-4xl mb-2">📊</div>
+                  <div>今天還沒有交易記錄</div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {todaySales.map((sale) => (
+                    <div key={sale.id} className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <div className="font-bold text-black dark:text-gray-100">{sale.sale_no}</div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">
+                            {sale.customers?.customer_name || '散客'}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-500">
+                            {new Date(sale.created_at).toLocaleString('zh-TW')}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xl font-bold text-black dark:text-gray-100">{formatCurrency(sale.total)}</div>
+                          <div className={`text-sm ${sale.is_paid ? 'text-green-600' : 'text-red-600'}`}>
+                            {sale.is_paid ? '已收款' : '未收款'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

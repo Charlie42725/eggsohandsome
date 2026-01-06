@@ -338,7 +338,7 @@ export default function ProductsPage() {
                       className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none"
                       onClick={() => handleSort('stock')}
                     >
-                      <div className="flex items-center justify-end">
+                      <div className="flex items-center justify-end whitespace-nowrap">
                         庫存
                         <SortIcon field="stock" />
                       </div>

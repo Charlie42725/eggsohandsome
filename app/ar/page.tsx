@@ -335,9 +335,9 @@ export default function ARPageV2() {
         {/* Customer Groups */}
         <div className="rounded-lg bg-white dark:bg-gray-800 shadow">
           {loading ? (
-            <div className="p-8 text-center text-gray-900">載入中...</div>
+            <div className="p-8 text-center text-gray-900 dark:text-gray-100">載入中...</div>
           ) : customerGroups.length === 0 ? (
-            <div className="p-8 text-center text-gray-900">沒有應收帳款</div>
+            <div className="p-8 text-center text-gray-900 dark:text-gray-100">沒有應收帳款</div>
           ) : (
             <div className="divide-y divide-gray-200 dark:divide-gray-700">
               {customerGroups.map((group) => {
