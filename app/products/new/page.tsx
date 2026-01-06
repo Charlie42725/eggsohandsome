@@ -52,9 +52,9 @@ export default function NewProductPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gray-50 p-4 dark:bg-gray-900">
       <div className="mx-auto max-w-2xl">
-        <h1 className="mb-6 text-3xl font-bold">新增商品</h1>
+        <h1 className="mb-6 text-3xl font-bold text-gray-900 dark:text-gray-100">新增商品</h1>
 
         <form
           onSubmit={handleSubmit}
@@ -64,37 +64,37 @@ export default function NewProductPage() {
               e.preventDefault()
             }
           }}
-          className="rounded-lg bg-white p-6 shadow"
+          className="rounded-lg bg-white p-4 shadow dark:bg-gray-800 md:p-6"
         >
           {error && (
-            <div className="mb-4 rounded bg-red-50 p-3 text-red-700">{error}</div>
+            <div className="mb-4 rounded bg-red-50 p-3 text-red-700 dark:bg-red-900/20 dark:text-red-400">{error}</div>
           )}
 
           <div className="mb-4">
-            <label className="mb-1 block text-sm font-medium text-gray-900">
+            <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
               商品名稱 <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               name="name"
               required
-              className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+              className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
             />
           </div>
 
           <div className="mb-4">
-            <label className="mb-1 block text-sm font-medium text-gray-900">條碼</label>
+            <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">條碼</label>
             <input
               type="text"
               name="barcode"
-              className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900 placeholder:text-gray-900"
+              className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
               placeholder="選填"
             />
           </div>
 
-          <div className="mb-4 grid grid-cols-2 gap-4">
+          <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-900">
+              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
                 售價 <span className="text-red-500">*</span>
               </label>
               <input
@@ -104,54 +104,54 @@ export default function NewProductPage() {
                 min="0"
                 step="0.01"
                 defaultValue="0"
-                className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-900">成本</label>
+              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">成本</label>
               <input
                 type="number"
                 name="cost"
                 min="0"
                 step="0.01"
                 defaultValue="0"
-                className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
               />
             </div>
           </div>
 
           <div className="mb-4">
-            <label className="mb-1 block text-sm font-medium text-gray-900">初始庫存</label>
+            <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">初始庫存</label>
             <input
               type="number"
               name="stock"
               min="0"
               step="1"
               defaultValue="0"
-              className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+              className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
             />
           </div>
 
           <div className="mb-6">
             <label className="flex items-center gap-2">
               <input type="checkbox" name="allow_negative" defaultChecked className="h-4 w-4" />
-              <span className="text-sm text-gray-900">允許負庫存</span>
+              <span className="text-sm text-gray-900 dark:text-gray-100">允許負庫存</span>
             </label>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row">
             <button
               type="button"
               onClick={() => router.back()}
-              className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 hover:bg-gray-50"
+              className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-700"
             >
               取消
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-gray-300"
+              className="flex-1 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600"
             >
               {loading ? '建立中...' : '建立商品'}
             </button>

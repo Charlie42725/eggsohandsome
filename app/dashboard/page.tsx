@@ -178,33 +178,33 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
       <div className="mx-auto max-w-7xl">
-        <h1 className="mb-6 text-3xl font-bold text-gray-900">營收報表</h1>
+        <h1 className="mb-6 text-3xl font-bold text-gray-900 dark:text-gray-100">營收報表</h1>
 
         {/* Date Filter */}
-        <div className="mb-6 rounded-lg bg-white p-4 shadow">
+        <div className="mb-6 rounded-lg bg-white dark:bg-gray-800 p-4 shadow">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-900">
+              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
                 起始日期
               </label>
               <input
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+                className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-900">
+              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
                 結束日期
               </label>
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+                className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none"
               />
             </div>
           </div>
@@ -212,42 +212,42 @@ export default function DashboardPage() {
 
         {/* KPI Cards - Row 1: Revenue & Profit */}
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg bg-white p-6 shadow">
-            <div className="text-sm font-medium text-gray-900">期間營收</div>
+          <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow">
+            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">期間營收</div>
             <div className="mt-2 text-3xl font-bold text-green-600">
               {formatCurrency(stats.todaySales)}
             </div>
-            <div className="mt-1 text-sm text-gray-900">
+            <div className="mt-1 text-sm text-gray-900 dark:text-gray-100">
               {stats.todayOrders} 筆訂單
             </div>
           </div>
 
-          <div className="rounded-lg bg-white p-6 shadow">
-            <div className="text-sm font-medium text-gray-900">期間成本</div>
+          <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow">
+            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">期間成本</div>
             <div className="mt-2 text-3xl font-bold text-orange-600">
               {formatCurrency(stats.totalCost)}
             </div>
-            <div className="mt-1 text-sm text-gray-900">
+            <div className="mt-1 text-sm text-gray-900 dark:text-gray-100">
               毛利率: {stats.todaySales > 0 ? ((stats.grossProfit / stats.todaySales) * 100).toFixed(1) : 0}%
             </div>
           </div>
 
-          <div className="rounded-lg bg-white p-6 shadow">
-            <div className="text-sm font-medium text-gray-900">期間支出</div>
+          <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow">
+            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">期間支出</div>
             <div className="mt-2 text-3xl font-bold text-red-600">
               {formatCurrency(stats.totalExpenses)}
             </div>
-            <div className="mt-1 text-sm text-gray-900">
+            <div className="mt-1 text-sm text-gray-900 dark:text-gray-100">
               會計支出
             </div>
           </div>
 
-          <div className="rounded-lg bg-white p-6 shadow">
-            <div className="text-sm font-medium text-gray-900">期間淨利</div>
+          <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow">
+            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">期間淨利</div>
             <div className={`mt-2 text-3xl font-bold ${stats.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               {formatCurrency(stats.netProfit)}
             </div>
-            <div className="mt-1 text-sm text-gray-900">
+            <div className="mt-1 text-sm text-gray-900 dark:text-gray-100">
               毛利: {formatCurrency(stats.grossProfit)}
             </div>
           </div>
@@ -255,8 +255,8 @@ export default function DashboardPage() {
 
         {/* KPI Cards - Row 2: AR/AP */}
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="rounded-lg bg-white p-6 shadow">
-            <div className="text-sm font-medium text-gray-900">應收帳款</div>
+          <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow">
+            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">應收帳款</div>
             <div className="mt-2 text-3xl font-bold text-blue-600">
               {formatCurrency(stats.totalAR)}
             </div>
@@ -267,8 +267,8 @@ export default function DashboardPage() {
             )}
           </div>
 
-          <div className="rounded-lg bg-white p-6 shadow">
-            <div className="text-sm font-medium text-gray-900">應付帳款</div>
+          <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow">
+            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">應付帳款</div>
             <div className="mt-2 text-3xl font-bold text-orange-600">
               {formatCurrency(stats.totalAP)}
             </div>
@@ -282,29 +282,29 @@ export default function DashboardPage() {
 
         {/* Cost Breakdown */}
         {stats.costBreakdown && stats.costBreakdown.length > 0 && (
-          <div className="mb-6 rounded-lg bg-white p-6 shadow">
-            <h2 className="mb-4 text-xl font-semibold text-gray-900">期間成本明細</h2>
+          <div className="mb-6 rounded-lg bg-white dark:bg-gray-800 p-6 shadow">
+            <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">期間成本明細</h2>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="border-b bg-gray-50">
+                <thead className="border-b bg-gray-50 dark:bg-gray-900">
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">商品名稱</th>
-                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">單位成本</th>
-                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">銷售數量</th>
-                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">總成本</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">商品名稱</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">單位成本</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">銷售數量</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">總成本</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {stats.costBreakdown.map((item, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-900">{item.product_name}</td>
-                      <td className="px-4 py-3 text-right text-sm text-gray-900">
+                    <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{item.product_name}</td>
+                      <td className="px-4 py-3 text-right text-sm text-gray-900 dark:text-gray-100">
                         {formatCurrency(item.cost)}
                       </td>
-                      <td className="px-4 py-3 text-right text-sm text-gray-900">
+                      <td className="px-4 py-3 text-right text-sm text-gray-900 dark:text-gray-100">
                         {item.quantity}
                       </td>
-                      <td className="px-4 py-3 text-right text-sm font-semibold text-gray-900">
+                      <td className="px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
                         {formatCurrency(item.total_cost)}
                       </td>
                     </tr>
@@ -312,7 +312,7 @@ export default function DashboardPage() {
                 </tbody>
                 <tfoot className="border-t bg-gray-50">
                   <tr>
-                    <td colSpan={3} className="px-4 py-3 text-right text-sm font-semibold text-gray-900">
+                    <td colSpan={3} className="px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
                       總計:
                     </td>
                     <td className="px-4 py-3 text-right text-sm font-bold text-gray-900">
@@ -326,9 +326,9 @@ export default function DashboardPage() {
         )}
 
         {/* Recent Sales */}
-        <div className="rounded-lg bg-white p-6 shadow">
+        <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900">最近銷售</h2>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">最近銷售</h2>
             <Link
               href="/sales"
               className="text-sm text-blue-600 hover:underline"
@@ -344,18 +344,18 @@ export default function DashboardPage() {
               {recentSales.map((sale) => (
                 <div
                   key={sale.id}
-                  className="flex items-center justify-between rounded border border-gray-200 p-3"
+                  className="flex items-center justify-between rounded border border-gray-200 dark:border-gray-700 p-3"
                 >
                   <div>
-                    <div className="font-medium text-gray-900">
+                    <div className="font-medium text-gray-900 dark:text-gray-100">
                       {sale.sale_no}
                     </div>
-                    <div className="text-sm text-gray-900">
+                    <div className="text-sm text-gray-900 dark:text-gray-100">
                       {sale.customer_code || '散客'}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-semibold text-gray-900">
+                    <div className="font-semibold text-gray-900 dark:text-gray-100">
                       {formatCurrency(sale.total)}
                     </div>
                     <div className="text-xs text-gray-900">
@@ -374,15 +374,15 @@ export default function DashboardPage() {
         </div>
 
         {/* Quick Actions */}
-        <div className="mt-6 rounded-lg bg-white p-6 shadow">
-          <h2 className="mb-4 text-xl font-semibold text-gray-900">快速操作</h2>
+        <div className="mt-6 rounded-lg bg-white dark:bg-gray-800 p-6 shadow">
+          <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">快速操作</h2>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <Link
               href="/pos"
               className="flex flex-col items-center rounded-lg border-2 border-blue-200 bg-blue-50 p-4 text-center transition-colors hover:bg-blue-100"
             >
               <div className="mb-2 text-3xl">🛒</div>
-              <div className="font-semibold text-gray-900">POS 收銀</div>
+              <div className="font-semibold text-gray-900 dark:text-gray-100">POS 收銀</div>
             </Link>
 
             <Link
@@ -390,7 +390,7 @@ export default function DashboardPage() {
               className="flex flex-col items-center rounded-lg border-2 border-green-200 bg-green-50 p-4 text-center transition-colors hover:bg-green-100"
             >
               <div className="mb-2 text-3xl">📦</div>
-              <div className="font-semibold text-gray-900">新增商品</div>
+              <div className="font-semibold text-gray-900 dark:text-gray-100">新增商品</div>
             </Link>
 
             <Link
@@ -398,7 +398,7 @@ export default function DashboardPage() {
               className="flex flex-col items-center rounded-lg border-2 border-purple-200 bg-purple-50 p-4 text-center transition-colors hover:bg-purple-100"
             >
               <div className="mb-2 text-3xl">📥</div>
-              <div className="font-semibold text-gray-900">新增進貨</div>
+              <div className="font-semibold text-gray-900 dark:text-gray-100">新增進貨</div>
             </Link>
 
             <Link
@@ -406,7 +406,7 @@ export default function DashboardPage() {
               className="flex flex-col items-center rounded-lg border-2 border-orange-200 bg-orange-50 p-4 text-center transition-colors hover:bg-orange-100"
             >
               <div className="mb-2 text-3xl">💰</div>
-              <div className="font-semibold text-gray-900">收款</div>
+              <div className="font-semibold text-gray-900 dark:text-gray-100">收款</div>
             </Link>
           </div>
         </div>

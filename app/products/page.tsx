@@ -165,10 +165,10 @@ export default function ProductsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
       <div className="mx-auto max-w-7xl">
         <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">商品庫</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">商品庫</h1>
           <Link
             href="/products/new"
             className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
@@ -178,14 +178,14 @@ export default function ProductsPage() {
         </div>
 
         {/* Filters */}
-        <div className="mb-6 rounded-lg bg-white p-4 shadow">
+        <div className="mb-6 rounded-lg bg-white dark:bg-gray-800 p-4 shadow">
           <form onSubmit={handleSearch} className="mb-4 flex gap-2">
             <input
               type="text"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               placeholder="搜尋商品名稱、品號或條碼"
-              className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 placeholder:text-gray-900"
+              className="flex-1 rounded border border-gray-300 dark:border-gray-600 px-4 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700 placeholder:text-gray-900 dark:placeholder:text-gray-400"
             />
             <button
               type="submit"
@@ -201,7 +201,7 @@ export default function ProductsPage() {
               className={`rounded px-4 py-1 font-medium ${
                 activeFilter === null
                   ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 text-gray-900 hover:bg-gray-300'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
               }`}
             >
               全部
@@ -211,7 +211,7 @@ export default function ProductsPage() {
               className={`rounded px-4 py-1 font-medium ${
                 activeFilter === true
                   ? 'bg-green-600 text-white'
-                  : 'bg-gray-200 text-gray-900 hover:bg-gray-300'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
               }`}
             >
               上架
@@ -221,7 +221,7 @@ export default function ProductsPage() {
               className={`rounded px-4 py-1 font-medium ${
                 activeFilter === false
                   ? 'bg-red-600 text-white'
-                  : 'bg-gray-200 text-gray-900 hover:bg-gray-300'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
               }`}
             >
               下架
@@ -231,37 +231,37 @@ export default function ProductsPage() {
 
         {/* Low Stock Products Alert */}
         {!loadingLowStock && lowStockProducts.length > 0 && (
-          <div className="mb-6 rounded-lg bg-white shadow">
+          <div className="mb-6 rounded-lg bg-white dark:bg-gray-800 shadow">
             <button
               onClick={() => setShowLowStock(!showLowStock)}
-              className="flex w-full items-center justify-between p-4 text-left hover:bg-gray-50"
+              className="flex w-full items-center justify-between p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700"
             >
               <div className="flex items-center gap-3">
-                <span className="text-xl font-semibold text-gray-900">
+                <span className="text-xl font-semibold text-gray-900 dark:text-gray-100">
                   低庫存商品提醒
                 </span>
-                <span className="rounded bg-red-100 px-3 py-1 text-sm font-medium text-red-800">
+                <span className="rounded bg-red-100 dark:bg-red-900 px-3 py-1 text-sm font-medium text-red-800 dark:text-red-200">
                   {lowStockProducts.length} 項
                 </span>
               </div>
-              <span className="text-2xl text-gray-900">
+              <span className="text-2xl text-gray-900 dark:text-gray-100">
                 {showLowStock ? '−' : '+'}
               </span>
             </button>
 
             {showLowStock && (
-              <div className="border-t border-gray-200 p-4">
+              <div className="border-t border-gray-200 dark:border-gray-700 p-4">
                 <div className="space-y-3">
                   {lowStockProducts.map((product) => (
                     <div
                       key={product.id}
-                      className="flex items-center justify-between rounded border border-gray-200 p-3 hover:bg-gray-50"
+                      className="flex items-center justify-between rounded border border-gray-200 dark:border-gray-700 p-3 hover:bg-gray-50 dark:hover:bg-gray-700"
                     >
                       <div>
-                        <div className="font-medium text-gray-900">
+                        <div className="font-medium text-gray-900 dark:text-gray-100">
                           {product.name}
                         </div>
-                        <div className="text-sm text-gray-900">
+                        <div className="text-sm text-gray-900 dark:text-gray-400">
                           品號: {product.item_code}
                         </div>
                       </div>
@@ -276,7 +276,7 @@ export default function ProductsPage() {
                           }`}
                         >
                           <div className="text-lg">剩餘 {product.stock}</div>
-                          <div className="text-xs font-normal text-gray-900">
+                          <div className="text-xs font-normal text-gray-900 dark:text-gray-400">
                             {product.stock === 0 ? '缺貨' : '庫存不足'}
                           </div>
                         </div>
@@ -304,18 +304,18 @@ export default function ProductsPage() {
         )}
 
         {/* Products table */}
-        <div className="rounded-lg bg-white shadow">
+        <div className="rounded-lg bg-white dark:bg-gray-800 shadow">
           {loading ? (
-            <div className="p-8 text-center text-gray-900">載入中...</div>
+            <div className="p-8 text-center text-gray-900 dark:text-gray-100">載入中...</div>
           ) : products.length === 0 ? (
-            <div className="p-8 text-center text-gray-900">沒有商品</div>
+            <div className="p-8 text-center text-gray-900 dark:text-gray-100">沒有商品</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="border-b bg-gray-50">
+                <thead className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
                   <tr>
                     <th
-                      className="px-6 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100 select-none"
+                      className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none"
                       onClick={() => handleSort('item_code')}
                     >
                       <div className="flex items-center">
@@ -323,9 +323,9 @@ export default function ProductsPage() {
                         <SortIcon field="item_code" />
                       </div>
                     </th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">條碼</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">條碼</th>
                     <th
-                      className="px-6 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100 select-none"
+                      className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none"
                       onClick={() => handleSort('name')}
                     >
                       <div className="flex items-center">
@@ -334,7 +334,7 @@ export default function ProductsPage() {
                       </div>
                     </th>
                     <th
-                      className="px-6 py-3 text-right text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100 select-none"
+                      className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none"
                       onClick={() => handleSort('price')}
                     >
                       <div className="flex items-center justify-end">
@@ -343,7 +343,7 @@ export default function ProductsPage() {
                       </div>
                     </th>
                     <th
-                      className="px-6 py-3 text-right text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100 select-none"
+                      className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none"
                       onClick={() => handleSort('avg_cost')}
                     >
                       <div className="flex items-center justify-end">
@@ -352,7 +352,7 @@ export default function ProductsPage() {
                       </div>
                     </th>
                     <th
-                      className="px-6 py-3 text-right text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100 select-none"
+                      className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none"
                       onClick={() => handleSort('stock')}
                     >
                       <div className="flex items-center justify-end">
@@ -361,7 +361,7 @@ export default function ProductsPage() {
                       </div>
                     </th>
                     <th
-                      className="px-6 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100 select-none"
+                      className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none"
                       onClick={() => handleSort('updated_at')}
                     >
                       <div className="flex items-center">
@@ -369,20 +369,20 @@ export default function ProductsPage() {
                         <SortIcon field="updated_at" />
                       </div>
                     </th>
-                    <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">狀態</th>
-                    <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">操作</th>
+                    <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">狀態</th>
+                    <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">操作</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {sortedProducts.map((product) => (
-                    <tr key={product.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm text-gray-900">{product.item_code}</td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{product.barcode || '-'}</td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{product.name}</td>
-                      <td className="px-6 py-4 text-right text-sm text-gray-900">
+                    <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{product.item_code}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{product.barcode || '-'}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">{product.name}</td>
+                      <td className="px-6 py-4 text-right text-sm text-gray-900 dark:text-gray-100">
                         {formatCurrency(product.price)}
                       </td>
-                      <td className="px-6 py-4 text-right text-sm text-gray-900">
+                      <td className="px-6 py-4 text-right text-sm text-gray-900 dark:text-gray-100">
                         {formatCurrency(product.avg_cost)}
                       </td>
                       <td className="px-6 py-4 text-right text-sm">
@@ -392,13 +392,13 @@ export default function ProductsPage() {
                               ? 'font-semibold text-red-600'
                               : product.stock < 10
                               ? 'font-semibold text-yellow-600'
-                              : 'text-gray-900'
+                              : 'text-gray-900 dark:text-gray-100'
                           }
                         >
                           {product.stock}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
+                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">
                         {product.updated_at
                           ? new Date(product.updated_at).toLocaleString('zh-TW', {
                               year: 'numeric',
@@ -454,16 +454,16 @@ export default function ProductsPage() {
 
           {/* Pagination */}
           {!loading && products.length > 0 && pagination.totalPages > 1 && (
-            <div className="border-t border-gray-200 px-6 py-4">
+            <div className="border-t border-gray-200 dark:border-gray-700 px-6 py-4">
               <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-700">
+                <div className="text-sm text-gray-700 dark:text-gray-300">
                   顯示第 {((pagination.page - 1) * pagination.pageSize) + 1} - {Math.min(pagination.page * pagination.pageSize, pagination.total)} 筆，共 {pagination.total} 筆
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => handlePageChange(page - 1)}
                     disabled={page === 1}
-                    className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     上一頁
                   </button>
@@ -482,13 +482,13 @@ export default function ProductsPage() {
                         const showEllipsisBefore = idx > 0 && arr[idx - 1] !== p - 1
                         return (
                           <div key={p} className="flex items-center gap-1">
-                            {showEllipsisBefore && <span className="px-2 text-gray-500">...</span>}
+                            {showEllipsisBefore && <span className="px-2 text-gray-500 dark:text-gray-400">...</span>}
                             <button
                               onClick={() => handlePageChange(p)}
                               className={`min-w-[2rem] rounded px-3 py-1 text-sm ${
                                 p === page
                                   ? 'bg-blue-600 text-white'
-                                  : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                                  : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                               }`}
                             >
                               {p}
@@ -501,7 +501,7 @@ export default function ProductsPage() {
                   <button
                     onClick={() => handlePageChange(page + 1)}
                     disabled={page === pagination.totalPages}
-                    className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     下一頁
                   </button>

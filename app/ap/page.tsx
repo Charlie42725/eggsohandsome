@@ -244,48 +244,48 @@ export default function APPageV2() {
   const totalVendors = vendorGroups.filter(g => g.unpaid_count > 0).length
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
       <div className="mx-auto max-w-7xl">
         <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">應付帳款</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">應付帳款</h1>
         </div>
 
         {/* Summary */}
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="rounded-lg bg-white p-4 shadow">
-            <div className="text-sm text-gray-900">未付總額</div>
-            <div className="text-2xl font-bold text-gray-900">
+          <div className="rounded-lg bg-white dark:bg-gray-800 p-4 shadow">
+            <div className="text-sm text-gray-900 dark:text-gray-100">未付總額</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               {formatCurrency(totalUnpaid)}
             </div>
-            <div className="text-sm text-gray-900">{totalVendors} 家廠商</div>
+            <div className="text-sm text-gray-900 dark:text-gray-100">{totalVendors} 家廠商</div>
           </div>
 
-          <div className="rounded-lg bg-white p-4 shadow">
-            <div className="text-sm text-gray-900">已選擇</div>
+          <div className="rounded-lg bg-white dark:bg-gray-800 p-4 shadow">
+            <div className="text-sm text-gray-900 dark:text-gray-100">已選擇</div>
             <div className="text-2xl font-bold text-blue-600">
               {formatCurrency(getSelectedTotal())}
             </div>
-            <div className="text-sm text-gray-900">{selectedAccounts.size} 筆</div>
+            <div className="text-sm text-gray-900 dark:text-gray-100">{selectedAccounts.size} 筆</div>
           </div>
 
-          <div className="rounded-lg bg-white p-4 shadow">
-            <div className="text-sm text-gray-900">單據總數</div>
-            <div className="text-2xl font-bold text-gray-900">
+          <div className="rounded-lg bg-white dark:bg-gray-800 p-4 shadow">
+            <div className="text-sm text-gray-900 dark:text-gray-100">單據總數</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               {vendorGroups.reduce((sum, g) => sum + g.unpaid_count, 0)}
             </div>
-            <div className="text-sm text-gray-900">筆未付</div>
+            <div className="text-sm text-gray-900 dark:text-gray-100">筆未付</div>
           </div>
         </div>
 
         {/* Search */}
-        <div className="mb-6 rounded-lg bg-white p-4 shadow">
+        <div className="mb-6 rounded-lg bg-white dark:bg-gray-800 p-4 shadow">
           <form onSubmit={handleSearch} className="flex gap-2">
             <input
               type="text"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               placeholder="搜尋廠商名稱或代碼"
-              className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 placeholder:text-gray-900"
+              className="flex-1 rounded border border-gray-300 dark:border-gray-600 px-4 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700 placeholder:text-gray-900 dark:placeholder:text-gray-400"
             />
             <button
               type="submit"
@@ -297,13 +297,13 @@ export default function APPageV2() {
         </div>
 
         {/* Vendor Groups */}
-        <div className="rounded-lg bg-white shadow">
+        <div className="rounded-lg bg-white dark:bg-gray-800 shadow">
           {loading ? (
             <div className="p-8 text-center text-gray-900">載入中...</div>
           ) : vendorGroups.length === 0 ? (
             <div className="p-8 text-center text-gray-900">沒有應付帳款</div>
           ) : (
-            <div className="divide-y divide-gray-200">
+            <div className="divide-y divide-gray-200 dark:divide-gray-700">
               {vendorGroups.map((group) => {
                 const isExpanded = expandedVendors.has(group.partner_code)
                 const unpaidAccounts = group.accounts.filter(a => a.status !== 'paid')
@@ -313,7 +313,7 @@ export default function APPageV2() {
                 return (
                   <div key={group.partner_code}>
                     {/* Vendor Header */}
-                    <div className="flex items-center gap-4 p-4 hover:bg-gray-50">
+                    <div className="flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700">
                       <input
                         type="checkbox"
                         checked={allSelected}
@@ -324,7 +324,7 @@ export default function APPageV2() {
                       />
 
                       <div
-                        className="flex-1 cursor-pointer"
+                        className="flex-1 cursor-pointer dark:text-gray-100"
                         onClick={() => toggleVendor(group.partner_code)}
                       >
                         <div className="flex items-center justify-between">
@@ -332,21 +332,21 @@ export default function APPageV2() {
                             <span className="text-blue-600">
                               {isExpanded ? '▼' : '▶'}
                             </span>
-                            <span className="font-semibold text-gray-900">
+                            <span className="font-semibold text-gray-900 dark:text-gray-100">
                               {group.vendor_name}
                             </span>
-                            <span className="text-sm text-gray-500">
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
                               ({group.partner_code})
                             </span>
                           </div>
 
                           <div className="flex items-center gap-4">
                             <div className="text-right">
-                              <div className="text-sm text-gray-500">未付款</div>
-                              <div className="text-lg font-bold text-gray-900">
+                              <div className="text-sm text-gray-500 dark:text-gray-400">未付款</div>
+                              <div className="text-lg font-bold text-gray-900 dark:text-gray-100">
                                 {formatCurrency(group.total_balance)}
                               </div>
-                              <div className="text-xs text-gray-500">
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
                                 {group.unpaid_count} 筆單據
                               </div>
                             </div>
@@ -370,19 +370,19 @@ export default function APPageV2() {
 
                     {/* Account Details */}
                     {isExpanded && (
-                      <div className="bg-gray-50 px-4 pb-4">
+                      <div className="bg-gray-50 dark:bg-gray-900 px-4 pb-4">
                         <table className="w-full">
                           <thead className="border-b">
                             <tr>
-                              <th className="pb-2 text-left text-xs font-semibold text-gray-900"></th>
-                              <th className="pb-2 text-left text-xs font-semibold text-gray-900">進貨單號</th>
-                              <th className="pb-2 text-left text-xs font-semibold text-gray-900">商品</th>
-                              <th className="pb-2 text-right text-xs font-semibold text-gray-900">數量</th>
-                              <th className="pb-2 text-right text-xs font-semibold text-gray-900">應付金額</th>
-                              <th className="pb-2 text-right text-xs font-semibold text-gray-900">已付金額</th>
-                              <th className="pb-2 text-right text-xs font-semibold text-gray-900">餘額</th>
-                              <th className="pb-2 text-left text-xs font-semibold text-gray-900">到期日</th>
-                              <th className="pb-2 text-center text-xs font-semibold text-gray-900">狀態</th>
+                              <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100"></th>
+                              <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">進貨單號</th>
+                              <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">商品</th>
+                              <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">數量</th>
+                              <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">應付金額</th>
+                              <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">已付金額</th>
+                              <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">餘額</th>
+                              <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">到期日</th>
+                              <th className="pb-2 text-center text-xs font-semibold text-gray-900 dark:text-gray-100">狀態</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y">
@@ -391,7 +391,7 @@ export default function APPageV2() {
                                 new Date(account.due_date) < new Date()
 
                               return (
-                                <tr key={account.id} className="hover:bg-white">
+                                <tr key={account.id} className="hover:bg-white dark:hover:bg-gray-800">
                                   <td className="py-2">
                                     <input
                                       type="checkbox"
@@ -401,33 +401,33 @@ export default function APPageV2() {
                                       className="h-4 w-4"
                                     />
                                   </td>
-                                  <td className="py-2 text-sm text-gray-900">
+                                  <td className="py-2 text-sm text-gray-900 dark:text-gray-100">
                                     {account.ref_no}
                                   </td>
-                                  <td className="py-2 text-sm text-gray-900">
+                                  <td className="py-2 text-sm text-gray-900 dark:text-gray-100">
                                     {account.purchase_item ? (
                                       <div>
                                         <div className="font-medium">{account.purchase_item.products.name}</div>
-                                        <div className="text-xs text-gray-500">{account.purchase_item.products.item_code}</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">{account.purchase_item.products.item_code}</div>
                                       </div>
                                     ) : (
                                       <span className="text-gray-400">-</span>
                                     )}
                                   </td>
-                                  <td className="py-2 text-right text-sm text-gray-900">
+                                  <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
                                     {account.purchase_item ? (
                                       `${account.purchase_item.quantity} ${account.purchase_item.products.unit}`
                                     ) : (
                                       <span className="text-gray-400">-</span>
                                     )}
                                   </td>
-                                  <td className="py-2 text-right text-sm text-gray-900">
+                                  <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
                                     {formatCurrency(account.amount)}
                                   </td>
-                                  <td className="py-2 text-right text-sm text-gray-900">
+                                  <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
                                     {formatCurrency(account.received_paid)}
                                   </td>
-                                  <td className="py-2 text-right text-sm font-semibold text-gray-900">
+                                  <td className="py-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
                                     {formatCurrency(account.balance)}
                                   </td>
                                   <td className={`py-2 text-sm ${isOverdue ? 'font-semibold text-red-600' : 'text-gray-900'}`}>
@@ -464,24 +464,24 @@ export default function APPageV2() {
       {/* Payment Modal */}
       {showPaymentModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-6">
-            <h3 className="mb-4 text-xl font-semibold text-gray-900">付款</h3>
+          <div className="w-full max-w-md rounded-lg bg-white dark:bg-gray-800 p-6">
+            <h3 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">付款</h3>
 
             {error && (
-              <div className="mb-4 rounded bg-red-50 p-3 text-red-700">{error}</div>
+              <div className="mb-4 rounded bg-red-50 dark:bg-red-900 p-3 text-red-700 dark:text-red-200">{error}</div>
             )}
 
             <div className="mb-4">
-              <label className="mb-1 block text-sm font-medium text-gray-900">
+              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
                 已選擇 {selectedAccounts.size} 筆帳款
               </label>
-              <div className="rounded bg-gray-50 p-3 text-lg font-bold text-gray-900">
+              <div className="rounded bg-gray-50 dark:bg-gray-700 p-3 text-lg font-bold text-gray-900 dark:text-gray-100">
                 應付總額: {formatCurrency(getSelectedTotal())}
               </div>
             </div>
 
             <div className="mb-4">
-              <label className="mb-1 block text-sm font-medium text-gray-900">
+              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
                 付款金額 *
               </label>
               <input
@@ -494,7 +494,7 @@ export default function APPageV2() {
                     setPaymentAmount(v)
                   }
                 }}
-                className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
                 placeholder="輸入付款金額"
                 autoFocus
               />
@@ -507,13 +507,13 @@ export default function APPageV2() {
             </div>
 
             <div className="mb-6">
-              <label className="mb-1 block text-sm font-medium text-gray-900">
+              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
                 付款方式
               </label>
               <select
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
-                className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
               >
                 <option value="cash">現金</option>
                 <option value="card">刷卡</option>
@@ -536,7 +536,7 @@ export default function APPageV2() {
                   setPaymentAmount('')
                   setCurrentVendor(null)
                 }}
-                className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 hover:bg-gray-50"
+                className="flex-1 rounded border border-gray-300 dark:border-gray-600 px-4 py-2 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700"
               >
                 取消
               </button>

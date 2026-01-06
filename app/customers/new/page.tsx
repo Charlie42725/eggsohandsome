@@ -47,74 +47,74 @@ export default function NewCustomerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gray-50 p-4 dark:bg-gray-900">
       <div className="mx-auto max-w-2xl">
-        <h1 className="mb-6 text-3xl font-bold">新增客戶</h1>
+        <h1 className="mb-6 text-3xl font-bold text-gray-900 dark:text-gray-100">新增客戶</h1>
 
-        <form onSubmit={handleSubmit} className="rounded-lg bg-white p-6 shadow">
+        <form onSubmit={handleSubmit} className="rounded-lg bg-white p-4 shadow dark:bg-gray-800 md:p-6">
           {error && (
-            <div className="mb-4 rounded bg-red-50 p-3 text-red-700">{error}</div>
+            <div className="mb-4 rounded bg-red-50 p-3 text-red-700 dark:bg-red-900/20 dark:text-red-400">{error}</div>
           )}
 
           <div className="mb-4">
-            <label className="mb-1 block text-sm font-medium text-gray-900">
+            <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
               客戶名稱 <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               name="customer_name"
               required
-              className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+              className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
             />
           </div>
 
-          <div className="mb-4 grid grid-cols-2 gap-4">
+          <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-900">電話</label>
+              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">電話</label>
               <input
                 type="text"
                 name="phone"
-                className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900 placeholder:text-gray-900"
+                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
                 placeholder="選填"
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-900">LINE ID</label>
+              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">LINE ID</label>
               <input
                 type="text"
                 name="line_id"
-                className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900 placeholder:text-gray-900"
+                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
                 placeholder="選填"
               />
             </div>
           </div>
 
           <div className="mb-4">
-            <label className="mb-1 block text-sm font-medium text-gray-900">Email</label>
+            <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">Email</label>
             <input
               type="email"
               name="email"
-              className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900 placeholder:text-gray-900"
+              className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
               placeholder="選填"
             />
           </div>
 
           <div className="mb-4">
-            <label className="mb-1 block text-sm font-medium text-gray-900">門市地址</label>
+            <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">門市地址</label>
             <input
               type="text"
               name="address"
-              className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900 placeholder:text-gray-900"
+              className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
               placeholder="選填"
             />
           </div>
 
           <div className="mb-4">
-            <label className="mb-1 block text-sm font-medium text-gray-900">付款方式</label>
+            <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">付款方式</label>
             <select
               name="payment_method"
-              className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+              className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
             >
               <option value="">請選擇</option>
               <option value="cash">現金</option>
@@ -125,27 +125,27 @@ export default function NewCustomerPage() {
           </div>
 
           <div className="mb-6">
-            <label className="mb-1 block text-sm font-medium text-gray-900">備註</label>
+            <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">備註</label>
             <textarea
               name="note"
               rows={3}
-              className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900 placeholder:text-gray-900"
+              className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
               placeholder="選填"
             />
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row">
             <button
               type="button"
               onClick={() => router.back()}
-              className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 hover:bg-gray-50"
+              className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-700"
             >
               取消
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-gray-300"
+              className="flex-1 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600"
             >
               {loading ? '建立中...' : '建立客戶'}
             </button>

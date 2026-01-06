@@ -263,9 +263,9 @@ export default function EditIchibanKujiPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4">
+      <div className="min-h-screen bg-gray-50 p-4 dark:bg-gray-900">
         <div className="mx-auto max-w-6xl">
-          <div className="rounded-lg bg-white p-8 shadow text-center text-gray-900">
+          <div className="rounded-lg bg-white p-8 text-center shadow dark:bg-gray-800 dark:text-gray-100">
             載入中...
           </div>
         </div>
@@ -274,10 +274,10 @@ export default function EditIchibanKujiPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gray-50 p-4 dark:bg-gray-900">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">編輯一番賞</h1>
+        <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">編輯一番賞</h1>
           <button
             onClick={() => router.push('/ichiban-kuji')}
             className="rounded bg-gray-500 px-4 py-2 font-medium text-white hover:bg-gray-600"
@@ -287,30 +287,30 @@ export default function EditIchibanKujiPage() {
         </div>
 
         {error && (
-          <div className="mb-4 rounded-lg bg-red-50 p-4 text-red-700">
+          <div className="mb-4 rounded-lg bg-red-50 p-4 text-red-700 dark:bg-red-900/20 dark:text-red-400">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Info */}
-          <div className="rounded-lg bg-white p-6 shadow">
-            <h2 className="mb-4 text-xl font-semibold text-gray-900">基本資訊</h2>
+          <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800 md:p-6">
+            <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">基本資訊</h2>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-900">
+                <label className="mb-2 block text-sm font-medium text-gray-900 dark:text-gray-100">
                   一番賞名稱 *
                 </label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                  className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                   placeholder="例：鬼滅之刃一番賞"
                 />
               </div>
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-900">
+                <label className="mb-2 block text-sm font-medium text-gray-900 dark:text-gray-100">
                   每抽售價 *
                 </label>
                 <input
@@ -319,7 +319,7 @@ export default function EditIchibanKujiPage() {
                   step="1"
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                  className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                   placeholder="例：100"
                 />
               </div>
@@ -327,9 +327,9 @@ export default function EditIchibanKujiPage() {
           </div>
 
           {/* Combo Prices */}
-          <div className="rounded-lg bg-white p-6 shadow">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900">組合價設定（選填）</h2>
+          <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800 md:p-6">
+            <div className="mb-4 flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">組合價設定（選填）</h2>
               <button
                 type="button"
                 onClick={addComboPrice}
@@ -340,35 +340,35 @@ export default function EditIchibanKujiPage() {
             </div>
 
             {comboPrices.length === 0 ? (
-              <div className="rounded border-2 border-dashed border-gray-300 p-4 text-center text-sm text-gray-500">
+              <div className="rounded border-2 border-dashed border-gray-300 p-4 text-center text-sm text-gray-500 dark:border-gray-600 dark:text-gray-400">
                 可選擇性新增組合價優惠，例如：3抽280元、5抽450元
               </div>
             ) : (
               <div className="space-y-3">
                 {comboPrices.map((combo, index) => (
-                  <div key={index} className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 flex-1">
+                  <div key={index} className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+                    <div className="flex w-full flex-1 flex-wrap items-center gap-2">
                       <input
                         type="number"
                         min="1"
                         value={combo.draws}
                         onChange={(e) => updateComboPrice(index, 'draws', parseInt(e.target.value) || 1)}
-                        className="w-24 rounded border border-gray-300 px-3 py-2 text-gray-900"
+                        className="w-24 rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                         placeholder="抽數"
                       />
-                      <span className="text-gray-600">抽</span>
+                      <span className="text-gray-600 dark:text-gray-400">抽</span>
                       <input
                         type="number"
                         min="0"
                         step="1"
                         value={combo.price}
                         onChange={(e) => updateComboPrice(index, 'price', parseFloat(e.target.value) || 0)}
-                        className="w-32 rounded border border-gray-300 px-3 py-2 text-gray-900"
+                        className="w-32 rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                         placeholder="價格"
                       />
-                      <span className="text-gray-600">元</span>
+                      <span className="text-gray-600 dark:text-gray-400">元</span>
                       {combo.draws > 0 && combo.price > 0 && (
-                        <span className="text-sm text-gray-500">
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
                           (平均每抽 {formatCurrency(combo.price / combo.draws)})
                         </span>
                       )}
@@ -376,7 +376,7 @@ export default function EditIchibanKujiPage() {
                     <button
                       type="button"
                       onClick={() => removeComboPrice(index)}
-                      className="text-red-600 hover:text-red-700 text-lg font-bold px-2"
+                      className="px-2 text-lg font-bold text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-500"
                     >
                       ✕
                     </button>
@@ -387,9 +387,9 @@ export default function EditIchibanKujiPage() {
           </div>
 
           {/* Prizes */}
-          <div className="rounded-lg bg-white p-6 shadow overflow-visible">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900">賞項設定</h2>
+          <div className="overflow-visible rounded-lg bg-white p-4 shadow dark:bg-gray-800 md:p-6">
+            <div className="mb-4 flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">賞項設定</h2>
               <button
                 type="button"
                 onClick={addPrize}
@@ -400,23 +400,23 @@ export default function EditIchibanKujiPage() {
             </div>
 
             {prizes.length === 0 ? (
-              <div className="rounded border-2 border-dashed border-gray-300 p-8 text-center text-gray-500">
+              <div className="rounded border-2 border-dashed border-gray-300 p-8 text-center text-gray-500 dark:border-gray-600 dark:text-gray-400">
                 尚未新增任何賞項，點擊上方按鈕新增
               </div>
             ) : (
-              <div>
+              <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="border-b">
+                  <thead className="border-b dark:border-gray-700">
                     <tr>
-                      <th className="pb-2 text-left text-sm font-semibold text-gray-900 w-24">賞別 *</th>
-                      <th className="pb-2 text-left text-sm font-semibold text-gray-900">商品 *</th>
-                      <th className="pb-2 text-left text-sm font-semibold text-gray-900 w-28">數量 *</th>
-                      <th className="pb-2 text-right text-sm font-semibold text-gray-900 w-32">單位成本</th>
-                      <th className="pb-2 text-right text-sm font-semibold text-gray-900 w-32">小計</th>
-                      <th className="pb-2 text-center text-sm font-semibold text-gray-900 w-20">操作</th>
+                      <th className="pb-2 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 w-24">賞別 *</th>
+                      <th className="pb-2 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">商品 *</th>
+                      <th className="pb-2 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 w-28">數量 *</th>
+                      <th className="pb-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100 w-32">單位成本</th>
+                      <th className="pb-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100 w-32">小計</th>
+                      <th className="pb-2 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 w-20">操作</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y">
+                  <tbody className="divide-y dark:divide-gray-700">
                     {prizes.map((prize, index) => (
                       <tr key={index}>
                         <td className="py-2">
@@ -424,7 +424,7 @@ export default function EditIchibanKujiPage() {
                             type="text"
                             value={prize.prize_tier}
                             onChange={(e) => updatePrize(index, 'prize_tier', e.target.value)}
-                            className="w-full rounded border border-gray-300 px-2 py-1 text-sm text-gray-900"
+                            className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                             placeholder="A賞"
                           />
                         </td>
@@ -435,12 +435,12 @@ export default function EditIchibanKujiPage() {
                               value={searchInputs[index] || ''}
                               onChange={(e) => searchProduct(index, e.target.value)}
                               onBlur={() => clearSearch(index)}
-                              className="w-full rounded border border-gray-300 px-2 py-1 text-sm text-gray-900"
+                              className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                               placeholder="掃碼或搜尋商品名稱/品號"
                               autoComplete="off"
                             />
                             {searchResults[index] && searchResults[index].length > 0 && (
-                              <div className="absolute z-[9999] mt-1 w-full min-w-[300px] rounded-md border border-gray-300 bg-white shadow-xl max-h-64 overflow-y-auto">
+                              <div className="absolute z-[9999] mt-1 w-full min-w-[300px] max-h-64 overflow-y-auto rounded-md border border-gray-300 bg-white shadow-xl dark:border-gray-600 dark:bg-gray-700">
                                 {searchResults[index].map(product => (
                                   <div
                                     key={product.id}
@@ -448,10 +448,10 @@ export default function EditIchibanKujiPage() {
                                       e.preventDefault()
                                       selectProduct(index, product)
                                     }}
-                                    className="cursor-pointer px-3 py-2 hover:bg-blue-50 border-b last:border-b-0"
+                                    className="cursor-pointer border-b px-3 py-2 last:border-b-0 hover:bg-blue-50 dark:border-gray-600 dark:hover:bg-gray-600"
                                   >
-                                    <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                                    <div className="text-xs text-gray-500">
+                                    <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{product.name}</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">
                                       {product.item_code} | 成本: {formatCurrency(product.cost)}
                                     </div>
                                   </div>
@@ -459,8 +459,8 @@ export default function EditIchibanKujiPage() {
                               </div>
                             )}
                             {searchResults[index] && searchResults[index].length === 0 && (
-                              <div className="absolute z-[9999] mt-1 w-full min-w-[300px] rounded-md border border-gray-300 bg-white shadow-xl">
-                                <div className="px-3 py-2 text-sm text-gray-500">
+                              <div className="absolute z-[9999] mt-1 w-full min-w-[300px] rounded-md border border-gray-300 bg-white shadow-xl dark:border-gray-600 dark:bg-gray-700">
+                                <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
                                   找不到商品
                                 </div>
                               </div>
@@ -473,20 +473,20 @@ export default function EditIchibanKujiPage() {
                             min="1"
                             value={prize.quantity}
                             onChange={(e) => updatePrize(index, 'quantity', parseInt(e.target.value) || 1)}
-                            className="w-full rounded border border-gray-300 px-2 py-1 text-sm text-gray-900"
+                            className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                           />
                         </td>
-                        <td className="py-2 text-right text-sm text-gray-900">
+                        <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
                           {prize.product ? formatCurrency(prize.product.cost) : '-'}
                         </td>
-                        <td className="py-2 text-right text-sm font-semibold text-gray-900">
+                        <td className="py-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
                           {prize.product ? formatCurrency(prize.product.cost * prize.quantity) : '-'}
                         </td>
                         <td className="py-2 text-center">
                           <button
                             type="button"
                             onClick={() => removePrize(index)}
-                            className="text-red-600 hover:text-red-700"
+                            className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-500"
                           >
                             ✕
                           </button>
@@ -501,35 +501,35 @@ export default function EditIchibanKujiPage() {
 
           {/* Summary */}
           {prizes.length > 0 && (
-            <div className="rounded-lg bg-blue-50 p-6 shadow">
-              <h2 className="mb-4 text-xl font-semibold text-gray-900">統計資訊</h2>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+            <div className="rounded-lg bg-blue-50 p-4 shadow dark:bg-blue-950/30 md:p-6">
+              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">統計資訊</h2>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-5">
                 <div>
-                  <div className="text-sm text-gray-600">總抽數</div>
-                  <div className="text-2xl font-bold text-gray-900">{stats.totalDraws}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">總抽數</div>
+                  <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats.totalDraws}</div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-600">總成本</div>
-                  <div className="text-2xl font-bold text-gray-900">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">總成本</div>
+                  <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                     {formatCurrency(stats.totalCost)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-600">平均每抽成本</div>
-                  <div className="text-2xl font-bold text-blue-600">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">平均每抽成本</div>
+                  <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                     {formatCurrency(stats.avgCost)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-600">每抽售價</div>
-                  <div className="text-2xl font-bold text-green-600">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">每抽售價</div>
+                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                     {price ? formatCurrency(parseFloat(price)) : '-'}
                   </div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-600">每抽利潤</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">每抽利潤</div>
                   <div className={`text-2xl font-bold ${
-                    price && parseFloat(price) > stats.avgCost ? 'text-green-600' : 'text-red-600'
+                    price && parseFloat(price) > stats.avgCost ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                   }`}>
                     {price ? formatCurrency(parseFloat(price) - stats.avgCost) : '-'}
                   </div>
@@ -539,18 +539,18 @@ export default function EditIchibanKujiPage() {
           )}
 
           {/* Actions */}
-          <div className="flex gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row">
             <button
               type="button"
               onClick={() => router.push('/ichiban-kuji')}
-              className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 hover:bg-gray-50"
+              className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-700"
             >
               取消
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 rounded bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 disabled:bg-gray-400"
+              className="flex-1 rounded bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 disabled:bg-gray-400 dark:disabled:bg-gray-600"
             >
               {saving ? '更新中...' : '更新一番賞'}
             </button>

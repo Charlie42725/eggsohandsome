@@ -331,9 +331,9 @@ export default function POSPage() {
   )
 
   return (
-    <div className="h-screen bg-gray-100 flex flex-col overflow-hidden">
+    <div className="h-screen bg-gray-100 dark:bg-gray-900 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="bg-white border-b-2 border-gray-300 px-6 py-4 flex items-center justify-between">
+      <div className="bg-white dark:bg-gray-800 border-b-2 border-gray-300 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Image
             src="/logo.jpg"
@@ -342,14 +342,14 @@ export default function POSPage() {
             height={48}
             className="rounded"
           />
-          <h1 className="text-2xl font-bold text-black">POS 收銀系統</h1>
+          <h1 className="text-2xl font-bold text-black dark:text-white">POS 收銀系統</h1>
         </div>
-        <div className="text-sm text-black">{new Date().toLocaleString('zh-TW')}</div>
+        <div className="text-sm text-black dark:text-gray-300">{new Date().toLocaleString('zh-TW')}</div>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
         {/* Left - Product Grid / Ichiban Kuji */}
-        <div className="w-[500px] flex flex-col bg-white p-4 overflow-hidden border-r-2 border-gray-300">
+        <div className="w-[500px] flex flex-col bg-white dark:bg-gray-800 p-4 overflow-hidden border-r-2 border-gray-300">
           {/* 模式切換按鈕 */}
           <div className="mb-3 flex gap-2">
             <button
@@ -361,7 +361,7 @@ export default function POSPage() {
               className={`flex-1 py-2 px-3 rounded font-bold border-2 transition-all text-sm ${
                 mode === 'products'
                   ? 'bg-blue-500 text-white border-blue-600'
-                  : 'bg-white text-black border-gray-400 hover:bg-gray-100'
+                  : 'bg-white text-black dark:text-white border-gray-400 dark:border-gray-600 hover:bg-gray-100'
               }`}
             >
               商品庫
@@ -375,7 +375,7 @@ export default function POSPage() {
               className={`flex-1 py-2 px-3 rounded font-bold border-2 transition-all text-sm ${
                 mode === 'ichiban-kuji'
                   ? 'bg-purple-500 text-white border-purple-600'
-                  : 'bg-white text-black border-gray-400 hover:bg-gray-100'
+                  : 'bg-white text-black dark:text-white border-gray-400 dark:border-gray-600 hover:bg-gray-100'
               }`}
             >
               一番賞庫
@@ -391,7 +391,7 @@ export default function POSPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="掃描條碼或搜尋商品"
-                  className="w-full border-2 border-gray-400 rounded px-3 py-2 text-sm text-black focus:border-black focus:outline-none"
+                  className="w-full border-2 border-gray-400 rounded px-3 py-2 text-sm text-black dark:text-gray-300 focus:border-black focus:outline-none"
                 />
               </div>
 
@@ -418,7 +418,7 @@ export default function POSPage() {
                 <>
                   {/* 一番賞列表 */}
                   <div className="mb-3">
-                    <div className="text-sm font-bold text-black">選擇一番賞</div>
+                    <div className="text-sm font-bold text-black dark:text-white">選擇一番賞</div>
                   </div>
                   <div className="flex-1 overflow-y-auto">
                     <div className="space-y-2">
@@ -444,7 +444,7 @@ export default function POSPage() {
                   <div className="mb-3 flex items-center gap-2">
                     <button
                       onClick={handleBackToKujiList}
-                      className="bg-gray-300 hover:bg-gray-400 text-black rounded px-3 py-2 text-sm font-bold border border-gray-400"
+                      className="bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 text-black rounded px-3 py-2 text-sm font-bold border border-gray-400"
                     >
                       ← 返回
                     </button>
@@ -525,26 +525,26 @@ export default function POSPage() {
         </div>
 
         {/* Middle - Cart */}
-        <div className="flex-1 bg-gray-100 flex flex-col border-r-2 border-gray-300">
-          <div className="bg-white px-4 py-3 border-b-2 border-gray-300">
-            <h2 className="font-bold text-lg text-black">購物清單</h2>
+        <div className="flex-1 bg-gray-100 dark:bg-gray-900 flex flex-col border-r-2 border-gray-300">
+          <div className="bg-white dark:bg-gray-800 px-4 py-3 border-b-2 border-gray-300 dark:border-gray-700">
+            <h2 className="font-bold text-lg text-black dark:text-white">購物清單</h2>
           </div>
 
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
             {cart.length === 0 ? (
-              <div className="text-center text-gray-500 mt-20">
+              <div className="text-center text-gray-500 dark:text-gray-400 mt-20">
                 <div className="text-4xl mb-2">🛒</div>
-                <div className="text-black">請點選商品</div>
+                <div className="text-black dark:text-white">請點選商品</div>
               </div>
             ) : (
               cart.map((item) => (
                 <div
                   key={item.product_id}
-                  className="bg-white border border-gray-300 rounded p-2"
+                  className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded p-2"
                 >
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex-1">
-                      <div className="font-bold text-sm text-black flex items-center gap-1">
+                      <div className="font-bold text-sm text-black dark:text-white dark:text-gray-300 flex items-center gap-1">
                         {item.product.name}
                         {item.isGift && <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded">贈品</span>}
                       </div>
@@ -567,19 +567,19 @@ export default function POSPage() {
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
-                        className="w-7 h-7 bg-gray-300 hover:bg-gray-400 rounded font-bold text-sm text-black"
+                        className="w-7 h-7 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 rounded font-bold text-sm text-black dark:text-white dark:text-gray-300"
                       >
                         −
                       </button>
-                      <span className="w-10 text-center font-bold text-sm text-black">{item.quantity}</span>
+                      <span className="w-10 text-center font-bold text-sm text-black dark:text-white dark:text-gray-300">{item.quantity}</span>
                       <button
                         onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
-                        className="w-7 h-7 bg-gray-300 hover:bg-gray-400 rounded font-bold text-sm text-black"
+                        className="w-7 h-7 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 rounded font-bold text-sm text-black dark:text-white dark:text-gray-300"
                       >
                         +
                       </button>
                     </div>
-                    <div className="text-base font-bold text-black">
+                    <div className="text-base font-bold text-black dark:text-white">
                       {formatCurrency((item.isGift ? 0 : item.price) * item.quantity)}
                     </div>
                   </div>
@@ -591,7 +591,7 @@ export default function POSPage() {
                         onChange={() => toggleGift(item.product_id)}
                         className="w-4 h-4"
                       />
-                      <span className="text-xs text-black">贈品</span>
+                      <span className="text-xs text-black dark:text-gray-300 dark:text-white">贈品</span>
                     </label>
                   </div>
                 </div>
@@ -600,10 +600,10 @@ export default function POSPage() {
           </div>
 
           {/* Total Display */}
-          <div className="bg-white border-t-2 border-gray-300 p-6">
+          <div className="bg-white dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-700 p-6">
             <div className="flex justify-between items-center mb-2">
-              <span className="text-lg text-black">小計</span>
-              <span className="text-2xl font-bold text-black">{formatCurrency(subtotal)}</span>
+              <span className="text-lg text-black dark:text-white">小計</span>
+              <span className="text-2xl font-bold text-black dark:text-white">{formatCurrency(subtotal)}</span>
             </div>
             {discountAmount > 0 && (
               <div className="flex justify-between items-center mb-2 text-red-600">
@@ -611,15 +611,15 @@ export default function POSPage() {
                 <span className="text-2xl font-bold">-{formatCurrency(discountAmount)}</span>
               </div>
             )}
-            <div className="border-t-2 border-gray-300 pt-2 flex justify-between items-center">
-              <span className="text-xl text-black">總計</span>
-              <span className="text-4xl font-bold text-black">{formatCurrency(total)}</span>
+            <div className="border-t-2 border-gray-300 dark:border-gray-700 pt-2 flex justify-between items-center">
+              <span className="text-xl text-black dark:text-white">總計</span>
+              <span className="text-4xl font-bold text-black dark:text-white">{formatCurrency(total)}</span>
             </div>
           </div>
         </div>
 
         {/* Right - Payment Panel */}
-        <div className="w-[450px] bg-white flex flex-col">
+        <div className="w-[450px] bg-white dark:bg-gray-800 flex flex-col">
           {error && (
             <div className="bg-red-100 border-2 border-red-500 text-red-700 rounded-lg px-3 py-2 m-3 mb-0">
               {error}
@@ -629,14 +629,14 @@ export default function POSPage() {
           <div className="flex-1 p-3 space-y-2">
             {/* Customer */}
             <div>
-              <label className="block font-bold mb-1 text-sm text-black">客戶</label>
+              <label className="block font-bold mb-1 text-sm text-black dark:text-gray-300">客戶</label>
               <select
                 value={selectedCustomer?.id || ''}
                 onChange={(e) => {
                   const customer = customers.find(c => c.id === e.target.value)
                   setSelectedCustomer(customer || null)
                 }}
-                className="w-full border-2 border-gray-400 rounded px-2 py-1.5 text-sm text-black focus:border-black focus:outline-none"
+                className="w-full border-2 border-gray-400 rounded px-2 py-1.5 text-sm text-black dark:text-gray-300 focus:border-black focus:outline-none"
               >
                 <option value="">散客</option>
                 {customers.map((customer) => (
@@ -649,84 +649,84 @@ export default function POSPage() {
 
             {/* Payment Method - Button Grid */}
             <div>
-              <label className="block font-bold mb-1 text-sm text-black">付款方式</label>
+              <label className="block font-bold mb-1 text-sm text-black dark:text-gray-300">付款方式</label>
               <div className="grid grid-cols-2 gap-1.5">
                 <button
                   onClick={() => setPaymentMethod('cash')}
-                  className={`py-2 px-2 rounded font-bold border-2 transition-all text-sm text-black ${
+                  className={`py-2 px-2 rounded font-bold border-2 transition-all text-sm text-black dark:text-gray-300 ${
                     paymentMethod === 'cash'
                       ? 'bg-yellow-400 border-yellow-500'
-                      : 'bg-white border-gray-400 hover:bg-gray-100'
+                      : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   💵 現金
                 </button>
                 <button
                   onClick={() => setPaymentMethod('card')}
-                  className={`py-2 px-2 rounded font-bold border-2 transition-all text-sm text-black ${
+                  className={`py-2 px-2 rounded font-bold border-2 transition-all text-sm text-black dark:text-gray-300 ${
                     paymentMethod === 'card'
                       ? 'bg-yellow-400 border-yellow-500'
-                      : 'bg-white border-gray-400 hover:bg-gray-100'
+                      : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   💳 刷卡
                 </button>
                 <button
                   onClick={() => setPaymentMethod('transfer_cathay')}
-                  className={`py-2 px-2 rounded font-bold border-2 transition-all text-sm text-black ${
+                  className={`py-2 px-2 rounded font-bold border-2 transition-all text-sm text-black dark:text-gray-300 ${
                     paymentMethod === 'transfer_cathay'
                       ? 'bg-yellow-400 border-yellow-500'
-                      : 'bg-white border-gray-400 hover:bg-gray-100'
+                      : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   🏦 國泰
                 </button>
                 <button
                   onClick={() => setPaymentMethod('transfer_fubon')}
-                  className={`py-2 px-2 rounded font-bold border-2 transition-all text-sm text-black ${
+                  className={`py-2 px-2 rounded font-bold border-2 transition-all text-sm text-black dark:text-gray-300 ${
                     paymentMethod === 'transfer_fubon'
                       ? 'bg-yellow-400 border-yellow-500'
-                      : 'bg-white border-gray-400 hover:bg-gray-100'
+                      : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   🏦 富邦
                 </button>
                 <button
                   onClick={() => setPaymentMethod('transfer_esun')}
-                  className={`py-2 px-2 rounded font-bold border-2 transition-all text-sm text-black ${
+                  className={`py-2 px-2 rounded font-bold border-2 transition-all text-sm text-black dark:text-gray-300 ${
                     paymentMethod === 'transfer_esun'
                       ? 'bg-yellow-400 border-yellow-500'
-                      : 'bg-white border-gray-400 hover:bg-gray-100'
+                      : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   🏦 玉山
                 </button>
                 <button
                   onClick={() => setPaymentMethod('transfer_union')}
-                  className={`py-2 px-2 rounded font-bold border-2 transition-all text-sm text-black ${
+                  className={`py-2 px-2 rounded font-bold border-2 transition-all text-sm text-black dark:text-gray-300 ${
                     paymentMethod === 'transfer_union'
                       ? 'bg-yellow-400 border-yellow-500'
-                      : 'bg-white border-gray-400 hover:bg-gray-100'
+                      : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   🏦 聯邦
                 </button>
                 <button
                   onClick={() => setPaymentMethod('transfer_linepay')}
-                  className={`py-2 px-2 rounded font-bold border-2 transition-all text-sm text-black ${
+                  className={`py-2 px-2 rounded font-bold border-2 transition-all text-sm text-black dark:text-gray-300 ${
                     paymentMethod === 'transfer_linepay'
                       ? 'bg-yellow-400 border-yellow-500'
-                      : 'bg-white border-gray-400 hover:bg-gray-100'
+                      : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   💚 LINE Pay
                 </button>
                 <button
                   onClick={() => setPaymentMethod('cod')}
-                  className={`py-2 px-2 rounded font-bold border-2 transition-all text-sm text-black ${
+                  className={`py-2 px-2 rounded font-bold border-2 transition-all text-sm text-black dark:text-gray-300 ${
                     paymentMethod === 'cod'
                       ? 'bg-yellow-400 border-yellow-500'
-                      : 'bg-white border-gray-400 hover:bg-gray-100'
+                      : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   📦 貨到付款
@@ -736,10 +736,10 @@ export default function POSPage() {
                     setPaymentMethod('pending')
                     setIsPaid(false)
                   }}
-                  className={`py-2 px-2 rounded font-bold border-2 transition-all text-sm text-black ${
+                  className={`py-2 px-2 rounded font-bold border-2 transition-all text-sm text-black dark:text-gray-300 ${
                     paymentMethod === 'pending'
                       ? 'bg-orange-400 border-orange-500'
-                      : 'bg-white border-gray-400 hover:bg-gray-100'
+                      : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   ⏳ 待確定
@@ -749,37 +749,37 @@ export default function POSPage() {
 
             {/* Discount - Button Selection */}
             <div>
-              <label className="block font-bold mb-1 text-sm text-black">折扣</label>
+              <label className="block font-bold mb-1 text-sm text-black dark:text-gray-300">折扣</label>
               <div className="grid grid-cols-3 gap-1.5 mb-1.5">
                 <button
                   onClick={() => {
                     setDiscountType('none')
                     setDiscountValue('')
                   }}
-                  className={`py-1.5 rounded font-bold border-2 transition-all text-xs text-black ${
+                  className={`py-1.5 rounded font-bold border-2 transition-all text-xs text-black dark:text-gray-300 ${
                     discountType === 'none'
                       ? 'bg-yellow-400 border-yellow-500'
-                      : 'bg-white border-gray-400 hover:bg-gray-100'
+                      : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   無折扣
                 </button>
                 <button
                   onClick={() => setDiscountType('percent')}
-                  className={`py-1.5 rounded font-bold border-2 transition-all text-xs text-black ${
+                  className={`py-1.5 rounded font-bold border-2 transition-all text-xs text-black dark:text-gray-300 ${
                     discountType === 'percent'
                       ? 'bg-yellow-400 border-yellow-500'
-                      : 'bg-white border-gray-400 hover:bg-gray-100'
+                      : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   百分比
                 </button>
                 <button
                   onClick={() => setDiscountType('amount')}
-                  className={`py-1.5 rounded font-bold border-2 transition-all text-xs text-black ${
+                  className={`py-1.5 rounded font-bold border-2 transition-all text-xs text-black dark:text-gray-300 ${
                     discountType === 'amount'
                       ? 'bg-yellow-400 border-yellow-500'
-                      : 'bg-white border-gray-400 hover:bg-gray-100'
+                      : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   金額
@@ -797,7 +797,7 @@ export default function POSPage() {
                       setDiscountValue(v)
                     }
                   }}
-                  className="w-full border-2 border-gray-400 rounded px-2 py-1.5 text-sm text-black focus:border-black focus:outline-none"
+                  className="w-full border-2 border-gray-400 rounded px-2 py-1.5 text-sm text-black dark:text-gray-300 focus:border-black focus:outline-none"
                   placeholder={discountType === 'percent' ? '折扣 %' : '折扣金額'}
                 />
               )}
@@ -814,7 +814,7 @@ export default function POSPage() {
                 disabled={paymentMethod === 'pending'}
                 className="w-5 h-5"
               />
-              <span className="font-bold text-sm text-black">已收款</span>
+              <span className="font-bold text-sm text-black dark:text-white dark:text-gray-300">已收款</span>
             </label>
           </div>
 
@@ -830,7 +830,7 @@ export default function POSPage() {
             {cart.length > 0 && (
               <button
                 onClick={() => setCart([])}
-                className="w-full mt-2 bg-gray-300 hover:bg-gray-400 text-black font-bold text-sm py-2 rounded transition-all border-2 border-gray-400"
+                className="w-full mt-2 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 text-black font-bold text-sm py-2 rounded transition-all border-2 border-gray-400"
               >
                 清空購物車
               </button>

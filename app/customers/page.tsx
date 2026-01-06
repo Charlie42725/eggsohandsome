@@ -107,10 +107,10 @@ export default function CustomersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
       <div className="mx-auto max-w-7xl">
         <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">客戶管理</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">客戶管理</h1>
           <Link
             href="/customers/new"
             className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
@@ -120,14 +120,14 @@ export default function CustomersPage() {
         </div>
 
         {/* Filters */}
-        <div className="mb-6 rounded-lg bg-white p-4 shadow">
+        <div className="mb-6 rounded-lg bg-white dark:bg-gray-800 p-4 shadow">
           <form onSubmit={handleSearch} className="mb-4 flex gap-2">
             <input
               type="text"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               placeholder="搜尋客戶名稱、編號、電話或 Email"
-              className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 placeholder:text-gray-900"
+              className="flex-1 rounded border border-gray-300 dark:border-gray-600 px-4 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700 placeholder:text-gray-900 dark:placeholder:text-gray-400"
             />
             <button
               type="submit"
@@ -143,7 +143,7 @@ export default function CustomersPage() {
               className={`rounded px-4 py-1 font-medium ${
                 activeFilter === null
                   ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 text-gray-900 hover:bg-gray-300'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
               }`}
             >
               全部
@@ -153,7 +153,7 @@ export default function CustomersPage() {
               className={`rounded px-4 py-1 font-medium ${
                 activeFilter === true
                   ? 'bg-green-600 text-white'
-                  : 'bg-gray-200 text-gray-900 hover:bg-gray-300'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
               }`}
             >
               啟用
@@ -163,7 +163,7 @@ export default function CustomersPage() {
               className={`rounded px-4 py-1 font-medium ${
                 activeFilter === false
                   ? 'bg-red-600 text-white'
-                  : 'bg-gray-200 text-gray-900 hover:bg-gray-300'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
               }`}
             >
               停用
@@ -172,41 +172,41 @@ export default function CustomersPage() {
         </div>
 
         {/* Customers table */}
-        <div className="rounded-lg bg-white shadow">
+        <div className="rounded-lg bg-white dark:bg-gray-800 shadow">
           {loading ? (
-            <div className="p-8 text-center text-gray-900">載入中...</div>
+            <div className="p-8 text-center text-gray-900 dark:text-gray-100">載入中...</div>
           ) : customers.length === 0 ? (
-            <div className="p-8 text-center text-gray-900">沒有客戶資料</div>
+            <div className="p-8 text-center text-gray-900 dark:text-gray-100">沒有客戶資料</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="border-b bg-gray-50">
+                <thead className="border-b bg-gray-50 dark:bg-gray-900">
                   <tr>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">客戶編號</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">客戶名稱</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">電話</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Email</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">付款方式</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">LINE ID</th>
-                    <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">狀態</th>
-                    <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">操作</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">客戶編號</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">客戶名稱</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">電話</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">Email</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">付款方式</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">LINE ID</th>
+                    <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">狀態</th>
+                    <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">操作</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {customers.map((customer) => (
-                    <tr key={customer.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm text-gray-900">{customer.customer_code}</td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{customer.customer_name}</td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{customer.phone || '-'}</td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{customer.email || '-'}</td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
+                    <tr key={customer.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{customer.customer_code}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">{customer.customer_name}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{customer.phone || '-'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{customer.email || '-'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">
                         {customer.payment_method === 'cash' && '現金'}
                         {customer.payment_method === 'card' && '刷卡'}
                         {customer.payment_method === 'transfer' && '轉帳'}
                         {customer.payment_method === 'cod' && '貨到付款'}
                         {!customer.payment_method && '-'}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{customer.line_id || '-'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{customer.line_id || '-'}</td>
                       <td className="px-6 py-4 text-center text-sm">
                         <span
                           className={`inline-block rounded px-2 py-1 text-xs ${
@@ -246,77 +246,77 @@ export default function CustomersPage() {
       {/* Edit Modal */}
       {editingCustomer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-          <div className="w-full max-w-2xl rounded-lg bg-white p-6">
-            <h2 className="mb-4 text-2xl font-semibold text-gray-900">編輯客戶</h2>
+          <div className="w-full max-w-2xl rounded-lg bg-white dark:bg-gray-800 p-6">
+            <h2 className="mb-4 text-2xl font-semibold text-gray-900 dark:text-gray-100">編輯客戶</h2>
 
             {error && (
-              <div className="mb-4 rounded bg-red-50 p-3 text-red-700">{error}</div>
+              <div className="mb-4 rounded bg-red-50 dark:bg-red-900 p-3 text-red-700 dark:text-red-200">{error}</div>
             )}
 
             <form onSubmit={handleUpdate} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-900">
+                  <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
                     客戶編號 <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={formData.customer_code || ''}
                     onChange={(e) => setFormData({ ...formData, customer_code: e.target.value })}
-                    className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                    className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-900">
+                  <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
                     客戶名稱 <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={formData.customer_name || ''}
                     onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
-                    className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                    className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-900">電話</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">電話</label>
                   <input
                     type="text"
                     value={formData.phone || ''}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                    className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-900">Email</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">Email</label>
                   <input
                     type="email"
                     value={formData.email || ''}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                    className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-900">LINE ID</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">LINE ID</label>
                   <input
                     type="text"
                     value={formData.line_id || ''}
                     onChange={(e) => setFormData({ ...formData, line_id: e.target.value })}
-                    className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                    className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-900">付款方式</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">付款方式</label>
                   <select
                     value={formData.payment_method || ''}
                     onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
-                    className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                    className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
                   >
                     <option value="">請選擇</option>
                     <option value="cash">現金</option>
@@ -328,22 +328,22 @@ export default function CustomersPage() {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-900">門市地址</label>
+                <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">門市地址</label>
                 <input
                   type="text"
                   value={formData.address || ''}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                  className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-900">備註</label>
+                <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">備註</label>
                 <textarea
                   value={formData.note || ''}
                   onChange={(e) => setFormData({ ...formData, note: e.target.value })}
                   rows={3}
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                  className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
                 />
               </div>
 
@@ -355,7 +355,7 @@ export default function CustomersPage() {
                     onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
                     className="h-4 w-4"
                   />
-                  <span className="text-sm font-medium text-gray-900">啟用</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">啟用</span>
                 </label>
               </div>
 
@@ -363,7 +363,7 @@ export default function CustomersPage() {
                 <button
                   type="button"
                   onClick={closeEditModal}
-                  className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 hover:bg-gray-50"
+                  className="flex-1 rounded border border-gray-300 dark:border-gray-600 px-4 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-800 hover:bg-gray-50"
                 >
                   取消
                 </button>

@@ -102,9 +102,9 @@ export default function EditExpensePage({ params }: PageProps) {
 
   if (fetching) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4">
+      <div className="min-h-screen bg-gray-50 p-4 dark:bg-gray-900">
         <div className="mx-auto max-w-2xl">
-          <div className="rounded-lg bg-white p-8 text-center shadow">
+          <div className="rounded-lg bg-white p-8 text-center shadow dark:bg-gray-800 dark:text-gray-100">
             載入中...
           </div>
         </div>
@@ -113,15 +113,15 @@ export default function EditExpensePage({ params }: PageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gray-50 p-4 dark:bg-gray-900">
       <div className="mx-auto max-w-2xl">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">編輯費用</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">編輯費用</h1>
         </div>
 
-        <div className="rounded-lg bg-white p-6 shadow">
+        <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800 md:p-6">
           {error && (
-            <div className="mb-4 rounded border border-red-400 bg-red-50 px-4 py-3 text-red-700">
+            <div className="mb-4 rounded border border-red-400 bg-red-50 px-4 py-3 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
               {error}
             </div>
           )}
@@ -129,7 +129,7 @@ export default function EditExpensePage({ params }: PageProps) {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Date */}
             <div>
-              <label className="mb-2 block text-sm font-medium text-gray-900">
+              <label className="mb-2 block text-sm font-medium text-gray-900 dark:text-gray-100">
                 日期 <span className="text-red-500">*</span>
               </label>
               <input
@@ -139,13 +139,13 @@ export default function EditExpensePage({ params }: PageProps) {
                   setFormData({ ...formData, date: e.target.value })
                 }
                 required
-                className="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
               />
             </div>
 
             {/* Category */}
             <div>
-              <label className="mb-2 block text-sm font-medium text-gray-900">
+              <label className="mb-2 block text-sm font-medium text-gray-900 dark:text-gray-100">
                 費用類別 <span className="text-red-500">*</span>
               </label>
               <select
@@ -154,7 +154,7 @@ export default function EditExpensePage({ params }: PageProps) {
                   setFormData({ ...formData, category: e.target.value })
                 }
                 required
-                className="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
               >
                 {EXPENSE_CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>
@@ -166,11 +166,11 @@ export default function EditExpensePage({ params }: PageProps) {
 
             {/* Amount */}
             <div>
-              <label className="mb-2 block text-sm font-medium text-gray-900">
+              <label className="mb-2 block text-sm font-medium text-gray-900 dark:text-gray-100">
                 金額 <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2 text-gray-900">$</span>
+                <span className="absolute left-3 top-2 text-gray-900 dark:text-gray-100">$</span>
                 <input
                   type="number"
                   value={formData.amount}
@@ -180,12 +180,12 @@ export default function EditExpensePage({ params }: PageProps) {
                   required
                   min="1"
                   step="1"
-                  className="w-full rounded border border-gray-300 py-2 pl-8 pr-3 focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded border border-gray-300 bg-white py-2 pl-8 pr-3 text-gray-900 focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                   placeholder="0"
                 />
               </div>
               {formData.amount && (
-                <p className="mt-1 text-sm text-gray-900">
+                <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">
                   {formatCurrency(parseInt(formData.amount) || 0)}
                 </p>
               )}
@@ -193,7 +193,7 @@ export default function EditExpensePage({ params }: PageProps) {
 
             {/* Note */}
             <div>
-              <label className="mb-2 block text-sm font-medium text-gray-900">
+              <label className="mb-2 block text-sm font-medium text-gray-900 dark:text-gray-100">
                 備註
               </label>
               <textarea
@@ -202,13 +202,13 @@ export default function EditExpensePage({ params }: PageProps) {
                   setFormData({ ...formData, note: e.target.value })
                 }
                 rows={3}
-                className="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                 placeholder="選填"
               />
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 type="submit"
                 disabled={loading}
@@ -219,7 +219,7 @@ export default function EditExpensePage({ params }: PageProps) {
               <button
                 type="button"
                 onClick={() => router.push('/expenses')}
-                className="rounded border border-gray-300 px-4 py-2 font-medium text-gray-700 hover:bg-gray-50"
+                className="rounded border border-gray-300 px-4 py-2 font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-700"
               >
                 取消
               </button>

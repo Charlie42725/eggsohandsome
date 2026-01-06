@@ -324,48 +324,48 @@ export default function ARPageV2() {
   const totalCustomers = customerGroups.filter(g => g.unpaid_count > 0).length
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
       <div className="mx-auto max-w-7xl">
         <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">應收帳款</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">應收帳款</h1>
         </div>
 
         {/* Summary */}
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="rounded-lg bg-white p-4 shadow">
-            <div className="text-sm text-gray-900">未收總額</div>
-            <div className="text-2xl font-bold text-gray-900">
+          <div className="rounded-lg bg-white dark:bg-gray-800 p-4 shadow">
+            <div className="text-sm text-gray-900 dark:text-gray-100">未收總額</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               {formatCurrency(totalUnpaid)}
             </div>
-            <div className="text-sm text-gray-900">{totalCustomers} 位客戶</div>
+            <div className="text-sm text-gray-900 dark:text-gray-100">{totalCustomers} 位客戶</div>
           </div>
 
-          <div className="rounded-lg bg-white p-4 shadow">
-            <div className="text-sm text-gray-900">已選擇</div>
+          <div className="rounded-lg bg-white dark:bg-gray-800 p-4 shadow">
+            <div className="text-sm text-gray-900 dark:text-gray-100">已選擇</div>
             <div className="text-2xl font-bold text-blue-600">
               {formatCurrency(getSelectedTotal())}
             </div>
-            <div className="text-sm text-gray-900">{selectedItems.size} 個商品</div>
+            <div className="text-sm text-gray-900 dark:text-gray-100">{selectedItems.size} 個商品</div>
           </div>
 
-          <div className="rounded-lg bg-white p-4 shadow">
-            <div className="text-sm text-gray-900">單據總數</div>
-            <div className="text-2xl font-bold text-gray-900">
+          <div className="rounded-lg bg-white dark:bg-gray-800 p-4 shadow">
+            <div className="text-sm text-gray-900 dark:text-gray-100">單據總數</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               {customerGroups.reduce((sum, g) => sum + g.unpaid_count, 0)}
             </div>
-            <div className="text-sm text-gray-900">筆未收</div>
+            <div className="text-sm text-gray-900 dark:text-gray-100">筆未收</div>
           </div>
         </div>
 
         {/* Search */}
-        <div className="mb-6 rounded-lg bg-white p-4 shadow">
+        <div className="mb-6 rounded-lg bg-white dark:bg-gray-800 p-4 shadow">
           <form onSubmit={handleSearch} className="flex gap-2">
             <input
               type="text"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               placeholder="搜尋客戶名稱或代碼"
-              className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 placeholder:text-gray-900"
+              className="flex-1 rounded border border-gray-300 dark:border-gray-600 px-4 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700 placeholder:text-gray-900 dark:placeholder:text-gray-400"
             />
             <button
               type="submit"
@@ -377,13 +377,13 @@ export default function ARPageV2() {
         </div>
 
         {/* Customer Groups */}
-        <div className="rounded-lg bg-white shadow">
+        <div className="rounded-lg bg-white dark:bg-gray-800 shadow">
           {loading ? (
             <div className="p-8 text-center text-gray-900">載入中...</div>
           ) : customerGroups.length === 0 ? (
             <div className="p-8 text-center text-gray-900">沒有應收帳款</div>
           ) : (
-            <div className="divide-y divide-gray-200">
+            <div className="divide-y divide-gray-200 dark:divide-gray-700">
               {customerGroups.map((group) => {
                 const isExpanded = expandedCustomers.has(group.partner_code)
 
@@ -412,7 +412,7 @@ export default function ARPageV2() {
                 return (
                   <div key={group.partner_code}>
                     {/* Customer Header */}
-                    <div className="flex items-center gap-4 p-4 hover:bg-gray-50">
+                    <div className="flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700">
                       <input
                         type="checkbox"
                         checked={allSelected}
@@ -423,7 +423,7 @@ export default function ARPageV2() {
                       />
 
                       <div
-                        className="flex-1 cursor-pointer"
+                        className="flex-1 cursor-pointer dark:text-gray-100"
                         onClick={() => toggleCustomer(group.partner_code)}
                       >
                         <div className="flex items-center justify-between">
@@ -431,21 +431,21 @@ export default function ARPageV2() {
                             <span className="text-blue-600">
                               {isExpanded ? '▼' : '▶'}
                             </span>
-                            <span className="font-semibold text-gray-900">
+                            <span className="font-semibold text-gray-900 dark:text-gray-100">
                               {group.customer_name}
                             </span>
-                            <span className="text-sm text-gray-500">
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
                               ({group.partner_code})
                             </span>
                           </div>
 
                           <div className="flex items-center gap-4">
                             <div className="text-right">
-                              <div className="text-sm text-gray-500">未收款</div>
-                              <div className="text-lg font-bold text-gray-900">
+                              <div className="text-sm text-gray-500 dark:text-gray-400">未收款</div>
+                              <div className="text-lg font-bold text-gray-900 dark:text-gray-100">
                                 {formatCurrency(group.total_balance)}
                               </div>
-                              <div className="text-xs text-gray-500">
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
                                 {group.unpaid_count} 筆單據 · {unpaidItemCount} 個商品
                               </div>
                             </div>
@@ -468,7 +468,7 @@ export default function ARPageV2() {
 
                     {/* Account Details with Items */}
                     {isExpanded && (
-                      <div className="bg-gray-50 px-4 pb-4">
+                      <div className="bg-gray-50 dark:bg-gray-900 px-4 pb-4">
                         {group.accounts.map((account) => {
                           const isAccountExpanded = expandedAccounts.has(account.id)
                           const isOverdue = account.status !== 'paid' &&
@@ -478,7 +478,7 @@ export default function ARPageV2() {
                             <div key={account.id} className="mb-4 rounded border border-gray-200 bg-white">
                               {/* Account Header */}
                               <div
-                                className="flex cursor-pointer items-center gap-4 p-3 hover:bg-gray-50"
+                                className="flex cursor-pointer items-center gap-4 p-3 hover:bg-gray-50 dark:hover:bg-gray-700"
                                 onClick={() => toggleAccount(account.id)}
                               >
                                 <span className="text-blue-600">
@@ -486,11 +486,11 @@ export default function ARPageV2() {
                                 </span>
                                 <div className="flex-1">
                                   <div className="flex items-center gap-2">
-                                    <span className="font-medium text-gray-900">
+                                    <span className="font-medium text-gray-900 dark:text-gray-100">
                                       {account.ref_no}
                                     </span>
                                     {account.sales && (
-                                      <span className="text-xs text-gray-500">
+                                      <span className="text-xs text-gray-500 dark:text-gray-400">
                                         |
                                       </span>
                                     )}
@@ -522,7 +522,7 @@ export default function ARPageV2() {
                                       {isOverdue && ' (逾期)'}
                                     </span>
                                   </div>
-                                  <div className="text-xs text-gray-500">
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">
                                     應收 {formatCurrency(account.amount)} |
                                     已收 {formatCurrency(account.received_paid)} |
                                     餘額 {formatCurrency(account.balance)}
@@ -575,7 +575,7 @@ export default function ARPageV2() {
                                             <td className="py-2 text-gray-900">
                                               {item.snapshot_name}
                                               {item.products && (
-                                                <span className="ml-2 text-xs text-gray-500">
+                                                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
                                                   ({item.products.item_code})
                                                 </span>
                                               )}
@@ -592,7 +592,7 @@ export default function ARPageV2() {
                                             <td className="py-2 text-right text-gray-600">
                                               {formatCurrency(item.received_amount)}
                                             </td>
-                                            <td className="py-2 text-right font-semibold text-gray-900">
+                                            <td className="py-2 text-right font-semibold text-gray-900 dark:text-gray-100">
                                               {formatCurrency(item.balance)}
                                             </td>
                                           </tr>
@@ -618,26 +618,26 @@ export default function ARPageV2() {
       {/* Receipt Modal */}
       {showReceiptModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-          <div className="w-full max-w-2xl rounded-lg bg-white p-6">
-            <h3 className="mb-4 text-xl font-semibold text-gray-900">收款</h3>
+          <div className="w-full max-w-2xl rounded-lg bg-white dark:bg-gray-800 p-6">
+            <h3 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">收款</h3>
 
             {error && (
-              <div className="mb-4 rounded bg-red-50 p-3 text-red-700">{error}</div>
+              <div className="mb-4 rounded bg-red-50 dark:bg-red-900 p-3 text-red-700 dark:text-red-200">{error}</div>
             )}
 
             {/* Selected Items List */}
             <div className="mb-4">
-              <label className="mb-2 block text-sm font-medium text-gray-900">
+              <label className="mb-2 block text-sm font-medium text-gray-900 dark:text-gray-100">
                 已選擇 {selectedItems.size} 個商品
               </label>
-              <div className="max-h-64 overflow-y-auto rounded border border-gray-200">
+              <div className="max-h-64 overflow-y-auto rounded border border-gray-200 dark:border-gray-700 dark:bg-gray-800">
                 <table className="w-full text-sm">
-                  <thead className="border-b bg-gray-50">
+                  <thead className="border-b bg-gray-50 dark:bg-gray-900">
                     <tr>
-                      <th className="p-2 text-left font-semibold text-gray-700">銷售單號</th>
-                      <th className="p-2 text-left font-semibold text-gray-700">商品名稱</th>
-                      <th className="p-2 text-right font-semibold text-gray-700">數量</th>
-                      <th className="p-2 text-right font-semibold text-gray-700">餘額</th>
+                      <th className="p-2 text-left font-semibold text-gray-700 dark:text-gray-300">銷售單號</th>
+                      <th className="p-2 text-left font-semibold text-gray-700 dark:text-gray-300">商品名稱</th>
+                      <th className="p-2 text-right font-semibold text-gray-700 dark:text-gray-300">數量</th>
+                      <th className="p-2 text-right font-semibold text-gray-700 dark:text-gray-300">餘額</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -665,12 +665,12 @@ export default function ARPageV2() {
 
                       return (
                         <tr key={key}>
-                          <td className="p-2 text-gray-900">{accountNo}</td>
-                          <td className="p-2 text-gray-900">{itemName}</td>
+                          <td className="p-2 text-gray-900 dark:text-gray-100">{accountNo}</td>
+                          <td className="p-2 text-gray-900 dark:text-gray-100">{itemName}</td>
                           <td className="p-2 text-right text-gray-900">
                             {itemQty} {itemUnit}
                           </td>
-                          <td className="p-2 text-right font-semibold text-gray-900">
+                          <td className="p-2 text-right font-semibold text-gray-900 dark:text-gray-100">
                             {formatCurrency(itemBalance)}
                           </td>
                         </tr>
@@ -679,10 +679,10 @@ export default function ARPageV2() {
                   </tbody>
                   <tfoot className="border-t bg-gray-50">
                     <tr>
-                      <td colSpan={3} className="p-2 text-right font-semibold text-gray-900">
+                      <td colSpan={3} className="p-2 text-right font-semibold text-gray-900 dark:text-gray-100">
                         應收總額:
                       </td>
-                      <td className="p-2 text-right text-lg font-bold text-gray-900">
+                      <td className="p-2 text-right text-lg font-bold text-gray-900 dark:text-gray-100">
                         {formatCurrency(getSelectedTotal())}
                       </td>
                     </tr>
@@ -692,7 +692,7 @@ export default function ARPageV2() {
             </div>
 
             <div className="mb-4">
-              <label className="mb-1 block text-sm font-medium text-gray-900">
+              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
                 收款金額 *
               </label>
               <input
@@ -705,7 +705,7 @@ export default function ARPageV2() {
                     setReceiptAmount(v)
                   }
                 }}
-                className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
                 placeholder="輸入收款金額"
                 autoFocus
               />
@@ -718,13 +718,13 @@ export default function ARPageV2() {
             </div>
 
             <div className="mb-6">
-              <label className="mb-1 block text-sm font-medium text-gray-900">
+              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
                 收款方式
               </label>
               <select
                 value={receiptMethod}
                 onChange={(e) => setReceiptMethod(e.target.value)}
-                className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
               >
                 <option value="cash">現金</option>
                 <option value="card">刷卡</option>
@@ -747,7 +747,7 @@ export default function ARPageV2() {
                   setReceiptAmount('')
                   setCurrentCustomer(null)
                 }}
-                className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 hover:bg-gray-50"
+                className="flex-1 rounded border border-gray-300 dark:border-gray-600 px-4 py-2 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700"
               >
                 取消
               </button>

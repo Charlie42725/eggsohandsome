@@ -157,50 +157,50 @@ export default function EditProductPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <div className="text-xl text-gray-900">載入中...</div>
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-xl text-gray-900 dark:text-gray-100">載入中...</div>
       </div>
     )
   }
 
   if (!product) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <div className="text-xl text-gray-900">商品不存在</div>
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-xl text-gray-900 dark:text-gray-100">商品不存在</div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gray-50 p-4 dark:bg-gray-900">
       <div className="mx-auto max-w-2xl">
-        <h1 className="mb-6 text-3xl font-bold">編輯商品</h1>
+        <h1 className="mb-6 text-3xl font-bold text-gray-900 dark:text-gray-100">編輯商品</h1>
 
         {/* Product Info */}
-        <div className="mb-6 rounded-lg bg-white p-6 shadow">
+        <div className="mb-6 rounded-lg bg-white p-4 shadow dark:bg-gray-800 md:p-6">
           <div className="mb-4">
-            <label className="mb-1 block text-sm font-medium text-gray-900">品號</label>
-            <div className="rounded border border-gray-300 bg-gray-100 px-3 py-2 text-gray-900">
+            <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">品號</label>
+            <div className="rounded border border-gray-300 bg-gray-100 px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100">
               {product.item_code}
             </div>
           </div>
 
-          <div className="mb-4 grid grid-cols-2 gap-4">
+          <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-900">目前庫存</label>
-              <div className="text-2xl font-bold text-gray-900">{product.stock}</div>
+              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">目前庫存</label>
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{product.stock}</div>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-900">平均成本</label>
-              <div className="text-2xl font-bold text-gray-900">NT$ {product.avg_cost.toFixed(2)}</div>
+              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">平均成本</label>
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">NT$ {product.avg_cost.toFixed(2)}</div>
             </div>
           </div>
         </div>
 
         {/* Stock Adjustment Section */}
-        <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-6 shadow">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">庫存盤點</h3>
+        <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4 shadow dark:border-blue-800 dark:bg-blue-950/30 md:p-6">
+          <div className="mb-3 flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">庫存盤點</h3>
             {!showAdjustForm && (
               <button
                 type="button"
@@ -215,7 +215,7 @@ export default function EditProductPage() {
           {showAdjustForm && (
             <form onSubmit={handleAdjustStock} className="space-y-3">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-900">
+                <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
                   實際盤點數量 <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -225,18 +225,18 @@ export default function EditProductPage() {
                   min="0"
                   step="1"
                   required
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                  className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                   placeholder="輸入實際盤點的庫存數量"
                 />
                 {adjustedStock && product && (
-                  <p className="mt-1 text-xs text-gray-900">
+                  <p className="mt-1 text-xs text-gray-900 dark:text-gray-100">
                     差異：
                     <span className={
                       parseInt(adjustedStock) - product.stock > 0
-                        ? 'text-green-600'
+                        ? 'text-green-600 dark:text-green-400'
                         : parseInt(adjustedStock) - product.stock < 0
-                        ? 'text-red-600'
-                        : 'text-gray-600'
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-gray-600 dark:text-gray-400'
                     }>
                       {parseInt(adjustedStock) - product.stock > 0 ? '+' : ''}
                       {parseInt(adjustedStock) - product.stock}
@@ -246,17 +246,17 @@ export default function EditProductPage() {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-900">備註</label>
+                <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">備註</label>
                 <textarea
                   value={adjustNote}
                   onChange={(e) => setAdjustNote(e.target.value)}
                   rows={2}
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                  className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                   placeholder="盤點原因或說明（選填）"
                 />
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <button
                   type="button"
                   onClick={() => {
@@ -264,14 +264,14 @@ export default function EditProductPage() {
                     setAdjustedStock('')
                     setAdjustNote('')
                   }}
-                  className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 hover:bg-gray-50"
+                  className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-700"
                 >
                   取消
                 </button>
                 <button
                   type="submit"
                   disabled={adjusting}
-                  className="flex-1 rounded bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:bg-gray-300"
+                  className="flex-1 rounded bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600"
                 >
                   {adjusting ? '處理中...' : '確認盤點'}
                 </button>
@@ -281,31 +281,31 @@ export default function EditProductPage() {
 
           {/* Adjustment History */}
           {adjustments.length > 0 && (
-            <div className="mt-4 border-t border-blue-200 pt-3">
-              <h4 className="mb-2 text-sm font-semibold text-gray-900">盤點記錄</h4>
-              <div className="max-h-60 overflow-y-auto">
+            <div className="mt-4 border-t border-blue-200 pt-3 dark:border-blue-800">
+              <h4 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">盤點記錄</h4>
+              <div className="max-h-60 overflow-x-auto overflow-y-auto">
                 <table className="w-full text-xs">
-                  <thead className="border-b border-blue-200">
+                  <thead className="border-b border-blue-200 dark:border-blue-800">
                     <tr>
-                      <th className="pb-1 text-left text-gray-900">日期</th>
-                      <th className="pb-1 text-right text-gray-900">盤點前</th>
-                      <th className="pb-1 text-right text-gray-900">盤點後</th>
-                      <th className="pb-1 text-right text-gray-900">差異</th>
-                      <th className="pb-1 text-left text-gray-900">備註</th>
+                      <th className="pb-1 text-left text-gray-900 dark:text-gray-100">日期</th>
+                      <th className="pb-1 text-right text-gray-900 dark:text-gray-100">盤點前</th>
+                      <th className="pb-1 text-right text-gray-900 dark:text-gray-100">盤點後</th>
+                      <th className="pb-1 text-right text-gray-900 dark:text-gray-100">差異</th>
+                      <th className="pb-1 text-left text-gray-900 dark:text-gray-100">備註</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-blue-100">
+                  <tbody className="divide-y divide-blue-100 dark:divide-blue-900">
                     {adjustments.map((adj) => (
                       <tr key={adj.id}>
-                        <td className="py-1 text-gray-900">{formatDate(adj.created_at)}</td>
-                        <td className="py-1 text-right text-gray-900">{adj.previous_stock}</td>
-                        <td className="py-1 text-right text-gray-900">{adj.adjusted_stock}</td>
+                        <td className="py-1 text-gray-900 dark:text-gray-100">{formatDate(adj.created_at)}</td>
+                        <td className="py-1 text-right text-gray-900 dark:text-gray-100">{adj.previous_stock}</td>
+                        <td className="py-1 text-right text-gray-900 dark:text-gray-100">{adj.adjusted_stock}</td>
                         <td className={`py-1 text-right ${
-                          adj.difference > 0 ? 'text-green-600' : adj.difference < 0 ? 'text-red-600' : 'text-gray-600'
+                          adj.difference > 0 ? 'text-green-600 dark:text-green-400' : adj.difference < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'
                         }`}>
                           {adj.difference > 0 ? '+' : ''}{adj.difference}
                         </td>
-                        <td className="py-1 text-gray-900">{adj.note || '-'}</td>
+                        <td className="py-1 text-gray-900 dark:text-gray-100">{adj.note || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -316,19 +316,19 @@ export default function EditProductPage() {
         </div>
 
         {/* Edit Form */}
-        <form onSubmit={handleSubmit} className="rounded-lg bg-white p-6 shadow">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900">編輯商品資訊</h2>
+        <form onSubmit={handleSubmit} className="rounded-lg bg-white p-4 shadow dark:bg-gray-800 md:p-6">
+          <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">編輯商品資訊</h2>
 
           {error && (
-            <div className="mb-4 rounded bg-red-50 p-3 text-red-700">{error}</div>
+            <div className="mb-4 rounded bg-red-50 p-3 text-red-700 dark:bg-red-900/20 dark:text-red-400">{error}</div>
           )}
 
           {success && (
-            <div className="mb-4 rounded bg-green-50 p-3 text-green-700">{success}</div>
+            <div className="mb-4 rounded bg-green-50 p-3 text-green-700 dark:bg-green-900/20 dark:text-green-400">{success}</div>
           )}
 
           <div className="mb-4">
-            <label className="mb-1 block text-sm font-medium text-gray-900">
+            <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
               商品名稱 <span className="text-red-500">*</span>
             </label>
             <input
@@ -337,12 +337,12 @@ export default function EditProductPage() {
               required
               key={`name-${product.name}`}
               defaultValue={product.name}
-              className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+              className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
             />
           </div>
 
           <div className="mb-4">
-            <label className="mb-1 block text-sm font-medium text-gray-900">條碼</label>
+            <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">條碼</label>
             <input
               type="text"
               name="barcode"
@@ -353,14 +353,14 @@ export default function EditProductPage() {
                   e.preventDefault()
                 }
               }}
-              className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900 placeholder:text-gray-900"
+              className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
               placeholder="選填"
             />
           </div>
 
-          <div className="mb-4 grid grid-cols-2 gap-4">
+          <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-900">
+              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
                 售價 <span className="text-red-500">*</span>
               </label>
               <input
@@ -371,13 +371,13 @@ export default function EditProductPage() {
                 step="0.01"
                 key={`price-${product.price}`}
                 defaultValue={product.price}
-                className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-900">
-                成本 <span className="text-xs text-gray-500">（參考成本，可隨時修改）</span>
+              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
+                成本 <span className="text-xs text-gray-500 dark:text-gray-400">（參考成本，可隨時修改）</span>
               </label>
               <input
                 type="number"
@@ -386,7 +386,7 @@ export default function EditProductPage() {
                 step="0.01"
                 key={`cost-${product.cost}`}
                 defaultValue={product.cost}
-                className="w-full rounded border border-gray-300 px-3 py-2 text-gray-900"
+                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
               />
             </div>
           </div>
@@ -399,22 +399,22 @@ export default function EditProductPage() {
                 defaultChecked={product.allow_negative}
                 className="h-4 w-4"
               />
-              <span className="text-sm text-gray-900">允許負庫存</span>
+              <span className="text-sm text-gray-900 dark:text-gray-100">允許負庫存</span>
             </label>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row">
             <button
               type="button"
               onClick={() => router.back()}
-              className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 hover:bg-gray-50"
+              className="flex-1 rounded border border-gray-300 px-4 py-2 text-gray-900 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-700"
             >
               取消
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-gray-300"
+              className="flex-1 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600"
             >
               {saving ? '儲存中...' : '儲存變更'}
             </button>

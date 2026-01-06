@@ -12,7 +12,9 @@
       "Bash(clip:*)",
       "Bash(echo:*)",
       "Bash(tree:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(for:*)",
+      "Bash(done)"
     ]
   }
 }
