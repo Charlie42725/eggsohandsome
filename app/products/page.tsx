@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { formatCurrency } from '@/lib/utils'
 import type { Product } from '@/types'
 
-type SortField = 'item_code' | 'name' | 'price' | 'avg_cost' | 'stock'
+type SortField = 'item_code' | 'name' | 'price' | 'avg_cost' | 'stock' | 'updated_at'
 type SortOrder = 'asc' | 'desc'
 
 export default function ProductsPage() {
@@ -20,8 +20,8 @@ export default function ProductsPage() {
     total: 0,
     totalPages: 0
   })
-  const [sortBy, setSortBy] = useState<SortField>('item_code')
-  const [sortOrder, setSortOrder] = useState<SortOrder>('asc')
+  const [sortBy, setSortBy] = useState<SortField>('updated_at')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
 
   const fetchProducts = async (currentPage: number = page) => {
     setLoading(true)
@@ -113,8 +113,14 @@ export default function ProductsPage() {
 
   // Sort products
   const sortedProducts = [...products].sort((a, b) => {
-    const aValue = a[sortBy]
-    const bValue = b[sortBy]
+    let aValue = a[sortBy]
+    let bValue = b[sortBy]
+
+    // Handle date sorting
+    if (sortBy === 'updated_at') {
+      aValue = aValue ? new Date(aValue as string).getTime() : 0
+      bValue = bValue ? new Date(bValue as string).getTime() : 0
+    }
 
     if (aValue === null || aValue === undefined) return 1
     if (bValue === null || bValue === undefined) return -1
@@ -253,6 +259,15 @@ export default function ProductsPage() {
                         <SortIcon field="stock" />
                       </div>
                     </th>
+                    <th
+                      className="px-6 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100 select-none"
+                      onClick={() => handleSort('updated_at')}
+                    >
+                      <div className="flex items-center">
+                        更新時間
+                        <SortIcon field="updated_at" />
+                      </div>
+                    </th>
                     <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">狀態</th>
                     <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">操作</th>
                   </tr>
@@ -281,6 +296,18 @@ export default function ProductsPage() {
                         >
                           {product.stock}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {product.updated_at
+                          ? new Date(product.updated_at).toLocaleString('zh-TW', {
+                              year: 'numeric',
+                              month: '2-digit',
+                              day: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : '-'
+                        }
                       </td>
                       <td className="px-6 py-4 text-center text-sm">
                         <span

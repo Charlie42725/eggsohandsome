@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
           price,
           snapshot_name,
           product_id,
+          cost,
           products (
             item_code,
             unit
@@ -233,7 +234,7 @@ export async function POST(request: NextRequest) {
       draft.items.map(async (item) => {
         const { data: product } = await (supabaseServer
           .from('products') as any)
-          .select('name')
+          .select('name, cost')
           .eq('id', item.product_id)
           .single()
 
@@ -242,6 +243,7 @@ export async function POST(request: NextRequest) {
           product_id: item.product_id,
           quantity: item.quantity,
           price: item.price,
+          cost: product?.cost || 0,
           snapshot_name: product?.name || null,
           ichiban_kuji_prize_id: item.ichiban_kuji_prize_id || null,
           ichiban_kuji_id: item.ichiban_kuji_id || null,

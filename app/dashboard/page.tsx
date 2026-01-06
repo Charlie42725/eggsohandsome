@@ -7,11 +7,21 @@ import { formatCurrency } from '@/lib/utils'
 type DashboardStats = {
   todaySales: number
   todayOrders: number
+  totalCost: number
+  totalExpenses: number
+  grossProfit: number
+  netProfit: number
   totalAR: number
   totalAP: number
   lowStockCount: number
   overdueAR: number
   overdueAP: number
+  costBreakdown?: Array<{
+    product_name: string
+    cost: number
+    quantity: number
+    total_cost: number
+  }>
 }
 
 type Product = {
@@ -32,6 +42,10 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({
     todaySales: 0,
     todayOrders: 0,
+    totalCost: 0,
+    totalExpenses: 0,
+    grossProfit: 0,
+    netProfit: 0,
     totalAR: 0,
     totalAP: 0,
     lowStockCount: 0,
@@ -58,6 +72,56 @@ export default function DashboardPage() {
       const totalSales = salesInRange
         .filter((s: any) => s.status === 'confirmed')
         .reduce((sum: number, s: any) => sum + s.total, 0)
+
+      // Calculate total cost from sale items and collect breakdown
+      const costBreakdownMap = new Map<string, { cost: number; quantity: number; name: string }>()
+
+      const totalCost = salesInRange
+        .filter((s: any) => s.status === 'confirmed')
+        .reduce((sum: number, s: any) => {
+          const saleCost = (s.sale_items || []).reduce(
+            (itemSum: number, item: any) => {
+              const itemCost = (item.cost || 0) * item.quantity
+
+              // Collect cost breakdown
+              const key = item.product_id
+              if (costBreakdownMap.has(key)) {
+                const existing = costBreakdownMap.get(key)!
+                existing.quantity += item.quantity
+              } else {
+                costBreakdownMap.set(key, {
+                  cost: item.cost || 0,
+                  quantity: item.quantity,
+                  name: item.snapshot_name || '未知商品'
+                })
+              }
+
+              return itemSum + itemCost
+            },
+            0
+          )
+          return sum + saleCost
+        }, 0)
+
+      const costBreakdown = Array.from(costBreakdownMap.values()).map(item => ({
+        product_name: item.name,
+        cost: item.cost,
+        quantity: item.quantity,
+        total_cost: item.cost * item.quantity
+      }))
+
+      // Fetch expenses within date range
+      const expensesRes = await fetch(`/api/expenses?date_from=${dateFrom}&date_to=${dateTo}`)
+      const expensesData = await expensesRes.json()
+      const expensesInRange = expensesData.ok ? expensesData.data : []
+      const totalExpenses = expensesInRange.reduce(
+        (sum: number, e: any) => sum + e.amount,
+        0
+      )
+
+      // Calculate profits
+      const grossProfit = totalSales - totalCost
+      const netProfit = grossProfit - totalExpenses
 
       // Fetch AR
       const arRes = await fetch('/api/ar')
@@ -99,11 +163,16 @@ export default function DashboardPage() {
       setStats({
         todaySales: totalSales,
         todayOrders: salesInRange.length,
+        totalCost,
+        totalExpenses,
+        grossProfit,
+        netProfit,
         totalAR,
         totalAP,
         lowStockCount: allProducts.filter((p: any) => p.stock < 10).length,
         overdueAR,
         overdueAP,
+        costBreakdown,
       })
 
       setLowStockProducts(lowStock)
@@ -162,7 +231,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* KPI Cards */}
+        {/* KPI Cards - Row 1: Revenue & Profit */}
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg bg-white p-6 shadow">
             <div className="text-sm font-medium text-gray-900">期間營收</div>
@@ -174,6 +243,39 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          <div className="rounded-lg bg-white p-6 shadow">
+            <div className="text-sm font-medium text-gray-900">期間成本</div>
+            <div className="mt-2 text-3xl font-bold text-orange-600">
+              {formatCurrency(stats.totalCost)}
+            </div>
+            <div className="mt-1 text-sm text-gray-900">
+              毛利率: {stats.todaySales > 0 ? ((stats.grossProfit / stats.todaySales) * 100).toFixed(1) : 0}%
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-white p-6 shadow">
+            <div className="text-sm font-medium text-gray-900">期間支出</div>
+            <div className="mt-2 text-3xl font-bold text-red-600">
+              {formatCurrency(stats.totalExpenses)}
+            </div>
+            <div className="mt-1 text-sm text-gray-900">
+              會計支出
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-white p-6 shadow">
+            <div className="text-sm font-medium text-gray-900">期間淨利</div>
+            <div className={`mt-2 text-3xl font-bold ${stats.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {formatCurrency(stats.netProfit)}
+            </div>
+            <div className="mt-1 text-sm text-gray-900">
+              毛利: {formatCurrency(stats.grossProfit)}
+            </div>
+          </div>
+        </div>
+
+        {/* KPI Cards - Row 2: AR/AP & Inventory */}
+        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           <div className="rounded-lg bg-white p-6 shadow">
             <div className="text-sm font-medium text-gray-900">應收帳款</div>
             <div className="mt-2 text-3xl font-bold text-blue-600">
@@ -206,6 +308,51 @@ export default function DashboardPage() {
             <div className="mt-1 text-sm text-gray-900">庫存 &lt; 10 件</div>
           </div>
         </div>
+
+        {/* Cost Breakdown */}
+        {stats.costBreakdown && stats.costBreakdown.length > 0 && (
+          <div className="mb-6 rounded-lg bg-white p-6 shadow">
+            <h2 className="mb-4 text-xl font-semibold text-gray-900">期間成本明細</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="border-b bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">商品名稱</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">單位成本</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">銷售數量</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">總成本</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {stats.costBreakdown.map((item, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-900">{item.product_name}</td>
+                      <td className="px-4 py-3 text-right text-sm text-gray-900">
+                        {formatCurrency(item.cost)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-sm text-gray-900">
+                        {item.quantity}
+                      </td>
+                      <td className="px-4 py-3 text-right text-sm font-semibold text-gray-900">
+                        {formatCurrency(item.total_cost)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="border-t bg-gray-50">
+                  <tr>
+                    <td colSpan={3} className="px-4 py-3 text-right text-sm font-semibold text-gray-900">
+                      總計:
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm font-bold text-gray-900">
+                      {formatCurrency(stats.totalCost)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* Recent Sales */}
