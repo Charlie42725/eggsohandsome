@@ -22,6 +22,9 @@ export default function ProductsPage() {
   })
   const [sortBy, setSortBy] = useState<SortField>('updated_at')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
+  const [lowStockProducts, setLowStockProducts] = useState<Product[]>([])
+  const [loadingLowStock, setLoadingLowStock] = useState(true)
+  const [showLowStock, setShowLowStock] = useState(false)
 
   const fetchProducts = async (currentPage: number = page) => {
     setLoading(true)
@@ -44,10 +47,34 @@ export default function ProductsPage() {
     }
   }
 
+  const fetchLowStockProducts = async () => {
+    setLoadingLowStock(true)
+    try {
+      const res = await fetch('/api/products?active=true')
+      const data = await res.json()
+      if (data.ok) {
+        const allProducts = data.data || []
+        const lowStock = allProducts
+          .filter((p: Product) => p.stock < 10)
+          .sort((a: Product, b: Product) => a.stock - b.stock)
+          .slice(0, 10)
+        setLowStockProducts(lowStock)
+      }
+    } catch (err) {
+      console.error('Failed to fetch low stock products:', err)
+    } finally {
+      setLoadingLowStock(false)
+    }
+  }
+
   useEffect(() => {
     setPage(1)
     fetchProducts(1)
   }, [activeFilter])
+
+  useEffect(() => {
+    fetchLowStockProducts()
+  }, [])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -201,6 +228,80 @@ export default function ProductsPage() {
             </button>
           </div>
         </div>
+
+        {/* Low Stock Products Alert */}
+        {!loadingLowStock && lowStockProducts.length > 0 && (
+          <div className="mb-6 rounded-lg bg-white shadow">
+            <button
+              onClick={() => setShowLowStock(!showLowStock)}
+              className="flex w-full items-center justify-between p-4 text-left hover:bg-gray-50"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-xl font-semibold text-gray-900">
+                  低庫存商品提醒
+                </span>
+                <span className="rounded bg-red-100 px-3 py-1 text-sm font-medium text-red-800">
+                  {lowStockProducts.length} 項
+                </span>
+              </div>
+              <span className="text-2xl text-gray-900">
+                {showLowStock ? '−' : '+'}
+              </span>
+            </button>
+
+            {showLowStock && (
+              <div className="border-t border-gray-200 p-4">
+                <div className="space-y-3">
+                  {lowStockProducts.map((product) => (
+                    <div
+                      key={product.id}
+                      className="flex items-center justify-between rounded border border-gray-200 p-3 hover:bg-gray-50"
+                    >
+                      <div>
+                        <div className="font-medium text-gray-900">
+                          {product.name}
+                        </div>
+                        <div className="text-sm text-gray-900">
+                          品號: {product.item_code}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={`text-right font-semibold ${
+                            product.stock === 0
+                              ? 'text-red-600'
+                              : product.stock < 5
+                              ? 'text-orange-600'
+                              : 'text-yellow-600'
+                          }`}
+                        >
+                          <div className="text-lg">剩餘 {product.stock}</div>
+                          <div className="text-xs font-normal text-gray-900">
+                            {product.stock === 0 ? '缺貨' : '庫存不足'}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Link
+                            href={`/products/${product.id}/edit`}
+                            className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700"
+                          >
+                            補貨
+                          </Link>
+                          <button
+                            onClick={() => toggleActive(product.id, product.is_active)}
+                            className="rounded bg-red-600 px-3 py-1 text-sm font-medium text-white hover:bg-red-700"
+                          >
+                            下架
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Products table */}
         <div className="rounded-lg bg-white shadow">

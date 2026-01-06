@@ -13,7 +13,6 @@ type DashboardStats = {
   netProfit: number
   totalAR: number
   totalAP: number
-  lowStockCount: number
   overdueAR: number
   overdueAP: number
   costBreakdown?: Array<{
@@ -22,12 +21,6 @@ type DashboardStats = {
     quantity: number
     total_cost: number
   }>
-}
-
-type Product = {
-  id: string
-  name: string
-  stock: number
 }
 
 type RecentSale = {
@@ -48,11 +41,9 @@ export default function DashboardPage() {
     netProfit: 0,
     totalAR: 0,
     totalAP: 0,
-    lowStockCount: 0,
     overdueAR: 0,
     overdueAP: 0,
   })
-  const [lowStockProducts, setLowStockProducts] = useState<Product[]>([])
   const [recentSales, setRecentSales] = useState<RecentSale[]>([])
   const [loading, setLoading] = useState(true)
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0])
@@ -151,15 +142,6 @@ export default function DashboardPage() {
         )
         .reduce((sum: number, a: any) => sum + a.balance, 0)
 
-      // Fetch low stock products
-      const productsRes = await fetch('/api/products?active=true')
-      const productsData = await productsRes.json()
-      const allProducts = productsData.ok ? productsData.data : []
-      const lowStock = allProducts
-        .filter((p: any) => p.stock < 10)
-        .sort((a: any, b: any) => a.stock - b.stock)
-        .slice(0, 10)
-
       setStats({
         todaySales: totalSales,
         todayOrders: salesInRange.length,
@@ -169,13 +151,10 @@ export default function DashboardPage() {
         netProfit,
         totalAR,
         totalAP,
-        lowStockCount: allProducts.filter((p: any) => p.stock < 10).length,
         overdueAR,
         overdueAP,
         costBreakdown,
       })
-
-      setLowStockProducts(lowStock)
 
       // Fetch recent sales
       const recentSalesRes = await fetch('/api/sales')
@@ -274,8 +253,8 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* KPI Cards - Row 2: AR/AP & Inventory */}
-        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {/* KPI Cards - Row 2: AR/AP */}
+        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="rounded-lg bg-white p-6 shadow">
             <div className="text-sm font-medium text-gray-900">應收帳款</div>
             <div className="mt-2 text-3xl font-bold text-blue-600">
@@ -298,14 +277,6 @@ export default function DashboardPage() {
                 逾期: {formatCurrency(stats.overdueAP)}
               </div>
             )}
-          </div>
-
-          <div className="rounded-lg bg-white p-6 shadow">
-            <div className="text-sm font-medium text-gray-900">低庫存商品</div>
-            <div className="mt-2 text-3xl font-bold text-red-600">
-              {stats.lowStockCount}
-            </div>
-            <div className="mt-1 text-sm text-gray-900">庫存 &lt; 10 件</div>
           </div>
         </div>
 
@@ -354,97 +325,52 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Recent Sales */}
-          <div className="rounded-lg bg-white p-6 shadow">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900">最近銷售</h2>
-              <Link
-                href="/sales"
-                className="text-sm text-blue-600 hover:underline"
-              >
-                查看全部
-              </Link>
-            </div>
-
-            {recentSales.length === 0 ? (
-              <p className="py-8 text-center text-gray-900">暫無銷售記錄</p>
-            ) : (
-              <div className="space-y-3">
-                {recentSales.map((sale) => (
-                  <div
-                    key={sale.id}
-                    className="flex items-center justify-between rounded border border-gray-200 p-3"
-                  >
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        {sale.sale_no}
-                      </div>
-                      <div className="text-sm text-gray-900">
-                        {sale.customer_code || '散客'}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-semibold text-gray-900">
-                        {formatCurrency(sale.total)}
-                      </div>
-                      <div className="text-xs text-gray-900">
-                        {new Date(sale.created_at).toLocaleString('zh-TW', {
-                          month: '2-digit',
-                          day: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+        {/* Recent Sales */}
+        <div className="rounded-lg bg-white p-6 shadow">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900">最近銷售</h2>
+            <Link
+              href="/sales"
+              className="text-sm text-blue-600 hover:underline"
+            >
+              查看全部
+            </Link>
           </div>
 
-          {/* Low Stock Products */}
-          <div className="rounded-lg bg-white p-6 shadow">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900">
-                低庫存商品
-              </h2>
-              <Link
-                href="/products"
-                className="text-sm text-blue-600 hover:underline"
-              >
-                查看商品庫
-              </Link>
-            </div>
-
-            {lowStockProducts.length === 0 ? (
-              <p className="py-8 text-center text-gray-900">庫存充足</p>
-            ) : (
-              <div className="space-y-3">
-                {lowStockProducts.map((product) => (
-                  <div
-                    key={product.id}
-                    className="flex items-center justify-between rounded border border-gray-200 p-3"
-                  >
+          {recentSales.length === 0 ? (
+            <p className="py-8 text-center text-gray-900">暫無銷售記錄</p>
+          ) : (
+            <div className="space-y-3">
+              {recentSales.map((sale) => (
+                <div
+                  key={sale.id}
+                  className="flex items-center justify-between rounded border border-gray-200 p-3"
+                >
+                  <div>
                     <div className="font-medium text-gray-900">
-                      {product.name}
+                      {sale.sale_no}
                     </div>
-                    <div
-                      className={`font-semibold ${
-                        product.stock === 0
-                          ? 'text-red-600'
-                          : product.stock < 5
-                          ? 'text-orange-600'
-                          : 'text-yellow-600'
-                      }`}
-                    >
-                      剩餘 {product.stock}
+                    <div className="text-sm text-gray-900">
+                      {sale.customer_code || '散客'}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  <div className="text-right">
+                    <div className="font-semibold text-gray-900">
+                      {formatCurrency(sale.total)}
+                    </div>
+                    <div className="text-xs text-gray-900">
+                      {new Date(sale.created_at).toLocaleString('zh-TW', {
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Quick Actions */}
