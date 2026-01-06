@@ -31,6 +31,18 @@ type APAccount = {
   purchases?: {
     id: string
     purchase_no: string
+    items?: Array<{
+      id: string
+      quantity: number
+      cost: number
+      subtotal: number
+      product_id: string
+      products: {
+        name: string
+        item_code: string
+        unit: string
+      }
+    }>
   } | null
 }
 
@@ -405,21 +417,65 @@ export default function APPageV2() {
                                     {account.ref_no}
                                   </td>
                                   <td className="py-2 text-sm text-gray-900 dark:text-gray-100">
-                                    {account.purchase_item ? (
-                                      <div>
-                                        <div className="font-medium">{account.purchase_item.products.name}</div>
-                                        <div className="text-xs text-gray-500 dark:text-gray-400">{account.purchase_item.products.item_code}</div>
-                                      </div>
-                                    ) : (
-                                      <span className="text-gray-400">-</span>
-                                    )}
+                                    {(() => {
+                                      // If single item account
+                                      if (account.purchase_item) {
+                                        return (
+                                          <div>
+                                            <div className="font-medium">{account.purchase_item.products.name}</div>
+                                            <div className="text-xs text-gray-500 dark:text-gray-400">{account.purchase_item.products.item_code}</div>
+                                          </div>
+                                        )
+                                      }
+                                      // If purchase with multiple items
+                                      if (account.purchases?.items && account.purchases.items.length > 0) {
+                                        if (account.purchases.items.length === 1) {
+                                          const item = account.purchases.items[0]
+                                          return (
+                                            <div>
+                                              <div className="font-medium">{item.products.name}</div>
+                                              <div className="text-xs text-gray-500 dark:text-gray-400">{item.products.item_code}</div>
+                                            </div>
+                                          )
+                                        }
+                                        return (
+                                          <div className="text-xs">
+                                            {account.purchases.items.map((item, idx) => (
+                                              <div key={item.id} className="mb-1">
+                                                <span className="font-medium">{item.products.name}</span>
+                                                <span className="text-gray-500 dark:text-gray-400 ml-1">({item.products.item_code})</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )
+                                      }
+                                      return <span className="text-gray-400">-</span>
+                                    })()}
                                   </td>
                                   <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
-                                    {account.purchase_item ? (
-                                      `${account.purchase_item.quantity} ${account.purchase_item.products.unit}`
-                                    ) : (
-                                      <span className="text-gray-400">-</span>
-                                    )}
+                                    {(() => {
+                                      // If single item account
+                                      if (account.purchase_item) {
+                                        return `${account.purchase_item.quantity} ${account.purchase_item.products.unit}`
+                                      }
+                                      // If purchase with multiple items
+                                      if (account.purchases?.items && account.purchases.items.length > 0) {
+                                        if (account.purchases.items.length === 1) {
+                                          const item = account.purchases.items[0]
+                                          return `${item.quantity} ${item.products.unit}`
+                                        }
+                                        return (
+                                          <div className="text-xs">
+                                            {account.purchases.items.map((item) => (
+                                              <div key={item.id} className="mb-1">
+                                                {item.quantity} {item.products.unit}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )
+                                      }
+                                      return <span className="text-gray-400">-</span>
+                                    })()}
                                   </td>
                                   <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
                                     {formatCurrency(account.amount)}

@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch purchase details to get purchase_no
+    // Fetch purchase details to get purchase_no and items
     const purchaseIds = [...new Set((accounts as any[])?.filter(a => a.ref_type === 'purchase').map(a => a.ref_id) || [])]
     let purchasesMap = new Map()
 
@@ -74,8 +74,29 @@ export async function GET(request: NextRequest) {
         .select('id, purchase_no')
         .in('id', purchaseIds)
 
+      // Fetch all purchase items for these purchases
+      const { data: allPurchaseItems } = await supabaseServer
+        .from('purchase_items')
+        .select('id, quantity, cost, subtotal, product_id, purchase_id, products:product_id(name, item_code, unit)')
+        .in('purchase_id', purchaseIds)
+
+      // Group items by purchase_id
+      const itemsByPurchase = new Map()
+      allPurchaseItems?.forEach((item: any) => {
+        if (!itemsByPurchase.has(item.purchase_id)) {
+          itemsByPurchase.set(item.purchase_id, [])
+        }
+        itemsByPurchase.get(item.purchase_id).push(item)
+      })
+
       purchasesMap = new Map(
-        (purchases as any[])?.map(p => [p.id, p]) || []
+        (purchases as any[])?.map(p => [
+          p.id, 
+          { 
+            ...p, 
+            items: itemsByPurchase.get(p.id) || [] 
+          }
+        ]) || []
       )
     }
 
