@@ -20,11 +20,17 @@ type Prize = {
   quantity: number
 }
 
+type ComboPrice = {
+  draws: number
+  price: number
+}
+
 export default function NewIchibanKujiPage() {
   const router = useRouter()
   const [name, setName] = useState('')
   const [price, setPrice] = useState('')
   const [prizes, setPrizes] = useState<Prize[]>([])
+  const [comboPrices, setComboPrices] = useState<ComboPrice[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -59,6 +65,20 @@ export default function NewIchibanKujiPage() {
     delete newSearchResults[index]
     setSearchInputs(newSearchInputs)
     setSearchResults(newSearchResults)
+  }
+
+  const addComboPrice = () => {
+    setComboPrices([...comboPrices, { draws: 3, price: 0 }])
+  }
+
+  const removeComboPrice = (index: number) => {
+    setComboPrices(comboPrices.filter((_, i) => i !== index))
+  }
+
+  const updateComboPrice = (index: number, field: keyof ComboPrice, value: number) => {
+    const updated = [...comboPrices]
+    updated[index] = { ...updated[index], [field]: value }
+    setComboPrices(updated)
   }
 
   const updatePrize = (index: number, field: keyof Prize, value: string | number) => {
@@ -176,7 +196,8 @@ export default function NewIchibanKujiPage() {
         body: JSON.stringify({
           name,
           price: parseFloat(price),
-          prizes
+          prizes,
+          combo_prices: comboPrices
         })
       })
 
@@ -248,6 +269,66 @@ export default function NewIchibanKujiPage() {
                 />
               </div>
             </div>
+          </div>
+
+          {/* Combo Prices */}
+          <div className="rounded-lg bg-white p-6 shadow">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-gray-900">組合價設定（選填）</h2>
+              <button
+                type="button"
+                onClick={addComboPrice}
+                className="rounded bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
+              >
+                + 新增組合價
+              </button>
+            </div>
+
+            {comboPrices.length === 0 ? (
+              <div className="rounded border-2 border-dashed border-gray-300 p-4 text-center text-sm text-gray-500">
+                可選擇性新增組合價優惠，例如：3抽280元、5抽450元
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {comboPrices.map((combo, index) => (
+                  <div key={index} className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 flex-1">
+                      <input
+                        type="number"
+                        min="1"
+                        value={combo.draws}
+                        onChange={(e) => updateComboPrice(index, 'draws', parseInt(e.target.value) || 1)}
+                        className="w-24 rounded border border-gray-300 px-3 py-2 text-gray-900"
+                        placeholder="抽數"
+                      />
+                      <span className="text-gray-600">抽</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={combo.price}
+                        onChange={(e) => updateComboPrice(index, 'price', parseFloat(e.target.value) || 0)}
+                        className="w-32 rounded border border-gray-300 px-3 py-2 text-gray-900"
+                        placeholder="價格"
+                      />
+                      <span className="text-gray-600">元</span>
+                      {combo.draws > 0 && combo.price > 0 && (
+                        <span className="text-sm text-gray-500">
+                          (平均每抽 {formatCurrency(combo.price / combo.draws)})
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeComboPrice(index)}
+                      className="text-red-600 hover:text-red-700 text-lg font-bold px-2"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Prizes */}

@@ -109,6 +109,7 @@ export async function PUT(
         price: draft.price,
         total_draws: totalDraws,
         avg_cost: avgCost,
+        combo_prices: draft.combo_prices || [],
       })
       .eq('id', id)
 

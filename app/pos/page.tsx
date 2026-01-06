@@ -20,6 +20,11 @@ type Customer = {
   is_active: boolean
 }
 
+type ComboPrice = {
+  draws: number
+  price: number
+}
+
 type IchibanKuji = {
   id: string
   name: string
@@ -28,6 +33,7 @@ type IchibanKuji = {
   price: number
   is_active: boolean
   created_at: string
+  combo_prices?: ComboPrice[]
 }
 
 type IchibanKujiPrize = {
@@ -61,6 +67,8 @@ export default function POSPage() {
   const [ichibanKujis, setIchibanKujis] = useState<IchibanKuji[]>([])
   const [selectedKuji, setSelectedKuji] = useState<IchibanKuji | null>(null)
   const [kujiPrizes, setKujiPrizes] = useState<IchibanKujiPrize[]>([])
+  const [comboMode, setComboMode] = useState<ComboPrice | null>(null)
+  const [comboDrawsRemaining, setComboDrawsRemaining] = useState(0)
 
   useEffect(() => {
     fetchCustomers()
@@ -119,6 +127,18 @@ export default function POSPage() {
   const handleKujiClick = async (kuji: IchibanKuji) => {
     setSelectedKuji(kuji)
     await fetchKujiPrizes(kuji.id)
+    setComboMode(null)
+    setComboDrawsRemaining(0)
+  }
+
+  const handleComboClick = (combo: ComboPrice) => {
+    setComboMode(combo)
+    setComboDrawsRemaining(combo.draws)
+  }
+
+  const exitComboMode = () => {
+    setComboMode(null)
+    setComboDrawsRemaining(0)
   }
 
   const handlePrizeClick = (prize: IchibanKujiPrize, kuji: IchibanKuji) => {
@@ -127,6 +147,11 @@ export default function POSPage() {
       setError(`${prize.prize_tier} 已售完`)
       return
     }
+
+    // 決定使用的價格：組合價平均價或一番賞單價
+    const priceToUse = comboMode
+      ? comboMode.price / comboMode.draws
+      : kuji.price
 
     // 直接將賞品加入購物車，使用一番賞的價格，並記錄一番賞信息
     setCart((prev) => {
@@ -150,7 +175,7 @@ export default function POSPage() {
         {
           product_id: prize.product_id,
           quantity: 1,
-          price: kuji.price,
+          price: priceToUse,
           product: prize.products,
           ichiban_kuji_prize_id: prize.id,
           ichiban_kuji_id: kuji.id,
@@ -158,12 +183,26 @@ export default function POSPage() {
       ]
     })
 
+    // 如果在組合價模式，減少剩餘抽數
+    if (comboMode && comboDrawsRemaining > 0) {
+      const newRemaining = comboDrawsRemaining - 1
+      setComboDrawsRemaining(newRemaining)
+
+      // 如果組合價已抽完，退出組合價模式
+      if (newRemaining === 0) {
+        exitComboMode()
+        alert(`組合價 ${comboMode.draws} 抽已完成！`)
+      }
+    }
+
     setError('')
   }
 
   const handleBackToKujiList = () => {
     setSelectedKuji(null)
     setKujiPrizes([])
+    setComboMode(null)
+    setComboDrawsRemaining(0)
   }
 
   const addToCart = (product: Product) => {
@@ -411,6 +450,53 @@ export default function POSPage() {
                     </button>
                     <div className="text-sm font-bold text-black flex-1">{selectedKuji.name}</div>
                   </div>
+
+                  {/* 組合價選擇 */}
+                  {selectedKuji.combo_prices && selectedKuji.combo_prices.length > 0 && (
+                    <div className="mb-3">
+                      <div className="text-xs font-bold text-purple-600 mb-1">組合價優惠</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {selectedKuji.combo_prices.map((combo, index) => (
+                          <button
+                            key={index}
+                            onClick={() => handleComboClick(combo)}
+                            className={`py-2 px-3 rounded font-bold border-2 transition-all text-sm ${
+                              comboMode?.draws === combo.draws && comboMode?.price === combo.price
+                                ? 'bg-purple-500 text-white border-purple-600'
+                                : 'bg-white text-purple-600 border-purple-400 hover:bg-purple-50'
+                            }`}
+                          >
+                            <div className="text-xs">{combo.draws} 抽</div>
+                            <div className="font-bold">{formatCurrency(combo.price)}</div>
+                            <div className="text-xs opacity-75">
+                              平均 {formatCurrency(combo.price / combo.draws)}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 組合價模式提示 */}
+                  {comboMode && (
+                    <div className="mb-3 bg-purple-100 border-2 border-purple-400 rounded p-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-bold text-purple-800">
+                          組合價模式：還需選擇 {comboDrawsRemaining} 抽
+                        </div>
+                        <button
+                          onClick={exitComboMode}
+                          className="text-xs bg-white text-purple-600 px-2 py-1 rounded font-bold border border-purple-400 hover:bg-purple-50"
+                        >
+                          取消
+                        </button>
+                      </div>
+                      <div className="text-xs text-purple-600 mt-1">
+                        每抽價格：{formatCurrency(comboMode.price / comboMode.draws)}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex-1 overflow-y-auto">
                     <div className="grid grid-cols-2 gap-2">
                       {kujiPrizes.map((prize) => (

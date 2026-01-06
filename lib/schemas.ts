@@ -136,10 +136,16 @@ export const ichibanKujiPrizeSchema = z.object({
   quantity: z.number().int().positive('Quantity must be positive'),
 })
 
+export const ichibanKujiComboPriceSchema = z.object({
+  draws: z.number().int().positive('Draws must be positive'),
+  price: z.number().min(0, 'Price must be positive'),
+})
+
 export const ichibanKujiDraftSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   price: z.number().min(0, 'Price must be positive'),
   prizes: z.array(ichibanKujiPrizeSchema).min(1, 'At least one prize is required'),
+  combo_prices: z.array(ichibanKujiComboPriceSchema).optional().default([]),
 })
 
 // Expense schemas

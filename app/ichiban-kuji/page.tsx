@@ -21,6 +21,11 @@ type Prize = {
   products: Product
 }
 
+type ComboPrice = {
+  draws: number
+  price: number
+}
+
 type IchibanKuji = {
   id: string
   name: string
@@ -29,6 +34,7 @@ type IchibanKuji = {
   price?: number
   is_active: boolean
   created_at: string
+  combo_prices?: ComboPrice[]
   ichiban_kuji_prizes: Prize[]
 }
 
@@ -203,8 +209,29 @@ export default function IchibanKujiPage() {
                       {expandedRows.has(kuji.id) && kuji.ichiban_kuji_prizes && (
                         <tr key={`${kuji.id}-details`}>
                           <td colSpan={9} className="bg-gray-50 px-6 py-4">
-                            <div className="rounded-lg border border-gray-200 bg-white p-4">
-                              <h4 className="mb-3 font-semibold text-gray-900">賞項明細</h4>
+                            <div className="space-y-4">
+                              {/* 組合價資訊 */}
+                              {kuji.combo_prices && kuji.combo_prices.length > 0 && (
+                                <div className="rounded-lg border border-purple-200 bg-purple-50 p-4">
+                                  <h4 className="mb-2 font-semibold text-gray-900">組合價優惠</h4>
+                                  <div className="flex flex-wrap gap-3">
+                                    {kuji.combo_prices.map((combo, index) => (
+                                      <div key={index} className="rounded bg-white px-3 py-2 shadow-sm border border-purple-200">
+                                        <span className="font-semibold text-purple-600">{combo.draws} 抽</span>
+                                        <span className="mx-2 text-gray-500">→</span>
+                                        <span className="font-semibold text-gray-900">{formatCurrency(combo.price)}</span>
+                                        <span className="ml-2 text-xs text-gray-500">
+                                          (平均 {formatCurrency(combo.price / combo.draws)}/抽)
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* 賞項明細 */}
+                              <div className="rounded-lg border border-gray-200 bg-white p-4">
+                                <h4 className="mb-3 font-semibold text-gray-900">賞項明細</h4>
                               <table className="w-full">
                                 <thead className="border-b">
                                   <tr>
@@ -262,6 +289,7 @@ export default function IchibanKujiPage() {
                                   </tr>
                                 </tfoot>
                               </table>
+                              </div>
                             </div>
                           </td>
                         </tr>

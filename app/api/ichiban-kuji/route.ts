@@ -101,6 +101,7 @@ export async function POST(request: NextRequest) {
         price: draft.price,
         total_draws: totalDraws,
         avg_cost: avgCost,
+        combo_prices: draft.combo_prices || [],
       })
       .select()
       .single()
