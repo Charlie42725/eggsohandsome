@@ -314,6 +314,49 @@ export default function POSPage() {
   }
 
   const cartWithComboPrice = applyComboPrice()
+  
+  // Group ichiban items by kuji_id for display
+  const displayCart: (CartItem & { groupedCount?: number, indices?: number[] })[] = []
+  const processedIndices = new Set<number>()
+  
+  cartWithComboPrice.forEach((item, index) => {
+    if (processedIndices.has(index)) return
+    
+    if (item.ichiban_kuji_id) {
+      // Find all items with same kuji_id
+      const sameKujiIndices: number[] = []
+      let totalQuantity = 0
+      let totalPrice = 0
+      
+      cartWithComboPrice.forEach((otherItem, otherIndex) => {
+        if (otherItem.ichiban_kuji_id === item.ichiban_kuji_id && !processedIndices.has(otherIndex)) {
+          sameKujiIndices.push(otherIndex)
+          totalQuantity += otherItem.quantity
+          totalPrice += otherItem.price * otherItem.quantity
+          processedIndices.add(otherIndex)
+        }
+      })
+      
+      // Create merged item
+      const kuji = ichibanKujis.find(k => k.id === item.ichiban_kuji_id)
+      displayCart.push({
+        ...item,
+        product: {
+          ...item.product,
+          name: `【${kuji?.name}】組合`
+        },
+        quantity: totalQuantity,
+        price: totalPrice / totalQuantity, // Average price
+        groupedCount: sameKujiIndices.length,
+        indices: sameKujiIndices
+      })
+    } else {
+      // Regular product - add as is
+      displayCart.push({ ...item, indices: [index] })
+      processedIndices.add(index)
+    }
+  })
+  
   const subtotal = cartWithComboPrice.reduce((sum, item) => sum + item.price * item.quantity, 0)
 
   let discountAmount = 0
@@ -669,86 +712,111 @@ export default function POSPage() {
           )}
 
           {inventoryMode === 'ichiban' && (
-            <div className="flex-1 overflow-y-auto">
-              <div className="space-y-2">
-                {ichibanKujis.map((kuji) => {
-                  const totalRemaining = kuji.ichiban_kuji_prizes?.reduce((sum: number, p: any) => sum + p.remaining, 0) || 0
-                  const totalDraws = kuji.total_draws || 0
-                  const soldOut = totalRemaining === 0
-                  const isExpanded = expandedKujiId === kuji.id
-
-                  return (
-                    <div
-                      key={kuji.id}
-                      className={`border-2 rounded-lg ${
-                        soldOut
-                          ? 'border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 opacity-60'
-                          : 'border-purple-400 dark:border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                      }`}
-                    >
-                      <div
-                        className="p-3 cursor-pointer"
-                        onClick={() => setExpandedKujiId(isExpanded ? null : kuji.id)}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="font-bold text-black dark:text-gray-100 flex items-center gap-2">
-                            <span className="text-purple-600">{isExpanded ? '▼' : '▶'}</span>
-                            {kuji.name}
-                          </div>
-                          <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
-                            {formatCurrency(kuji.price || 0)}
-                          </div>
-                        </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          剩餘: {totalRemaining} / {totalDraws}
-                        </div>
-                      </div>
-
-                      {isExpanded && (
-                        <div className="border-t-2 border-purple-300 dark:border-purple-600 p-2 space-y-1">
-                          {kuji.ichiban_kuji_prizes?.map((prize: any) => (
-                            <button
-                              key={prize.id}
-                              onClick={() => addIchibanPrize(kuji, prize)}
-                              disabled={prize.remaining <= 0}
-                              className={`w-full p-2 rounded-lg border-2 text-left transition-all ${
-                                prize.remaining <= 0
-                                  ? 'border-gray-300 dark:border-gray-600 bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
-                                  : 'border-purple-300 dark:border-purple-500 bg-white dark:bg-purple-900/10 hover:bg-purple-100 dark:hover:bg-purple-900/30 active:scale-95'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <div className="font-bold text-sm text-black dark:text-gray-100">
-                                    {prize.prize_tier}
-                                  </div>
-                                  <div className="text-xs text-gray-600 dark:text-gray-400">
-                                    {prize.products.name}
-                                  </div>
-                                </div>
-                                <div className={`text-sm font-bold ${
-                                  prize.remaining <= 0
-                                    ? 'text-gray-400'
-                                    : 'text-purple-600 dark:text-purple-400'
-                                }`}>
-                                  剩 {prize.remaining}
-                                </div>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-                {ichibanKujis.length === 0 && (
-                  <div className="text-center text-gray-500 dark:text-gray-400 py-10">
-                    <div className="text-4xl mb-2">🎁</div>
-                    <div>目前沒有一番賞</div>
-                  </div>
-                )}
+            <>
+              <div className="mb-3">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="搜尋一番賞名稱"
+                  className="w-full border-2 border-gray-400 dark:border-gray-600 rounded px-3 py-2 text-sm text-black dark:text-gray-100 bg-white dark:bg-gray-700 focus:border-purple-500 dark:focus:border-purple-400 focus:outline-none"
+                />
               </div>
-            </div>
+
+              <div className="flex-1 overflow-y-auto">
+                <div className="space-y-2">
+                  {ichibanKujis.filter(kuji => 
+                    kuji.name.toLowerCase().includes(searchQuery.toLowerCase())
+                  ).map((kuji) => {
+                    const totalRemaining = kuji.ichiban_kuji_prizes?.reduce((sum: number, p: any) => sum + p.remaining, 0) || 0
+                    const totalDraws = kuji.total_draws || 0
+                    const soldOut = totalRemaining === 0
+                    const isExpanded = expandedKujiId === kuji.id
+
+                    return (
+                      <div
+                        key={kuji.id}
+                        className={`border-2 rounded-lg overflow-hidden transition-all ${
+                          soldOut
+                            ? 'border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 opacity-60'
+                            : 'border-purple-500 dark:border-purple-600 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 hover:shadow-lg'
+                        }`}
+                      >
+                        <div
+                          className="p-4 cursor-pointer"
+                          onClick={() => setExpandedKujiId(isExpanded ? null : kuji.id)}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                              <span className="text-purple-600 dark:text-purple-400">{isExpanded ? '▼' : '▶'}</span>
+                              <span className="text-lg">{kuji.name}</span>
+                            </div>
+                            <div className="text-xl font-bold text-purple-600 dark:text-purple-400 bg-white dark:bg-gray-800 px-3 py-1 rounded-full shadow">
+                              {formatCurrency(kuji.price || 0)}
+                            </div>
+                          </div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                            剩餘: <span className="text-purple-600 dark:text-purple-400 font-bold">{totalRemaining}</span> / {totalDraws} 抽
+                          </div>
+                        </div>
+
+                        {isExpanded && (
+                          <div className="border-t-2 border-purple-300 dark:border-purple-700 bg-white dark:bg-gray-800/50 p-3">
+                            <div className="grid gap-2">
+                              {kuji.ichiban_kuji_prizes?.map((prize: any) => (
+                                <button
+                                  key={prize.id}
+                                  onClick={() => addIchibanPrize(kuji, prize)}
+                                  disabled={prize.remaining <= 0}
+                                  className={`p-3 rounded-lg border-2 text-left transition-all ${
+                                    prize.remaining <= 0
+                                      ? 'border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
+                                      : 'border-purple-400 dark:border-purple-600 bg-white dark:bg-gray-900/50 hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:border-purple-500 dark:hover:border-purple-500 active:scale-98 shadow-sm hover:shadow-md'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="font-bold text-base text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/50 px-2 py-0.5 rounded">
+                                          {prize.prize_tier}
+                                        </span>
+                                        <span className="text-xs text-gray-500 dark:text-gray-500">
+                                          {prize.products.item_code}
+                                        </span>
+                                      </div>
+                                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                        {prize.products.name}
+                                      </div>
+                                    </div>
+                                    <div className={`text-right ml-3 ${
+                                      prize.remaining <= 0
+                                        ? 'text-gray-400'
+                                        : 'text-purple-600 dark:text-purple-400'
+                                    }`}>
+                                      <div className="text-xs text-gray-500 dark:text-gray-500">剩餘</div>
+                                      <div className="text-xl font-bold">{prize.remaining}</div>
+                                      <div className="text-xs text-gray-500 dark:text-gray-500">抽</div>
+                                    </div>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {ichibanKujis.filter(kuji => 
+                    kuji.name.toLowerCase().includes(searchQuery.toLowerCase())
+                  ).length === 0 && (
+                    <div className="text-center text-gray-500 dark:text-gray-400 py-10">
+                      <div className="text-4xl mb-2">🎁</div>
+                      <div>{searchQuery ? '找不到相關的一番賞' : '目前沒有一番賞'}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
           )}
         </div>
 
@@ -773,20 +841,25 @@ export default function POSPage() {
                 <div className="text-black dark:text-gray-300">請點選商品</div>
               </div>
             ) : (
-              cartWithComboPrice.map((item, index) => {
-                const originalItem = cart[index]
-                const hasComboDiscount = item.ichiban_kuji_id && item.price !== originalItem.price
+              displayCart.map((item, displayIndex) => {
+                const isGrouped = !!item.groupedCount && item.groupedCount > 1
+                const hasComboDiscount = item.ichiban_kuji_id && isGrouped
+                
+                // Calculate average price for grouped items
+                const avgOriginalPrice = isGrouped 
+                  ? item.indices!.reduce((sum, idx) => sum + cart[idx].price, 0) / item.indices!.length
+                  : (cart[item.indices![0]]?.price || item.price)
 
                 return (
                   <div
-                    key={item.ichiban_kuji_prize_id ? `${item.product_id}-${index}` : item.product_id}
+                    key={`display-${displayIndex}`}
                     className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded p-2"
                   >
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex-1">
                         <div className="font-bold text-sm text-black dark:text-gray-100">
                           {item.product.name}
-                          {item.ichiban_kuji_prize_id && (
+                          {item.ichiban_kuji_id && (
                             <span className="ml-2 text-xs bg-purple-500 text-white px-2 py-0.5 rounded">一番賞</span>
                           )}
                           {hasComboDiscount && (
@@ -795,20 +868,30 @@ export default function POSPage() {
                         </div>
                         <div className="text-xs text-gray-600 dark:text-gray-400">
                           {hasComboDiscount && (
-                            <span className="line-through mr-2">{formatCurrency(originalItem.price)}</span>
+                            <span className="line-through mr-2">{formatCurrency(avgOriginalPrice)}</span>
                           )}
                           {formatCurrency(item.price)}
+                          {isGrouped && <span className="ml-2">× {item.quantity} 抽</span>}
                         </div>
                       </div>
                     <button
-                      onClick={() => removeFromCart(item.product_id, item.ichiban_kuji_prize_id ? index : undefined)}
+                      onClick={() => {
+                        // Remove all items in this group
+                        if (item.indices && item.indices.length > 0) {
+                          // Remove in reverse order to maintain correct indices
+                          const sortedIndices = [...item.indices].sort((a, b) => b - a)
+                          sortedIndices.forEach(idx => {
+                            removeFromCart(cart[idx].product_id, idx)
+                          })
+                        }
+                      }}
                       className="text-red-600 hover:text-red-800 font-bold text-lg ml-2"
                     >
                       ×
                     </button>
                   </div>
                   <div className="flex items-center justify-between">
-                    {!item.ichiban_kuji_prize_id ? (
+                    {!item.ichiban_kuji_id ? (
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
@@ -825,7 +908,9 @@ export default function POSPage() {
                         </button>
                       </div>
                     ) : (
-                      <div className="text-xs text-purple-600 dark:text-purple-400 font-bold">x {item.quantity}</div>
+                      <div className="text-xs text-purple-600 dark:text-purple-400 font-bold">
+                        {item.groupedCount} 個賞項
+                      </div>
                     )}
                     <div className="text-base font-bold text-black dark:text-gray-100">
                       {formatCurrency(item.price * item.quantity)}
