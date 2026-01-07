@@ -103,6 +103,11 @@ export default function POSPage() {
   const [addingCustomer, setAddingCustomer] = useState(false)
   const phoneInputRef = useRef<HTMLInputElement>(null)
 
+  // Customer search
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('')
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
+  const customerInputRef = useRef<HTMLInputElement>(null)
+
   // Inventory mode (products or ichiban kuji)
   const [inventoryMode, setInventoryMode] = useState<'products' | 'ichiban'>('products')
   const [ichibanKujis, setIchibanKujis] = useState<any[]>([])
@@ -116,6 +121,23 @@ export default function POSPage() {
     fetchDrafts()
     fetchTodaySales()
   }, [])
+
+  // Close customer dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (customerInputRef.current && !customerInputRef.current.contains(event.target as Node)) {
+        const dropdown = document.querySelector('.customer-dropdown')
+        if (dropdown && !dropdown.contains(event.target as Node)) {
+          setShowCustomerDropdown(false)
+        }
+      }
+    }
+
+    if (showCustomerDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showCustomerDropdown])
 
   const fetchCustomers = async () => {
     try {
@@ -463,6 +485,7 @@ export default function POSPage() {
       if (data.ok) {
         setCart([])
         setSelectedCustomer(null)
+        setCustomerSearchQuery('')
         setPaymentMethod('cash')
         setIsPaid(true)
         setNote('')
@@ -519,6 +542,7 @@ export default function POSPage() {
       if (data.ok) {
         setCart([])
         setSelectedCustomer(null)
+        setCustomerSearchQuery('')
         setPaymentMethod('cash')
         setIsPaid(true)
         setNote('')
@@ -560,6 +584,7 @@ export default function POSPage() {
           ? customers.find((c) => c.customer_code === draft.customer_code) || null
           : null
       )
+      setCustomerSearchQuery('')
       setPaymentMethod(draft.payment_method)
       setIsPaid(draft.is_paid)
       setNote(draft.note || '')
@@ -632,6 +657,7 @@ export default function POSPage() {
 
         // Select the newly created customer
         setSelectedCustomer(newCustomer)
+        setCustomerSearchQuery('')
 
         // Refresh customers list in background
         fetchCustomers()
@@ -656,6 +682,12 @@ export default function POSPage() {
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.item_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.barcode?.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  const filteredCustomers = customers.filter(c =>
+    c.customer_name.toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
+    c.customer_code.toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
+    c.phone?.toLowerCase().includes(customerSearchQuery.toLowerCase())
   )
 
   return (
@@ -1037,25 +1069,78 @@ export default function POSPage() {
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2.5">
             {/* Customer */}
-            <div>
-              <label className="block font-bold mb-2 text-black dark:text-gray-100">客戶</label>
-              <select
-                value={selectedCustomer?.id || ''}
-                onChange={(e) => {
-                  const customer = customers.find(c => c.id === e.target.value)
-                  setSelectedCustomer(customer || null)
-                }}
-                className="w-full border-2 border-gray-400 dark:border-gray-600 rounded-lg px-3 py-2 text-base text-black dark:text-gray-100 bg-white dark:bg-gray-700 focus:border-black dark:focus:border-blue-500 focus:outline-none"
-              >
-                <option value="">散客</option>
-                {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.customer_name}
-                  </option>
-                ))}
-              </select>
+            <div className="relative">
+              <label className="block font-bold mb-1.5 text-sm text-black dark:text-gray-100">客戶</label>
+              <div className="relative">
+                <input
+                  ref={customerInputRef}
+                  type="text"
+                  value={customerSearchQuery}
+                  onChange={(e) => {
+                    setCustomerSearchQuery(e.target.value)
+                    setShowCustomerDropdown(true)
+                  }}
+                  onFocus={() => setShowCustomerDropdown(true)}
+                  placeholder={selectedCustomer ? selectedCustomer.customer_name : '散客 (點擊搜尋)'}
+                  className="w-full border-2 border-gray-400 dark:border-gray-600 rounded-lg px-3 py-2 text-base text-black dark:text-gray-100 bg-white dark:bg-gray-700 focus:border-black dark:focus:border-blue-500 focus:outline-none"
+                />
+                {selectedCustomer && (
+                  <button
+                    onClick={() => {
+                      setSelectedCustomer(null)
+                      setCustomerSearchQuery('')
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-600 font-bold"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+
+              {/* Dropdown */}
+              {showCustomerDropdown && (
+                <div className="customer-dropdown absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border-2 border-gray-400 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
+                  {/* 散客選項 */}
+                  <button
+                    onClick={() => {
+                      setSelectedCustomer(null)
+                      setCustomerSearchQuery('')
+                      setShowCustomerDropdown(false)
+                    }}
+                    className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-black dark:text-gray-100 border-b border-gray-200 dark:border-gray-600"
+                  >
+                    <div className="font-bold">散客</div>
+                    <div className="text-xs text-gray-500">不選擇客戶</div>
+                  </button>
+
+                  {/* 過濾後的客戶列表 */}
+                  {filteredCustomers.map((customer) => (
+                    <button
+                      key={customer.id}
+                      onClick={() => {
+                        setSelectedCustomer(customer)
+                        setCustomerSearchQuery('')
+                        setShowCustomerDropdown(false)
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-black dark:text-gray-100 border-b border-gray-200 dark:border-gray-600 last:border-b-0"
+                    >
+                      <div className="font-bold">{customer.customer_name}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {customer.customer_code} {customer.phone && `• ${customer.phone}`}
+                      </div>
+                    </button>
+                  ))}
+
+                  {filteredCustomers.length === 0 && customerSearchQuery && (
+                    <div className="px-3 py-4 text-center text-gray-500 dark:text-gray-400">
+                      找不到客戶
+                    </div>
+                  )}
+                </div>
+              )}
+
               <button
                 onClick={() => setShowQuickAddCustomer(true)}
                 className="w-full mt-2 bg-green-500 hover:bg-green-600 text-white font-bold px-3 py-2 rounded-lg text-sm transition-all"
@@ -1066,11 +1151,14 @@ export default function POSPage() {
 
             {/* Payment Method - Button Grid */}
             <div>
-              <label className="block font-bold mb-2 text-black dark:text-gray-100">付款方式</label>
+              <label className="block font-bold mb-1.5 text-sm text-black dark:text-gray-100">付款方式</label>
               <div className="grid grid-cols-2 gap-2">
                 <button
-                  onClick={() => setPaymentMethod('cash')}
-                  className={`py-3 px-4 rounded-lg font-bold border-2 transition-all ${
+                  onClick={() => {
+                    setPaymentMethod('cash')
+                    setIsPaid(true)
+                  }}
+                  className={`py-2.5 px-3 rounded-lg font-bold text-sm border-2 transition-all ${
                     paymentMethod === 'cash'
                       ? 'bg-yellow-400 border-yellow-600 text-gray-900 shadow-md'
                       : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600'
@@ -1079,8 +1167,11 @@ export default function POSPage() {
                   💵 現金
                 </button>
                 <button
-                  onClick={() => setPaymentMethod('card')}
-                  className={`py-3 px-4 rounded-lg font-bold border-2 transition-all ${
+                  onClick={() => {
+                    setPaymentMethod('card')
+                    setIsPaid(false)
+                  }}
+                  className={`py-2.5 px-3 rounded-lg font-bold text-sm border-2 transition-all ${
                     paymentMethod === 'card'
                       ? 'bg-blue-400 border-blue-600 text-gray-900 shadow-md'
                       : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600'
@@ -1089,8 +1180,11 @@ export default function POSPage() {
                   💳 刷卡
                 </button>
                 <button
-                  onClick={() => setPaymentMethod('transfer_cathay')}
-                  className={`py-3 px-4 rounded-lg font-bold border-2 transition-all ${
+                  onClick={() => {
+                    setPaymentMethod('transfer_cathay')
+                    setIsPaid(false)
+                  }}
+                  className={`py-2.5 px-3 rounded-lg font-bold text-sm border-2 transition-all ${
                     paymentMethod === 'transfer_cathay'
                       ? 'bg-purple-400 border-purple-600 text-gray-900 shadow-md'
                       : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600'
@@ -1099,8 +1193,11 @@ export default function POSPage() {
                   🏦 國泰
                 </button>
                 <button
-                  onClick={() => setPaymentMethod('transfer_fubon')}
-                  className={`py-3 px-4 rounded-lg font-bold border-2 transition-all ${
+                  onClick={() => {
+                    setPaymentMethod('transfer_fubon')
+                    setIsPaid(false)
+                  }}
+                  className={`py-2.5 px-3 rounded-lg font-bold text-sm border-2 transition-all ${
                     paymentMethod === 'transfer_fubon'
                       ? 'bg-red-400 border-red-600 text-gray-900 shadow-md'
                       : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600'
@@ -1109,8 +1206,11 @@ export default function POSPage() {
                   🏦 富邦
                 </button>
                 <button
-                  onClick={() => setPaymentMethod('transfer_esun')}
-                  className={`py-3 px-4 rounded-lg font-bold border-2 transition-all ${
+                  onClick={() => {
+                    setPaymentMethod('transfer_esun')
+                    setIsPaid(false)
+                  }}
+                  className={`py-2.5 px-3 rounded-lg font-bold text-sm border-2 transition-all ${
                     paymentMethod === 'transfer_esun'
                       ? 'bg-green-400 border-green-600 text-gray-900 shadow-md'
                       : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600'
@@ -1119,8 +1219,11 @@ export default function POSPage() {
                   🏦 玉山
                 </button>
                 <button
-                  onClick={() => setPaymentMethod('transfer_union')}
-                  className={`py-3 px-4 rounded-lg font-bold border-2 transition-all ${
+                  onClick={() => {
+                    setPaymentMethod('transfer_union')
+                    setIsPaid(false)
+                  }}
+                  className={`py-2.5 px-3 rounded-lg font-bold text-sm border-2 transition-all ${
                     paymentMethod === 'transfer_union'
                       ? 'bg-orange-400 border-orange-600 text-gray-900 shadow-md'
                       : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600'
@@ -1129,8 +1232,11 @@ export default function POSPage() {
                   🏦 聯邦
                 </button>
                 <button
-                  onClick={() => setPaymentMethod('transfer_linepay')}
-                  className={`py-3 px-4 rounded-lg font-bold border-2 transition-all ${
+                  onClick={() => {
+                    setPaymentMethod('transfer_linepay')
+                    setIsPaid(false)
+                  }}
+                  className={`py-2.5 px-3 rounded-lg font-bold text-sm border-2 transition-all ${
                     paymentMethod === 'transfer_linepay'
                       ? 'bg-green-400 border-green-600 text-gray-900 shadow-md'
                       : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600'
@@ -1139,8 +1245,11 @@ export default function POSPage() {
                   💚 LINE Pay
                 </button>
                 <button
-                  onClick={() => setPaymentMethod('cod')}
-                  className={`py-3 px-4 rounded-lg font-bold border-2 transition-all ${
+                  onClick={() => {
+                    setPaymentMethod('cod')
+                    setIsPaid(false)
+                  }}
+                  className={`py-2.5 px-3 rounded-lg font-bold text-sm border-2 transition-all ${
                     paymentMethod === 'cod'
                       ? 'bg-pink-400 border-pink-600 text-gray-900 shadow-md'
                       : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600'
@@ -1149,8 +1258,11 @@ export default function POSPage() {
                   📦 貨到付款
                 </button>
                 <button
-                  onClick={() => setPaymentMethod('pending')}
-                  className={`py-3 px-4 rounded-lg font-bold border-2 transition-all ${
+                  onClick={() => {
+                    setPaymentMethod('pending')
+                    setIsPaid(false)
+                  }}
+                  className={`py-2.5 px-3 rounded-lg font-bold text-sm border-2 transition-all ${
                     paymentMethod === 'pending'
                       ? 'bg-gray-400 border-gray-600 text-gray-900 shadow-md'
                       : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600'
@@ -1163,14 +1275,14 @@ export default function POSPage() {
 
             {/* Discount - Button Selection */}
             <div>
-              <label className="block font-bold mb-2 text-black dark:text-gray-100">折扣</label>
+              <label className="block font-bold mb-1.5 text-sm text-black dark:text-gray-100">折扣</label>
               <div className="grid grid-cols-3 gap-2 mb-2">
                 <button
                   onClick={() => {
                     setDiscountType('none')
                     setDiscountValue(0)
                   }}
-                  className={`py-2 rounded-lg font-bold border-2 transition-all ${
+                  className={`py-2 rounded-lg font-bold text-sm border-2 transition-all ${
                     discountType === 'none'
                       ? 'bg-yellow-400 border-yellow-600 text-gray-900 shadow-md'
                       : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600'
@@ -1180,7 +1292,7 @@ export default function POSPage() {
                 </button>
                 <button
                   onClick={() => setDiscountType('percent')}
-                  className={`py-2 rounded-lg font-bold border-2 transition-all ${
+                  className={`py-2 rounded-lg font-bold text-sm border-2 transition-all ${
                     discountType === 'percent'
                       ? 'bg-yellow-400 border-yellow-600 text-gray-900 shadow-md'
                       : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600'
@@ -1190,7 +1302,7 @@ export default function POSPage() {
                 </button>
                 <button
                   onClick={() => setDiscountType('amount')}
-                  className={`py-2 rounded-lg font-bold border-2 transition-all ${
+                  className={`py-2 rounded-lg font-bold text-sm border-2 transition-all ${
                     discountType === 'amount'
                       ? 'bg-yellow-400 border-yellow-600 text-gray-900 shadow-md'
                       : 'bg-white dark:bg-gray-700 border-gray-400 dark:border-gray-600 text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600'
@@ -1207,31 +1319,31 @@ export default function POSPage() {
                   min="0"
                   max={discountType === 'percent' ? 100 : subtotal}
                   step={discountType === 'percent' ? 1 : 1}
-                  className="w-full border-2 border-gray-400 dark:border-gray-600 rounded-lg px-4 py-2 text-lg text-black dark:text-gray-100 bg-white dark:bg-gray-700 focus:border-black dark:focus:border-blue-500 focus:outline-none"
+                  className="w-full border-2 border-gray-400 dark:border-gray-600 rounded-lg px-3 py-2 text-base text-black dark:text-gray-100 bg-white dark:bg-gray-700 focus:border-black dark:focus:border-blue-500 focus:outline-none"
                   placeholder={discountType === 'percent' ? '折扣 %' : '折扣金額'}
                 />
               )}
             </div>
 
             {/* Payment Status */}
-            <label className="flex items-center gap-3 cursor-pointer border-2 border-gray-400 dark:border-gray-600 rounded-lg px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700">
+            <label className="flex items-center gap-2.5 cursor-pointer border-2 border-gray-400 dark:border-gray-600 rounded-lg px-3 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-700">
               <input
                 type="checkbox"
                 checked={isPaid}
                 onChange={(e) => setIsPaid(e.target.checked)}
-                className="w-6 h-6"
+                className="w-5 h-5"
               />
-              <span className="font-bold text-lg text-black dark:text-gray-100">已收款</span>
+              <span className="font-bold text-base text-black dark:text-gray-100">已收款</span>
             </label>
           </div>
 
           {/* Checkout Button - Fixed at bottom */}
-          <div className="p-4 border-t-2 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div className="p-3 border-t-2 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
             <div className="flex gap-2">
               <button
                 onClick={handleCheckout}
                 disabled={loading || cart.length === 0}
-                className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 dark:disabled:bg-gray-600 text-white font-bold text-xl py-4 rounded-lg shadow-md transition-all active:scale-95 disabled:cursor-not-allowed border-2 border-green-600 disabled:border-gray-500 dark:disabled:border-gray-600"
+                className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 dark:disabled:bg-gray-600 text-white font-bold text-lg py-3 rounded-lg shadow-md transition-all active:scale-95 disabled:cursor-not-allowed border-2 border-green-600 disabled:border-gray-500 dark:disabled:border-gray-600"
               >
                 {loading ? '處理中...' : '結帳'}
               </button>
@@ -1239,7 +1351,7 @@ export default function POSPage() {
                 <button
                   onClick={handleSaveDraft}
                   disabled={loading}
-                  className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 dark:disabled:bg-gray-600 text-white font-bold text-xl py-4 rounded-lg shadow-md transition-all active:scale-95 disabled:cursor-not-allowed border-2 border-orange-600 disabled:border-gray-500"
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 dark:disabled:bg-gray-600 text-white font-bold text-lg py-3 rounded-lg shadow-md transition-all active:scale-95 disabled:cursor-not-allowed border-2 border-orange-600 disabled:border-gray-500"
                 >
                   暫存
                 </button>
