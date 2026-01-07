@@ -17,6 +17,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { href: '/dashboard', label: '營收報表', roles: ['admin'] },
   { href: '/pos', label: 'POS 收銀', roles: ['admin', 'staff'] },
+  { href: '/live-import', label: '直播訂單匯入', roles: ['admin', 'staff'] },
   { href: '/products', label: '商品庫', roles: ['admin'] },
   { href: '/ichiban-kuji', label: '一番賞庫', roles: ['admin'] },
   { href: '/vendors', label: '廠商管理', roles: ['admin'] },
