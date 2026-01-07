@@ -9,45 +9,48 @@ async function generateIcons() {
   console.log('開始生成 PWA 圖標...\n')
 
   const sizes = [
-    { size: 180, name: 'apple-touch-icon.png', padding: 15 }, // iOS 專用（白底有 padding）
-    { size: 192, name: 'icon-192.png', padding: 0 },
-    { size: 512, name: 'icon-512.png', padding: 0 },
-    { size: 192, name: 'icon-192-maskable.png', padding: 20 },
-    { size: 512, name: 'icon-512-maskable.png', padding: 50 },
+    { size: 180, name: 'apple-touch-icon.png', padding: 10, bgColor: '#2563eb' }, // iOS 專用（藍底）
+    { size: 192, name: 'icon-192.png', padding: 10, bgColor: '#2563eb' },
+    { size: 512, name: 'icon-512.png', padding: 20, bgColor: '#2563eb' },
+    { size: 192, name: 'icon-192-maskable.png', padding: 20, bgColor: '#2563eb' },
+    { size: 512, name: 'icon-512-maskable.png', padding: 50, bgColor: '#2563eb' },
   ]
 
-  for (const { size, name, padding } of sizes) {
+  for (const { size, name, padding, bgColor } of sizes) {
     const outputPath = path.join(outputDir, name)
     const contentSize = size - padding * 2
 
+    // 將 hex 顏色轉換為 RGB
+    const hexToRgb = (hex) => {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+      return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+        alpha: 1
+      } : { r: 37, g: 99, b: 235, alpha: 1 } // 預設藍色
+    }
+
+    const bgRgb = hexToRgb(bgColor)
+
     try {
-      if (padding > 0) {
-        // Maskable 圖標（有 padding）
-        await sharp(inputFile)
-          .resize(contentSize, contentSize, { 
-            fit: 'contain', 
-            background: { r: 255, g: 255, b: 255, alpha: 1 }
-          })
-          .extend({
-            top: padding,
-            bottom: padding,
-            left: padding,
-            right: padding,
-            background: { r: 255, g: 255, b: 255, alpha: 1 }
-          })
-          .png()
-          .toFile(outputPath)
-      } else {
-        // 普通圖標
-        await sharp(inputFile)
-          .resize(size, size, { 
-            fit: 'contain',
-            background: { r: 255, g: 255, b: 255, alpha: 1 }
-          })
-          .png()
-          .toFile(outputPath)
-      }
-      console.log(`✓ 生成 ${name} (${size}x${size})`)
+      // 統一使用有色背景 + padding
+      await sharp(inputFile)
+        .resize(contentSize, contentSize, {
+          fit: 'cover',
+          position: 'center'
+        })
+        .extend({
+          top: padding,
+          bottom: padding,
+          left: padding,
+          right: padding,
+          background: bgRgb
+        })
+        .png()
+        .toFile(outputPath)
+
+      console.log(`✓ 生成 ${name} (${size}x${size}) - ${bgColor}`)
     } catch (error) {
       console.error(`✗ 生成 ${name} 失敗:`, error.message)
     }
