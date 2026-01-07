@@ -59,6 +59,37 @@ export default function POSPage() {
   const [discountValue, setDiscountValue] = useState(0)
   const barcodeInputRef = useRef<HTMLInputElement>(null)
 
+  // Custom scrollbar styles
+  const scrollbarStyles = `
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 5px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #888;
+      border-radius: 5px;
+      transition: background 0.2s ease;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #555;
+    }
+
+    /* Dark mode scrollbar */
+    .dark .custom-scrollbar::-webkit-scrollbar-track {
+      background: #2d2d2d;
+    }
+    .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #555;
+    }
+    .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #888;
+    }
+  `
+
   // Draft orders and today's sales
   const [drafts, setDrafts] = useState<SaleDraft[]>([])
   const [todaySales, setTodaySales] = useState<TodaySale[]>([])
@@ -628,9 +659,11 @@ export default function POSPage() {
   )
 
   return (
-    <div className="h-screen bg-gray-100 dark:bg-gray-900 flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b-2 border-gray-300 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+    <>
+      <style dangerouslySetInnerHTML={{ __html: scrollbarStyles }} />
+      <div className="h-screen bg-gray-100 dark:bg-gray-900 flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="bg-white dark:bg-gray-800 border-b-2 border-gray-300 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-black dark:text-gray-100">POS 收銀系統</h1>
         <div className="flex items-center gap-3">
           <button
@@ -693,7 +726,7 @@ export default function POSPage() {
                 />
               </div>
 
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto custom-scrollbar">
                 <div className="grid grid-cols-3 gap-2">
                   {filteredProducts.map((product) => (
                     <button
@@ -723,7 +756,7 @@ export default function POSPage() {
                 />
               </div>
 
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto custom-scrollbar">
                 <div className="space-y-2">
                   {ichibanKujis.filter(kuji => 
                     kuji.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -834,7 +867,7 @@ export default function POSPage() {
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
             {cart.length === 0 ? (
               <div className="text-center text-gray-500 dark:text-gray-400 mt-20">
                 <div className="text-4xl mb-2">🛒</div>
@@ -1004,7 +1037,7 @@ export default function POSPage() {
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
             {/* Customer */}
             <div>
               <label className="block font-bold mb-2 text-black dark:text-gray-100">客戶</label>
@@ -1224,7 +1257,7 @@ export default function POSPage() {
               <h2 className="text-xl font-bold">暫存訂單</h2>
               <button onClick={() => setShowDrafts(false)} className="text-2xl hover:text-gray-200">×</button>
             </div>
-            <div className="p-4 overflow-y-auto max-h-[calc(80vh-80px)]">
+            <div className="p-4 overflow-y-auto custom-scrollbar max-h-[calc(80vh-80px)]">
               {drafts.length === 0 ? (
                 <div className="text-center text-gray-500 dark:text-gray-400 py-10">
                   <div className="text-4xl mb-2">📋</div>
@@ -1290,7 +1323,7 @@ export default function POSPage() {
               <h2 className="text-xl font-bold">今日交易</h2>
               <button onClick={() => setShowTodaySales(false)} className="text-2xl hover:text-gray-200">×</button>
             </div>
-            <div className="p-4 overflow-y-auto max-h-[calc(80vh-80px)]">
+            <div className="p-4 overflow-y-auto custom-scrollbar max-h-[calc(80vh-80px)]">
               {todaySales.length === 0 ? (
                 <div className="text-center text-gray-500 dark:text-gray-400 py-10">
                   <div className="text-4xl mb-2">📊</div>
@@ -1391,6 +1424,7 @@ export default function POSPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   )
 }
