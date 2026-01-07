@@ -49,7 +49,9 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
+     * - *.png, *.jpg, *.jpeg, *.gif, *.svg, *.ico (public images)
+     * - manifest.webmanifest (PWA manifest)
      */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.gif$|.*\\.svg$|.*\\.ico$|manifest.webmanifest).*)',
   ],
 }
