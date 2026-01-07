@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       .select('*')
       .eq('username', username)
       .eq('is_active', true)
-      .single()
+      .single() as any
 
     console.log('[LOGIN] Database query error:', error)
     console.log('[LOGIN] User found:', user ? 'Yes' : 'No')
