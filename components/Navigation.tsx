@@ -105,14 +105,14 @@ export default function Navigation() {
           <div className="flex items-center gap-2">
             {/* User Info */}
             {user && (
-              <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-650 rounded-lg shadow-sm border border-gray-200 dark:border-gray-600">
-                <span className="text-xs font-semibold text-gray-800 dark:text-gray-100">
+              <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-200">
                   {user.username}
                 </span>
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm ${
+                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
                   user.role === 'admin'
-                    ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white'
-                    : 'bg-gradient-to-r from-green-500 to-green-600 text-white'
+                    ? 'bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200'
+                    : 'bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200'
                 }`}>
                   {user.role === 'admin' ? '管理員' : '員工'}
                 </span>
@@ -157,15 +157,15 @@ export default function Navigation() {
           <div className="border-t pb-4 pt-3 dark:border-gray-700 lg:hidden bg-gradient-to-b from-gray-50 to-white dark:from-gray-750 dark:to-gray-800">
             {/* Mobile User Info */}
             {user && (
-              <div className="flex items-center justify-between px-4 py-3 mb-3 bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-700 dark:to-gray-650 rounded-xl mx-3 shadow-sm border border-gray-200 dark:border-gray-600">
+              <div className="flex items-center justify-between px-4 py-3 mb-3 bg-gray-100 dark:bg-gray-700 rounded-xl mx-3 border border-gray-200 dark:border-gray-600">
                 <div className="flex items-center gap-2.5">
-                  <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
                     {user.username}
                   </span>
-                  <span className={`text-xs font-bold px-2.5 py-1 rounded-md shadow-sm ${
+                  <span className={`text-xs font-medium px-2.5 py-1 rounded ${
                     user.role === 'admin'
-                      ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white'
-                      : 'bg-gradient-to-r from-green-500 to-green-600 text-white'
+                      ? 'bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200'
+                      : 'bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200'
                   }`}>
                     {user.role === 'admin' ? '管理員' : '員工'}
                   </span>
