@@ -23,7 +23,10 @@ async function generateIcons() {
       if (padding > 0) {
         // Maskable 圖標（有 padding）
         await sharp(inputFile)
-          .resize(contentSize, contentSize, { fit: 'cover' })
+          .resize(contentSize, contentSize, { 
+            fit: 'contain', 
+            background: { r: 255, g: 255, b: 255, alpha: 1 }
+          })
           .extend({
             top: padding,
             bottom: padding,
@@ -36,7 +39,10 @@ async function generateIcons() {
       } else {
         // 普通圖標
         await sharp(inputFile)
-          .resize(size, size, { fit: 'cover' })
+          .resize(size, size, { 
+            fit: 'contain',
+            background: { r: 255, g: 255, b: 255, alpha: 1 }
+          })
           .png()
           .toFile(outputPath)
       }
