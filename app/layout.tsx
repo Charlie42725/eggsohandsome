@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   description: "簡單好用的 ERP 系統",
   icons: {
     icon: '/icon-192.png',
-    apple: '/icon-192.png',
+    apple: '/apple-touch-icon.png',
   },
   manifest: '/manifest.webmanifest',
   appleWebApp: {

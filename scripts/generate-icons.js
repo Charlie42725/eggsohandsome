@@ -9,6 +9,7 @@ async function generateIcons() {
   console.log('開始生成 PWA 圖標...\n')
 
   const sizes = [
+    { size: 180, name: 'apple-touch-icon.png', padding: 15 }, // iOS 專用（白底有 padding）
     { size: 192, name: 'icon-192.png', padding: 0 },
     { size: 512, name: 'icon-512.png', padding: 0 },
     { size: 192, name: 'icon-192-maskable.png', padding: 20 },
