@@ -80,3 +80,44 @@ body {
   background: rgba(236, 72, 153, 0.5);
   animation-delay: 4s;
 }
+
+/* 旋轉光環動畫（刀劍神域風格） */
+@keyframes orbit {
+  from {
+    transform: rotate(0deg) translateX(180px) rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg) translateX(180px) rotate(-360deg);
+  }
+}
+
+@keyframes orbit-reverse {
+  from {
+    transform: rotate(0deg) translateX(140px) rotate(0deg);
+  }
+  to {
+    transform: rotate(-360deg) translateX(140px) rotate(360deg);
+  }
+}
+
+/* 脈衝光環 */
+@keyframes pulse-ring {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.3;
+  }
+}
+
+/* 六角形旋轉 */
+@keyframes rotate-hexagon {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

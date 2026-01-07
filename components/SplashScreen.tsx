@@ -47,12 +47,72 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
             stage >= 0 ? 'scale-100 opacity-100 rotate-0' : 'scale-0 opacity-0 -rotate-12'
           }`}
         >
-          <div className="relative">
+          <div className="relative w-[280px] h-[280px] flex items-center justify-center">
+            {/* 外層旋轉光環 */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              {/* 外環 - 順時針 */}
+              {[0, 60, 120, 180, 240, 300].map((angle, i) => (
+                <div
+                  key={`outer-${i}`}
+                  className="absolute"
+                  style={{
+                    animation: `orbit ${3 + i * 0.1}s linear infinite`,
+                    animationDelay: `${i * 0.1}s`
+                  }}
+                >
+                  <div className="w-3 h-3 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 shadow-lg shadow-yellow-500/50" />
+                </div>
+              ))}
+            </div>
+
+            {/* 內層旋轉光環 - 逆時針 */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              {[0, 90, 180, 270].map((angle, i) => (
+                <div
+                  key={`inner-${i}`}
+                  className="absolute"
+                  style={{
+                    animation: `orbit-reverse ${2.5 + i * 0.1}s linear infinite`,
+                    animationDelay: `${i * 0.15}s`
+                  }}
+                >
+                  <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 shadow-lg shadow-cyan-500/50" />
+                </div>
+              ))}
+            </div>
+
+            {/* 脈衝光環（3層） */}
+            <div className="absolute inset-0">
+              <div className="absolute inset-0 rounded-full border-2 border-yellow-400/30" style={{ animation: 'pulse-ring 2s ease-in-out infinite' }} />
+              <div className="absolute inset-4 rounded-full border-2 border-cyan-400/30" style={{ animation: 'pulse-ring 2s ease-in-out infinite 0.3s' }} />
+              <div className="absolute inset-8 rounded-full border-2 border-orange-400/30" style={{ animation: 'pulse-ring 2s ease-in-out infinite 0.6s' }} />
+            </div>
+
+            {/* 旋轉六角形框架（科技感） */}
+            <div className="absolute inset-0 flex items-center justify-center" style={{ animation: 'rotate-hexagon 20s linear infinite' }}>
+              <div className="w-64 h-64 relative">
+                <svg viewBox="0 0 100 100" className="w-full h-full opacity-20">
+                  <polygon
+                    points="50,5 90,25 90,75 50,95 10,75 10,25"
+                    fill="none"
+                    stroke="url(#grad1)"
+                    strokeWidth="0.5"
+                  />
+                  <defs>
+                    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" style={{ stopColor: 'rgb(250, 204, 21)', stopOpacity: 1 }} />
+                      <stop offset="100%" style={{ stopColor: 'rgb(249, 115, 22)', stopOpacity: 1 }} />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </div>
+            </div>
+
             {/* Logo 外發光 */}
             <div className="absolute -inset-8 animate-pulse rounded-full bg-gradient-to-r from-yellow-400/30 via-orange-400/30 to-yellow-400/30 blur-3xl" />
 
             {/* Logo 圖片（直接顯示，不加白底） */}
-            <div className="relative">
+            <div className="relative z-10">
               <img
                 src="/logo.jpg"
                 alt="失控事務所"
@@ -92,10 +152,20 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
           </div>
         </div>
 
-        {/* 裝飾光點 */}
-        <div className="absolute -top-20 left-1/2 h-2 w-2 -translate-x-1/2 animate-ping rounded-full bg-yellow-300" />
-        <div className="absolute -bottom-20 left-1/4 h-2 w-2 animate-ping rounded-full bg-yellow-300 delay-300" />
-        <div className="absolute -bottom-20 right-1/4 h-2 w-2 animate-ping rounded-full bg-yellow-300 delay-700" />
+        {/* 裝飾光點 - 改成旋轉粒子效果 */}
+        <div className="absolute inset-0 pointer-events-none">
+          {[...Array(8)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute top-1/2 left-1/2 w-1 h-1 bg-yellow-400 rounded-full"
+              style={{
+                animation: `orbit ${4 + i * 0.3}s linear infinite`,
+                animationDelay: `${i * 0.2}s`,
+                opacity: 0.6
+              }}
+            />
+          ))}
+        </div>
       </div>
     </div>
   )
