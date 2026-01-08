@@ -27,8 +27,47 @@ export async function DELETE(
       )
     }
 
-    // 2. Update purchase total (if confirmed)
+    // 2. Restore inventory if purchase was confirmed
     if (item.purchases.status === 'confirmed') {
+      console.log(`[Delete Purchase Item ${id}] Restoring inventory for product ${item.product_id}`)
+
+      // Get current product stock and avg_cost
+      const { data: product } = await (supabaseServer
+        .from('products') as any)
+        .select('stock, avg_cost')
+        .eq('id', item.product_id)
+        .single()
+
+      if (product) {
+        const oldStock = product.stock
+        const oldAvgCost = product.avg_cost
+        const newStock = oldStock - item.quantity
+
+        // Calculate new average cost (reverse the purchase)
+        let newAvgCost = oldAvgCost
+        if (newStock > 0 && oldStock > 0) {
+          // Reverse calculation: remove this item's cost contribution
+          const totalCostBefore = oldStock * oldAvgCost
+          const itemCost = item.quantity * item.cost
+          newAvgCost = (totalCostBefore - itemCost) / newStock
+        } else if (newStock <= 0) {
+          // If stock becomes 0 or negative, reset avg_cost
+          newAvgCost = 0
+        }
+
+        // Update product stock and avg_cost
+        await (supabaseServer
+          .from('products') as any)
+          .update({
+            stock: newStock,
+            avg_cost: newAvgCost,
+          })
+          .eq('id', item.product_id)
+
+        console.log(`[Delete Purchase Item ${id}] Restored inventory: ${oldStock} -> ${newStock}, avg_cost: ${oldAvgCost.toFixed(2)} -> ${newAvgCost.toFixed(2)}`)
+      }
+
+      // 3. Update purchase total
       const { data: remainingItems } = await (supabaseServer
         .from('purchase_items') as any)
         .select('quantity, cost')
@@ -46,7 +85,7 @@ export async function DELETE(
         .eq('id', item.purchase_id)
     }
 
-    // 3. Delete related partner accounts (AP) for this item
+    // 4. Delete related partner accounts (AP) for this item
     const { error: apDeleteError } = await (supabaseServer
       .from('partner_accounts') as any)
       .delete()
@@ -57,7 +96,7 @@ export async function DELETE(
       // Don't fail the whole operation, just log the error
     }
 
-    // 4. Delete purchase item (triggers will handle inventory restoration via inventory_logs)
+    // 5. Delete purchase item
     const { error: deleteError } = await (supabaseServer
       .from('purchase_items') as any)
       .delete()
@@ -70,6 +109,7 @@ export async function DELETE(
       )
     }
 
+    console.log(`[Delete Purchase Item ${id}] Successfully deleted item and restored inventory`)
     return NextResponse.json({ ok: true })
   } catch (error) {
     return NextResponse.json(

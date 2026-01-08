@@ -51,7 +51,16 @@ export default function ReviewPurchasePage() {
       const data = await res.json()
       if (data.ok) {
         setPurchase(data.data)
-        setItems(data.data.purchase_items || [])
+        // Map purchase_items to include product data with correct structure
+        const mappedItems = (data.data.purchase_items || []).map((item: any) => ({
+          id: item.id,
+          product_id: item.product_id,
+          product: item.products, // Supabase returns 'products' (plural)
+          quantity: item.quantity,
+          cost: item.cost,
+          subtotal: item.subtotal || (item.quantity * item.cost),
+        }))
+        setItems(mappedItems)
       } else {
         setError('無法載入進貨單')
       }
@@ -301,7 +310,7 @@ export default function ReviewPurchasePage() {
                             {item.product?.item_code}
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 text-center">
                           <input
                             type="number"
                             value={item.quantity}
@@ -312,7 +321,7 @@ export default function ReviewPurchasePage() {
                             className="w-20 rounded border border-gray-300 bg-white px-2 py-1 text-center text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                           />
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 text-right">
                           <input
                             type="number"
                             value={item.cost}

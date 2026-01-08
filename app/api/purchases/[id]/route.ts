@@ -67,7 +67,76 @@ export async function DELETE(
   try {
     const { id } = await context.params
 
-    // 1. Delete related partner accounts (AP)
+    // 0. Get purchase status and items before deletion
+    const { data: purchase, error: purchaseError } = await (supabaseServer
+      .from('purchases') as any)
+      .select(`
+        status,
+        purchase_items (
+          id,
+          product_id,
+          quantity,
+          cost
+        )
+      `)
+      .eq('id', id)
+      .single()
+
+    if (purchaseError || !purchase) {
+      return NextResponse.json(
+        { ok: false, error: '進貨單不存在' },
+        { status: 404 }
+      )
+    }
+
+    // 1. Restore inventory if purchase was confirmed
+    // Only confirmed purchases have updated inventory
+    if (purchase.status === 'confirmed' && purchase.purchase_items) {
+      console.log(`[Delete Purchase ${id}] Restoring inventory for ${purchase.purchase_items.length} items`)
+
+      for (const item of purchase.purchase_items) {
+        // Get current product stock and avg_cost
+        const { data: product } = await (supabaseServer
+          .from('products') as any)
+          .select('stock, avg_cost')
+          .eq('id', item.product_id)
+          .single()
+
+        if (product) {
+          const oldStock = product.stock
+          const oldAvgCost = product.avg_cost
+          const newStock = oldStock - item.quantity
+
+          // Calculate new average cost (reverse the purchase)
+          // We need to remove the cost contribution of this purchase
+          let newAvgCost = oldAvgCost
+          if (newStock > 0 && oldStock > 0) {
+            // Reverse calculation: remove this purchase's cost contribution
+            const totalCostBefore = oldStock * oldAvgCost
+            const purchaseCost = item.quantity * item.cost
+            newAvgCost = (totalCostBefore - purchaseCost) / newStock
+          } else if (newStock <= 0) {
+            // If stock becomes 0 or negative, reset avg_cost
+            newAvgCost = 0
+          }
+
+          // Update product stock and avg_cost
+          await (supabaseServer
+            .from('products') as any)
+            .update({
+              stock: newStock,
+              avg_cost: newAvgCost,
+            })
+            .eq('id', item.product_id)
+
+          console.log(`[Delete Purchase ${id}] Restored inventory for product ${item.product_id}: ${oldStock} -> ${newStock}, avg_cost: ${oldAvgCost.toFixed(2)} -> ${newAvgCost.toFixed(2)}`)
+        }
+      }
+    } else if (purchase.status === 'pending') {
+      console.log(`[Delete Purchase ${id}] Purchase was pending, no inventory to restore`)
+    }
+
+    // 2. Delete related partner accounts (AP)
     // Delete by purchase_item_id (new method)
     const { data: itemsForAP, error: itemsForAPError } = await (supabaseServer
       .from('purchase_items') as any)
@@ -98,10 +167,10 @@ export async function DELETE(
       )
     }
 
-    // 2. Delete purchase items (triggers will handle inventory restoration via inventory_logs)
+    // 3. Delete purchase items
     await (supabaseServer.from('purchase_items') as any).delete().eq('purchase_id', id)
 
-    // 3. Delete purchase
+    // 4. Delete purchase
     const { error: deleteError } = await (supabaseServer
       .from('purchases') as any)
       .delete()
@@ -114,6 +183,7 @@ export async function DELETE(
       )
     }
 
+    console.log(`[Delete Purchase ${id}] Successfully deleted purchase and restored inventory`)
     return NextResponse.json({ ok: true })
   } catch (error) {
     return NextResponse.json(

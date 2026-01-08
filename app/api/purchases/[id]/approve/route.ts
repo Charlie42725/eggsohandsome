@@ -125,7 +125,41 @@ export async function POST(
     // 4. Calculate total
     const total = items.reduce((sum, item) => sum + (item.quantity * item.cost), 0)
 
-    // 5. Update purchase to confirmed (database trigger will handle inventory update)
+    // 5. Manually update inventory for each item
+    // Since purchase was in 'pending' status, inventory was not updated yet
+    for (const item of updatedItems) {
+      // Get current product stock and avg_cost
+      const { data: product } = await (supabaseServer
+        .from('products') as any)
+        .select('stock, avg_cost')
+        .eq('id', item.product_id)
+        .single()
+
+      if (product) {
+        const oldStock = product.stock
+        const oldAvgCost = product.avg_cost
+        const newStock = oldStock + item.quantity
+
+        // Calculate new average cost
+        let newAvgCost = oldAvgCost
+        if (newStock > 0) {
+          newAvgCost = ((oldStock * oldAvgCost) + (item.quantity * item.cost)) / newStock
+        }
+
+        // Update product stock and avg_cost
+        await (supabaseServer
+          .from('products') as any)
+          .update({
+            stock: newStock,
+            avg_cost: newAvgCost,
+          })
+          .eq('id', item.product_id)
+
+        console.log(`Updated inventory for product ${item.product_id}: ${oldStock} -> ${newStock}, avg_cost: ${oldAvgCost} -> ${newAvgCost}`)
+      }
+    }
+
+    // 6. Update purchase to confirmed
     const { data: confirmedPurchase, error: confirmError } = await (supabaseServer
       .from('purchases') as any)
       .update({
@@ -143,7 +177,7 @@ export async function POST(
       )
     }
 
-    // 6. Create accounts payable for each item (since not paid)
+    // 7. Create accounts payable for each item (since not paid)
     const apRecords = updatedItems.map((item: any) => ({
       partner_type: 'vendor',
       partner_code: purchase.vendor_code,
@@ -151,7 +185,7 @@ export async function POST(
       ref_type: 'purchase',
       ref_id: id,
       purchase_item_id: item.id,
-      amount: item.subtotal,
+      amount: item.subtotal || (item.quantity * item.cost),
       received_paid: 0,
       due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
       status: 'unpaid',

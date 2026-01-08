@@ -187,7 +187,41 @@ export async function POST(request: NextRequest) {
     // 3. Calculate total
     const total = draft.items.reduce((sum, item) => sum + (item.quantity * item.cost), 0)
 
-    // 4. Update purchase to confirmed (database trigger will handle inventory update)
+    // 4. Manually update inventory for each item
+    // Update stock and avg_cost for each product
+    for (const item of insertedItems) {
+      // Get current product stock and avg_cost
+      const { data: product } = await (supabaseServer
+        .from('products') as any)
+        .select('stock, avg_cost')
+        .eq('id', item.product_id)
+        .single()
+
+      if (product) {
+        const oldStock = product.stock
+        const oldAvgCost = product.avg_cost
+        const newStock = oldStock + item.quantity
+
+        // Calculate new average cost using weighted average
+        let newAvgCost = oldAvgCost
+        if (newStock > 0) {
+          newAvgCost = ((oldStock * oldAvgCost) + (item.quantity * item.cost)) / newStock
+        }
+
+        // Update product stock and avg_cost
+        await (supabaseServer
+          .from('products') as any)
+          .update({
+            stock: newStock,
+            avg_cost: newAvgCost,
+          })
+          .eq('id', item.product_id)
+
+        console.log(`[Purchase ${purchase.id}] Updated inventory for product ${item.product_id}: ${oldStock} -> ${newStock}, avg_cost: ${oldAvgCost.toFixed(2)} -> ${newAvgCost.toFixed(2)}`)
+      }
+    }
+
+    // 5. Update purchase to confirmed
     const { data: confirmedPurchase, error: confirmError } = await (supabaseServer
       .from('purchases') as any)
       .update({
@@ -205,7 +239,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 5. Create accounts payable for each item (if not paid)
+    // 6. Create accounts payable for each item (if not paid)
     if (!draft.is_paid && insertedItems) {
       const apRecords = insertedItems.map((item: any) => ({
         partner_type: 'vendor',
