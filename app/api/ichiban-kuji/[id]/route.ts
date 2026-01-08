@@ -106,6 +106,7 @@ export async function PUT(
       .from('ichiban_kuji') as any)
       .update({
         name: draft.name,
+        barcode: draft.barcode || null,
         price: draft.price,
         total_draws: totalDraws,
         avg_cost: avgCost,

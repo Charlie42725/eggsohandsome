@@ -100,6 +100,7 @@ export async function POST(request: NextRequest) {
       .from('ichiban_kuji') as any)
       .insert({
         name: draft.name,
+        barcode: draft.barcode || null,
         price: draft.price,
         total_draws: totalDraws,
         avg_cost: avgCost,

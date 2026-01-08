@@ -143,6 +143,7 @@ export const ichibanKujiComboPriceSchema = z.object({
 
 export const ichibanKujiDraftSchema = z.object({
   name: z.string().min(1, 'Name is required'),
+  barcode: z.string().optional().nullable(),
   price: z.number().min(0, 'Price must be positive'),
   prizes: z.array(ichibanKujiPrizeSchema).min(1, 'At least one prize is required'),
   combo_prices: z.array(ichibanKujiComboPriceSchema).optional().default([]),

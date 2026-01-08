@@ -15,6 +15,8 @@ type Product = {
 type IchibanKuji = {
   id: string
   name: string
+  barcode?: string | null
+  price: number
   ichiban_kuji_prizes: {
     id: string
     prize_tier: string
@@ -69,7 +71,7 @@ export default function BarcodePrintPage() {
     barcode: string
     price: number
     copies: number
-    source: 'product' | 'prize'
+    source: 'product' | 'prize' | 'kuji'
   }[]>([])
   const [format, setFormat] = useState<PrintFormat>('a4-grid')
   const [loading, setLoading] = useState(true)
@@ -134,6 +136,37 @@ export default function BarcodePrintPage() {
     }
   }
 
+  const addKuji = (kuji: IchibanKuji) => {
+    if (!kuji.barcode) {
+      alert('該一番賞沒有設定系列條碼')
+      return
+    }
+
+    const existing = selectedItems.find(item => item.id === kuji.id && item.source === 'kuji')
+    if (existing) {
+      setSelectedItems(items =>
+        items.map(item =>
+          item.id === kuji.id && item.source === 'kuji'
+            ? { ...item, copies: item.copies + 1 }
+            : item
+        )
+      )
+    } else {
+      setSelectedItems([
+        ...selectedItems,
+        {
+          id: kuji.id,
+          name: kuji.name,
+          code: `系列 - ${kuji.ichiban_kuji_prizes.length}個獎項`,
+          barcode: kuji.barcode!,
+          price: kuji.price,
+          copies: 1,
+          source: 'kuji',
+        },
+      ])
+    }
+  }
+
   const addPrize = (kuji: IchibanKuji, prize: IchibanKuji['ichiban_kuji_prizes'][0]) => {
     if (!prize.products.barcode) {
       alert('該獎項商品沒有條碼，請先設定條碼')
@@ -166,7 +199,7 @@ export default function BarcodePrintPage() {
     }
   }
 
-  const updateCopies = (id: string, source: 'product' | 'prize', copies: number) => {
+  const updateCopies = (id: string, source: 'product' | 'prize' | 'kuji', copies: number) => {
     if (copies <= 0) {
       setSelectedItems(items => items.filter(item => !(item.id === id && item.source === source)))
     } else {
@@ -376,9 +409,9 @@ export default function BarcodePrintPage() {
                 )}
               </div>
 
-              {/* Ichiban Kuji Prizes */}
+              {/* Ichiban Kuji */}
               <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow">
-                <h2 className="mb-4 text-xl font-bold text-gray-900 dark:text-gray-100">一番賞獎項</h2>
+                <h2 className="mb-4 text-xl font-bold text-gray-900 dark:text-gray-100">一番賞系列</h2>
 
                 {/* 搜尋框 */}
                 <div className="mb-3">
@@ -398,45 +431,76 @@ export default function BarcodePrintPage() {
                     {kujiSearchKeyword ? '沒有符合的一番賞' : '沒有一番賞'}
                   </div>
                 ) : (
-                  <div className="max-h-96 space-y-4 overflow-y-auto">
+                  <div className="max-h-96 space-y-3 overflow-y-auto">
                     {filteredKujis.map(kuji => {
+                      const hasBarcode = !!kuji.barcode
                       const prizesWithBarcode = kuji.ichiban_kuji_prizes.filter(p => p.products.barcode)
-                      if (prizesWithBarcode.length === 0) return null
+
+                      // 如果一番賞沒有條碼且沒有獎項有條碼，就不顯示
+                      if (!hasBarcode && prizesWithBarcode.length === 0) return null
 
                       return (
                         <div key={kuji.id} className="rounded border border-gray-200 dark:border-gray-700 p-3">
-                          <div className="mb-2 flex items-center justify-between">
-                            <div className="font-medium text-gray-900 dark:text-gray-100">{kuji.name}</div>
-                            <button
-                              onClick={() => addAllPrizesFromKuji(kuji)}
-                              className="rounded bg-green-600 px-2 py-1 text-xs text-white hover:bg-green-700"
-                            >
-                              全部新增
-                            </button>
-                          </div>
-                          <div className="space-y-2">
-                            {prizesWithBarcode.map(prize => (
-                              <div
-                                key={prize.id}
-                                className="flex items-center justify-between rounded bg-gray-50 dark:bg-gray-900 p-2"
+                          {/* 一番賞系列條碼 */}
+                          {hasBarcode && (
+                            <div className="mb-2 flex items-center justify-between rounded bg-purple-50 dark:bg-purple-900/20 p-2 border border-purple-200 dark:border-purple-700">
+                              <div className="flex-1">
+                                <div className="text-sm font-bold text-purple-900 dark:text-purple-100">
+                                  📦 {kuji.name}（系列）
+                                </div>
+                                <div className="text-xs text-purple-700 dark:text-purple-300">
+                                  系列條碼：{kuji.barcode} | {kuji.ichiban_kuji_prizes.length} 個獎項
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => addKuji(kuji)}
+                                className="ml-2 rounded bg-purple-600 px-3 py-1 text-xs font-medium text-white hover:bg-purple-700"
                               >
-                                <div className="flex-1">
-                                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                    {prize.prize_tier}賞 - {prize.products.name}
-                                  </div>
-                                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                                    {prize.products.item_code} | {prize.products.barcode}
-                                  </div>
+                                新增系列
+                              </button>
+                            </div>
+                          )}
+
+                          {/* 個別獎項 */}
+                          {prizesWithBarcode.length > 0 && (
+                            <>
+                              <div className="mb-2 flex items-center justify-between">
+                                <div className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                                  {!hasBarcode && <span className="font-bold text-gray-900 dark:text-gray-100">{kuji.name} - </span>}
+                                  個別獎項條碼
                                 </div>
                                 <button
-                                  onClick={() => addPrize(kuji, prize)}
-                                  className="ml-2 rounded bg-purple-600 px-2 py-1 text-xs text-white hover:bg-purple-700"
+                                  onClick={() => addAllPrizesFromKuji(kuji)}
+                                  className="rounded bg-green-600 px-2 py-1 text-xs text-white hover:bg-green-700"
                                 >
-                                  新增
+                                  全部新增
                                 </button>
                               </div>
-                            ))}
-                          </div>
+                              <div className="space-y-2">
+                                {prizesWithBarcode.map(prize => (
+                                  <div
+                                    key={prize.id}
+                                    className="flex items-center justify-between rounded bg-gray-50 dark:bg-gray-900 p-2"
+                                  >
+                                    <div className="flex-1">
+                                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                        {prize.prize_tier}賞 - {prize.products.name}
+                                      </div>
+                                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                                        {prize.products.item_code} | {prize.products.barcode}
+                                      </div>
+                                    </div>
+                                    <button
+                                      onClick={() => addPrize(kuji, prize)}
+                                      className="ml-2 rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700"
+                                    >
+                                      新增
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </>
+                          )}
                         </div>
                       )
                     })}

@@ -28,6 +28,7 @@ type ComboPrice = {
 export default function NewIchibanKujiPage() {
   const router = useRouter()
   const [name, setName] = useState('')
+  const [barcode, setBarcode] = useState('')
   const [price, setPrice] = useState('')
   const [prizes, setPrizes] = useState<Prize[]>([])
   const [comboPrices, setComboPrices] = useState<ComboPrice[]>([])
@@ -195,6 +196,7 @@ export default function NewIchibanKujiPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
+          barcode: barcode.trim() || null,
           price: parseFloat(price),
           prizes,
           combo_prices: comboPrices
@@ -241,7 +243,7 @@ export default function NewIchibanKujiPage() {
           {/* Basic Info */}
           <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800 md:p-6">
             <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">基本資訊</h2>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-900 dark:text-gray-100">
                   一番賞名稱 *
@@ -252,6 +254,18 @@ export default function NewIchibanKujiPage() {
                   onChange={(e) => setName(e.target.value)}
                   className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                   placeholder="例：鬼滅之刃一番賞"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-900 dark:text-gray-100">
+                  系列條碼（選填）
+                </label>
+                <input
+                  type="text"
+                  value={barcode}
+                  onChange={(e) => setBarcode(e.target.value)}
+                  className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                  placeholder="掃碼或手動輸入"
                 />
               </div>
               <div>
