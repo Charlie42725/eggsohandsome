@@ -298,7 +298,7 @@ export default function BarcodePrintPage() {
         @media print {
           @page {
             size: A4;
-            margin: 10mm;
+            margin: 8mm;
           }
 
           /* 強制移除所有螢幕版面的干擾 */
@@ -339,58 +339,87 @@ export default function BarcodePrintPage() {
             margin: 0 !important;
           }
 
-          /* A4 兩欄 label grid */
+          /* A4 兩欄 label grid - 一頁10張 */
           .print-area {
             display: grid !important;
             grid-template-columns: repeat(2, 1fr) !important;
-            gap: 8mm !important;
+            gap: 4mm !important;
             align-content: start !important;
             background: #fff !important;
           }
 
-          /* 每張 label 固定大小 + 禁止切頁 */
+          /* 🔒 框完全貼合內容 */
           .label {
-            display: flex !important;
+            display: inline-flex !important;
+            flex-direction: column !important;
+            align-items: flex-start !important;
             background: #fff !important;
             color: #000 !important;
             border: 1px solid #000 !important;
-            padding: 4mm !important;
-            height: 65mm;
+            height: auto !important;
+            min-height: unset !important;
+            padding: 2mm !important;
             box-sizing: border-box !important;
             break-inside: avoid !important;
             page-break-inside: avoid !important;
-            flex-direction: column !important;
-            align-items: center !important;
-            justify-content: center !important;
-            overflow: hidden !important;
           }
 
           .label * {
             transform: none !important;
           }
 
-          /* 條碼固定區域 */
+          /* 條碼 = 實體高度 */
           .barcode-wrap {
-            height: 32mm !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            overflow: hidden !important;
-            width: 100% !important;
+            height: 11mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            line-height: 0 !important;
           }
 
           .barcode-wrap svg,
           .barcode-wrap canvas,
           .barcode-wrap img {
-            max-height: 32mm !important;
-            width: 100% !important;
-            object-fit: contain !important;
+            display: block !important;
+            height: 11mm !important;
+            width: auto !important;
+            margin: 0 !important;
           }
 
           .label .meta {
             display: block !important;
             text-align: center !important;
             width: 100% !important;
+            flex-shrink: 0 !important;
+          }
+
+          /* 底下一行資訊 */
+          .meta-row {
+            display: flex !important;
+            align-items: baseline !important;
+            justify-content: space-between !important;
+            gap: 3mm !important;
+            margin-top: 1mm !important;
+            font-size: 9pt !important;
+            line-height: 1 !important;
+            white-space: nowrap !important;
+            width: 100% !important;
+          }
+
+          .meta-row .name {
+            flex: 1 1 auto !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+          }
+
+          .meta-row .code {
+            flex: 0 0 auto !important;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace !important;
+            font-size: 8pt !important;
+          }
+
+          .meta-row .price {
+            flex: 0 0 auto !important;
+            font-weight: 700 !important;
           }
 
           .label div {
@@ -677,24 +706,16 @@ export default function BarcodePrintPage() {
           {selectedItems.flatMap(item =>
             Array.from({ length: item.copies }).map((_, idx) => (
               <div key={`${item.id}-${item.source}-${idx}`} className="label">
-                <div className="meta" style={{ marginBottom: '2mm' }}>
-                  <div style={{ fontWeight: 'bold', textAlign: 'center', fontSize: '9pt', lineHeight: '1.2' }}>
-                    {item.name}
-                  </div>
-                </div>
                 <div className="barcode-wrap">
                   <img
-                    src={`/api/barcode?text=${encodeURIComponent(item.barcode)}&type=code128&format=png&height=40&width=2`}
+                    src={`/api/barcode?text=${encodeURIComponent(item.barcode)}&type=code128&scale=0.7&height=8`}
                     alt={item.barcode}
                   />
                 </div>
-                <div className="meta" style={{ marginTop: '2mm' }}>
-                  <div style={{ fontSize: '8pt', color: '#666', textAlign: 'center' }}>
-                    {item.code}
-                  </div>
-                  <div style={{ marginTop: '1mm', fontSize: '9pt', fontWeight: 'bold', textAlign: 'center' }}>
-                    {formatCurrency(item.price)}
-                  </div>
+                <div className="meta-row">
+                  <span className="name">{item.name}</span>
+                  <span className="code">{item.barcode}</span>
+                  <span className="price">{formatCurrency(item.price)}</span>
                 </div>
               </div>
             ))

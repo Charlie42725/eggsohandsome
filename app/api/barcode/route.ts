@@ -8,8 +8,9 @@ export async function GET(request: NextRequest) {
     const text = searchParams.get('text')
     const type = searchParams.get('type') || 'code128' // code128, ean13
     const format = searchParams.get('format') || 'png' // png, svg
-    const height = parseInt(searchParams.get('height') || '50')
-    const width = parseInt(searchParams.get('width') || '2')
+    const height = parseInt(searchParams.get('height') || '12', 10)
+    const scale = parseFloat(searchParams.get('scale') || '0.7')
+    const includeText = searchParams.get('includetext') === '1'
 
     if (!text) {
       return NextResponse.json(
@@ -30,11 +31,12 @@ export async function GET(request: NextRequest) {
     // Generate barcode using toBuffer (works for both PNG and SVG)
     const png = await bwipjs.toBuffer({
       bcid: type,
-      text: text,
-      scale: width,
-      height: height,
-      includetext: true,
+      text,
+      scale,
+      height,
+      includetext: includeText,
       textxalign: 'center',
+      padding: 0,
     })
 
     return new NextResponse(Buffer.from(png), {
