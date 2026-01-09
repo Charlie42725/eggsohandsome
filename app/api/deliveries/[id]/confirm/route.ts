@@ -88,23 +88,9 @@ export async function PATCH(
       }
     }
 
-    // 扣庫存並寫入 inventory_logs
+    // 扣庫存：只寫入 inventory_logs，trigger 會自動更新 products.stock
     for (const item of delivery.delivery_items) {
-      // 更新庫存
-      const { data: product } = await (supabaseServer
-        .from('products') as any)
-        .select('stock')
-        .eq('id', item.product_id)
-        .single()
-
-      if (product) {
-        await (supabaseServer
-          .from('products') as any)
-          .update({ stock: product.stock - item.quantity })
-          .eq('id', item.product_id)
-      }
-
-      // 寫入庫存日誌（ref_type='delivery'）
+      // 🔧 修复：移除手动更新 stock，只寫入庫存日誌（trigger 會自動處理）
       await (supabaseServer
         .from('inventory_logs') as any)
         .insert({
