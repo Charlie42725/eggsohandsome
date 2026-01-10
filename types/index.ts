@@ -28,6 +28,8 @@ export type Customer = {
   payment_method?: string | null
   note?: string | null
   is_active: boolean
+  store_credit: number  // 购物金余额（可为负）
+  credit_limit: number  // 信用额度（最大欠款）
 }
 
 export type Vendor = {
@@ -107,6 +109,32 @@ export type IchibanKujiDraft = {
   name: string
   price: number
   prizes: IchibanKujiPrize[]
+}
+
+// Customer balance log types
+export type BalanceLogType = 'recharge' | 'deduct' | 'sale' | 'refund' | 'adjustment'
+
+export type CustomerBalanceLog = {
+  id: string
+  customer_code: string
+  amount: number
+  balance_before: number
+  balance_after: number
+  type: BalanceLogType
+  ref_type?: string | null
+  ref_id?: string | null
+  ref_no?: string | null
+  note?: string | null
+  created_by?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type BalanceAdjustmentDraft = {
+  customer_code: string
+  amount: number
+  type: 'recharge' | 'deduct' | 'adjustment'
+  note?: string
 }
 
 // API Response types

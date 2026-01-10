@@ -324,6 +324,63 @@ export async function POST(request: NextRequest) {
 
     const total = Math.max(0, subtotal - discountAmount)
 
+    // 4.5. 自动使用购物金抵扣（如果有客户且购物金余额 > 0）
+    let storeCreditUsed = 0
+    let finalTotal = total
+
+    if (draft.customer_code) {
+      // 获取客户购物金余额
+      const { data: customer, error: customerError } = await (supabaseServer
+        .from('customers') as any)
+        .select('store_credit, credit_limit')
+        .eq('customer_code', draft.customer_code)
+        .single()
+
+      if (customer && customer.store_credit > 0) {
+        // 计算可使用的购物金（不超过订单总额）
+        storeCreditUsed = Math.min(customer.store_credit, total)
+        finalTotal = total - storeCreditUsed
+
+        // 更新客户购物金余额
+        const newBalance = customer.store_credit - storeCreditUsed
+        const { error: updateCustomerError } = await (supabaseServer
+          .from('customers') as any)
+          .update({ store_credit: newBalance })
+          .eq('customer_code', draft.customer_code)
+
+        if (updateCustomerError) {
+          // Rollback: delete items and sale
+          await (supabaseServer.from('sale_items') as any).delete().eq('sale_id', sale.id)
+          await (supabaseServer.from('sales') as any).delete().eq('id', sale.id)
+          return NextResponse.json(
+            { ok: false, error: '更新客户购物金失败' },
+            { status: 500 }
+          )
+        }
+
+        // 记录购物金使用日志
+        const { error: logError } = await (supabaseServer
+          .from('customer_balance_logs') as any)
+          .insert({
+            customer_code: draft.customer_code,
+            amount: -storeCreditUsed,
+            balance_before: customer.store_credit,
+            balance_after: newBalance,
+            type: 'sale',
+            ref_type: 'sale',
+            ref_id: sale.id,
+            ref_no: saleNo,
+            note: `销售单 ${saleNo} 使用购物金`,
+            created_by: null, // TODO: 从会话获取当前用户
+          })
+
+        if (logError) {
+          console.error('Failed to create balance log:', logError)
+          // 日志失败不影响销售流程，只记录错误
+        }
+      }
+    }
+
     // 5. Deduct ONLY ichiban kuji remaining (product stock is auto-deducted by DB trigger)
     for (const item of draft.items) {
       // 如果是從一番賞售出，扣除一番賞的 remaining
@@ -377,7 +434,7 @@ export async function POST(request: NextRequest) {
     const { data: confirmedSale, error: confirmError } = await (supabaseServer
       .from('sales') as any)
       .update({
-        total,
+        total: finalTotal,  // 使用抵扣购物金后的最终金额
         status: 'confirmed',
         fulfillment_status: is_delivered ? 'completed' : 'none',
       })
@@ -386,6 +443,22 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (confirmError) {
+      // Rollback: restore customer store credit if used
+      if (storeCreditUsed > 0 && draft.customer_code) {
+        const { data: customer } = await (supabaseServer
+          .from('customers') as any)
+          .select('store_credit')
+          .eq('customer_code', draft.customer_code)
+          .single()
+
+        if (customer) {
+          await (supabaseServer
+            .from('customers') as any)
+            .update({ store_credit: customer.store_credit + storeCreditUsed })
+            .eq('customer_code', draft.customer_code)
+        }
+      }
+
       // Rollback: restore ONLY ichiban kuji remaining
       for (const item of draft.items) {
         // 恢復一番賞庫存

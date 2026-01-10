@@ -17,6 +17,8 @@ type Customer = {
   customer_name: string
   phone: string | null
   is_active: boolean
+  store_credit: number  // 购物金余额
+  credit_limit: number  // 信用额度
 }
 
 type SaleDraft = {
@@ -119,6 +121,12 @@ export default function POSPage() {
   const [selectedKuji, setSelectedKuji] = useState<any | null>(null)
   const [expandedKujiId, setExpandedKujiId] = useState<string | null>(null)
 
+  // Quantity input modal
+  const [showQuantityModal, setShowQuantityModal] = useState(false)
+  const [quantityModalProduct, setQuantityModalProduct] = useState<Product | null>(null)
+  const [quantityInput, setQuantityInput] = useState('1')
+  const quantityInputRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     fetchCustomers()
     fetchProducts()
@@ -205,7 +213,7 @@ export default function POSPage() {
     }
   }
 
-  const addToCart = (product: Product, ichibanInfo?: { kuji_id: string; prize_id: string }) => {
+  const addToCart = (product: Product, quantity: number = 1, ichibanInfo?: { kuji_id: string; prize_id: string }) => {
     setCart((prev) => {
       // For ichiban kuji, don't stack quantities
       if (ichibanInfo) {
@@ -213,7 +221,7 @@ export default function POSPage() {
           ...prev,
           {
             product_id: product.id,
-            quantity: 1,
+            quantity,
             price: product.price,
             product,
             ichiban_kuji_id: ichibanInfo.kuji_id,
@@ -228,7 +236,7 @@ export default function POSPage() {
       if (existing) {
         return prev.map((item) =>
           item.product_id === product.id && !item.ichiban_kuji_prize_id
-            ? { ...item, quantity: item.quantity + 1 }
+            ? { ...item, quantity: item.quantity + quantity }
             : item
         )
       }
@@ -236,13 +244,44 @@ export default function POSPage() {
         ...prev,
         {
           product_id: product.id,
-          quantity: 1,
+          quantity,
           price: product.price,
           product,
           isFreeGift: false,
         },
       ]
     })
+  }
+
+  const openQuantityModal = (product: Product) => {
+    setQuantityModalProduct(product)
+    setQuantityInput('1')
+    setShowQuantityModal(true)
+    // Focus input after modal opens
+    setTimeout(() => {
+      quantityInputRef.current?.focus()
+      quantityInputRef.current?.select()
+    }, 100)
+  }
+
+  const closeQuantityModal = () => {
+    setShowQuantityModal(false)
+    setQuantityModalProduct(null)
+    setQuantityInput('1')
+  }
+
+  const handleQuantitySubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!quantityModalProduct) return
+
+    const qty = parseInt(quantityInput, 10)
+    if (isNaN(qty) || qty <= 0) {
+      alert('請輸入有效的數量')
+      return
+    }
+
+    addToCart(quantityModalProduct, qty)
+    closeQuantityModal()
   }
 
   const addIchibanPrize = (kuji: any, prize: any) => {
@@ -293,6 +332,28 @@ export default function POSPage() {
           }
         }
         return item
+      })
+    )
+  }
+
+  const toggleAllFreeGift = () => {
+    // 检查是否所有商品都已是赠品
+    const allAreFreeGift = cart.every(item => item.isFreeGift)
+
+    setCart((prev) =>
+      prev.map((item) => {
+        // 一番赏不能设置为赠品
+        if (item.ichiban_kuji_prize_id) {
+          return item
+        }
+
+        // 如果全部都是赠品，则取消全选；否则全选
+        const isFreeGift = !allAreFreeGift
+        return {
+          ...item,
+          isFreeGift,
+          price: isFreeGift ? 0 : item.product.price,
+        }
       })
     )
   }
@@ -444,6 +505,12 @@ export default function POSPage() {
 
   const total = Math.max(0, subtotal - discountAmount)
 
+  // 计算购物金抵扣（预览）
+  const storeCreditUsed = selectedCustomer && selectedCustomer.store_credit > 0
+    ? Math.min(selectedCustomer.store_credit, total)
+    : 0
+  const finalTotal = total - storeCreditUsed
+
   // Get combo price info for display
   const getIchibanComboInfo = (kuji_id: string) => {
     const items = cart.filter(item => item.ichiban_kuji_id === kuji_id)
@@ -530,6 +597,7 @@ export default function POSPage() {
         setDiscountValue(0)
         fetchTodaySales() // Refresh today's sales
         fetchIchibanKujis() // Refresh ichiban kuji inventory
+        fetchCustomers() // Refresh customers to update store credit
         alert(`銷售完成！單號：${data.data.sale_no}`)
       } else {
         setError(data.error || '結帳失敗')
@@ -785,7 +853,7 @@ export default function POSPage() {
 
           {inventoryMode === 'products' && (
             <>
-              <div className="mb-3">
+              <div className="mb-2">
                 <input
                   type="text"
                   value={searchQuery}
@@ -794,18 +862,30 @@ export default function POSPage() {
                   className="w-full border-2 border-gray-400 dark:border-gray-600 rounded px-3 py-2 text-sm text-black dark:text-gray-100 bg-white dark:bg-gray-700 focus:border-black dark:focus:border-blue-500 focus:outline-none"
                 />
               </div>
+              <div className="mb-3 px-2 py-1.5 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded text-xs text-gray-700 dark:text-gray-300">
+                💡 <span className="font-semibold">左鍵</span>：快速加1個 | <span className="font-semibold">右鍵</span>：輸入數量
+              </div>
 
               <div className="flex-1 overflow-y-auto custom-scrollbar">
                 <div className="grid grid-cols-3 gap-2">
                   {filteredProducts.map((product) => (
                     <button
                       key={product.id}
-                      onClick={() => addToCart(product)}
-                      className="bg-blue-700 hover:bg-blue-800 text-white rounded p-3 shadow hover:shadow-md transition-all active:scale-95 flex flex-col items-center justify-center min-h-[100px] border border-blue-800"
+                      onClick={() => addToCart(product, 1)}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        openQuantityModal(product)
+                      }}
+                      className="bg-blue-700 hover:bg-blue-800 text-white rounded p-3 shadow hover:shadow-md transition-all active:scale-95 flex flex-col items-center justify-center min-h-[100px] border border-blue-800 relative group"
+                      title="左鍵：加1個 | 右鍵：輸入數量"
                     >
                       <div className="text-sm font-bold text-center mb-1 line-clamp-2">{product.name}</div>
                       <div className="text-lg font-bold">{formatCurrency(product.price)}</div>
                       <div className="text-xs mt-1">庫存: {product.stock}</div>
+                      {/* 提示标签 */}
+                      <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="text-xs bg-yellow-400 text-gray-900 px-1 py-0.5 rounded">右鍵輸入</span>
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -819,8 +899,22 @@ export default function POSPage() {
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="搜尋一番賞或賞品"
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setSearchQuery(value)
+                    
+                    // 如果输入的是条码，自动查找并展开对应的一番赏
+                    if (value.trim()) {
+                      const matchedKuji = ichibanKujis.find(
+                        kuji => kuji.barcode && kuji.barcode.toLowerCase() === value.toLowerCase()
+                      )
+                      if (matchedKuji) {
+                        setExpandedKujiId(matchedKuji.id)
+                        setSearchQuery('')  // 清空搜索框
+                      }
+                    }
+                  }}
+                  placeholder="掃描條碼或搜尋一番賞"
                   className="w-full border-2 border-gray-400 dark:border-gray-600 rounded px-3 py-2 text-sm text-black dark:text-gray-100 bg-white dark:bg-gray-700 focus:border-teal-500 dark:focus:border-teal-400 focus:outline-none"
                 />
               </div>
@@ -833,7 +927,8 @@ export default function POSPage() {
                       {ichibanKujis
                         .filter((kuji) => {
                           const searchLower = searchQuery.toLowerCase()
-                          return kuji.name.toLowerCase().includes(searchLower)
+                          return kuji.name.toLowerCase().includes(searchLower) ||
+                                 (kuji.barcode && kuji.barcode.toLowerCase().includes(searchLower))
                         })
                         .map((kuji) => {
                           const totalRemaining = (kuji.ichiban_kuji_prizes || []).reduce(
@@ -862,7 +957,8 @@ export default function POSPage() {
                         })}
                       {ichibanKujis.filter((kuji) => {
                         const searchLower = searchQuery.toLowerCase()
-                        return kuji.name.toLowerCase().includes(searchLower)
+                        return kuji.name.toLowerCase().includes(searchLower) ||
+                               (kuji.barcode && kuji.barcode.toLowerCase().includes(searchLower))
                       }).length === 0 && (
                         <div className="col-span-3 text-center text-gray-500 dark:text-gray-400 py-10">
                           <div className="text-4xl mb-2">🎁</div>
@@ -928,12 +1024,21 @@ export default function POSPage() {
           <div className="bg-white dark:bg-gray-800 px-4 py-3 border-b-2 border-gray-300 dark:border-gray-700 flex items-center justify-between">
             <h2 className="font-bold text-lg text-black dark:text-gray-100">購物清單</h2>
             {cart.length > 0 && (
-              <button
-                onClick={() => setCart([])}
-                className="bg-red-500 hover:bg-red-600 text-white font-bold px-3 py-1 rounded text-sm transition-all"
-              >
-                清空
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={toggleAllFreeGift}
+                  className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-3 py-1 rounded text-sm transition-all"
+                  title={cart.every(item => item.isFreeGift || item.ichiban_kuji_prize_id) ? "取消全選贈品" : "全選贈品"}
+                >
+                  {cart.every(item => item.isFreeGift || item.ichiban_kuji_prize_id) ? "取消贈品" : "全選贈品"}
+                </button>
+                <button
+                  onClick={() => setCart([])}
+                  className="bg-red-500 hover:bg-red-600 text-white font-bold px-3 py-1 rounded text-sm transition-all"
+                >
+                  清空
+                </button>
+              </div>
             )}
           </div>
 
@@ -1106,10 +1211,25 @@ export default function POSPage() {
                 <span className="text-2xl font-bold">-{formatCurrency(discountAmount)}</span>
               </div>
             )}
+            {storeCreditUsed > 0 && (
+              <div className="flex justify-between items-center mb-2 text-green-600 dark:text-green-400">
+                <span className="text-lg">購物金</span>
+                <span className="text-2xl font-bold">-{formatCurrency(storeCreditUsed)}</span>
+              </div>
+            )}
             <div className="border-t-2 border-gray-300 dark:border-gray-700 pt-2 flex justify-between items-center">
-              <span className="text-xl text-black dark:text-gray-300">總計</span>
-              <span className="text-4xl font-bold text-black dark:text-gray-100">{formatCurrency(total)}</span>
+              <span className="text-xl text-black dark:text-gray-300">
+                {storeCreditUsed > 0 ? '實付金額' : '總計'}
+              </span>
+              <span className="text-4xl font-bold text-black dark:text-gray-100">
+                {formatCurrency(finalTotal)}
+              </span>
             </div>
+            {storeCreditUsed > 0 && (
+              <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                已使用購物金 {formatCurrency(storeCreditUsed)}，餘額將變為 {formatCurrency(selectedCustomer!.store_credit - storeCreditUsed)}
+              </div>
+            )}
           </div>
         </div>
 
@@ -1178,7 +1298,16 @@ export default function POSPage() {
                       }}
                       className="w-full text-left px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-black dark:text-gray-100 border-b border-gray-200 dark:border-gray-600 last:border-b-0"
                     >
-                      <div className="font-bold">{customer.customer_name}</div>
+                      <div className="flex items-center justify-between">
+                        <div className="font-bold">{customer.customer_name}</div>
+                        <div className={`text-sm font-semibold ${
+                          customer.store_credit >= 0
+                            ? 'text-green-600 dark:text-green-400'
+                            : 'text-red-600 dark:text-red-400'
+                        }`}>
+                          ${customer.store_credit?.toFixed(2) || '0.00'}
+                        </div>
+                      </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         {customer.customer_code} {customer.phone && `• ${customer.phone}`}
                       </div>
@@ -1199,6 +1328,30 @@ export default function POSPage() {
               >
                 + 新增客戶
               </button>
+
+              {/* 显示选中客户的购物金余额 */}
+              {selectedCustomer && (
+                <div className="mt-2 p-2.5 bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-300 dark:border-blue-700 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">購物金餘額</span>
+                    <span className={`text-lg font-bold ${
+                      selectedCustomer.store_credit >= 0
+                        ? 'text-green-600 dark:text-green-400'
+                        : 'text-red-600 dark:text-red-400'
+                    }`}>
+                      ${selectedCustomer.store_credit?.toFixed(2) || '0.00'}
+                    </span>
+                  </div>
+                  {selectedCustomer.credit_limit > 0 && (
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-xs text-gray-600 dark:text-gray-400">信用額度</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">
+                        ${selectedCustomer.credit_limit.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Payment Method - Button Grid */}
@@ -1633,6 +1786,83 @@ export default function POSPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quantity Input Modal */}
+      {showQuantityModal && quantityModalProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" onClick={closeQuantityModal}>
+          <div className="bg-white dark:bg-gray-800 w-[400px] rounded-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-blue-600 text-white px-6 py-4 rounded-t-lg flex items-center justify-between">
+              <h2 className="text-xl font-bold">輸入數量</h2>
+              <button onClick={closeQuantityModal} className="text-2xl hover:text-gray-200">×</button>
+            </div>
+            <form onSubmit={handleQuantitySubmit} className="p-6 space-y-4">
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                <div className="font-bold text-lg text-center text-gray-900 dark:text-gray-100 mb-2">
+                  {quantityModalProduct.name}
+                </div>
+                <div className="text-center text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  {formatCurrency(quantityModalProduct.price)}
+                </div>
+                <div className="text-center text-sm text-gray-600 dark:text-gray-400 mt-2">
+                  庫存: {quantityModalProduct.stock}
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold mb-2 text-black dark:text-gray-100">
+                  數量 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  ref={quantityInputRef}
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={quantityInput}
+                  onChange={(e) => setQuantityInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleQuantitySubmit(e)
+                    }
+                  }}
+                  className="w-full text-center text-3xl font-bold border-2 border-gray-400 dark:border-gray-600 rounded-lg px-4 py-4 text-black dark:text-gray-100 bg-white dark:bg-gray-700 focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none"
+                  placeholder="請輸入數量"
+                />
+              </div>
+
+              {/* Quick number buttons */}
+              <div className="grid grid-cols-4 gap-2">
+                {[1, 5, 10, 20, 50, 100].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => setQuantityInput(String(num))}
+                    className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-black dark:text-gray-100 font-bold py-2 rounded-lg transition-all"
+                  >
+                    {num}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition-all text-lg"
+                >
+                  確認加入
+                </button>
+                <button
+                  type="button"
+                  onClick={closeQuantityModal}
+                  className="flex-1 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 text-black dark:text-gray-100 font-bold py-3 rounded-lg transition-all"
+                >
+                  取消
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

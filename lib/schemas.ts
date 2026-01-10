@@ -30,6 +30,8 @@ export const customerSchema = z.object({
   payment_method: z.string().optional().nullable(),
   note: z.string().optional().nullable(),
   is_active: z.boolean().default(true),
+  store_credit: z.number().default(0),  // 购物金余额
+  credit_limit: z.number().min(0, 'Credit limit must be non-negative').default(0),  // 信用额度
 })
 
 // Vendor schemas
@@ -169,5 +171,13 @@ export const expenseSchema = z.object({
     '傭金支出',
   ]),
   amount: z.number().int().positive('Amount must be positive'),
+  note: z.string().optional(),
+})
+
+// Customer balance adjustment schemas
+export const balanceAdjustmentSchema = z.object({
+  customer_code: z.string().min(1, 'Customer code is required'),
+  amount: z.number().refine((val) => val !== 0, 'Amount cannot be zero'),
+  type: z.enum(['recharge', 'deduct', 'adjustment']),
   note: z.string().optional(),
 })
