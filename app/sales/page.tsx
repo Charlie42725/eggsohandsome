@@ -13,6 +13,7 @@ type SaleItem = {
     item_code: string
     unit: string
   }
+  is_delivered?: boolean
 }
 
 type Sale = {
@@ -53,6 +54,7 @@ export default function SalesPage() {
   const [keyword, setKeyword] = useState('')
   const [productKeyword, setProductKeyword] = useState('')
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [delivering, setDelivering] = useState<string | null>(null)
   const [showUndeliveredOnly, setShowUndeliveredOnly] = useState(false)
   const [groupByCustomer, setGroupByCustomer] = useState(false)
 
@@ -177,6 +179,32 @@ export default function SalesPage() {
       alert('刪除失敗')
     } finally {
       setDeleting(null)
+    }
+  }
+
+  const handleDeliverItem = async (saleItemId: string, itemName: string) => {
+    if (!confirm(`確定要出貨「${itemName}」嗎？\n\n此操作將會扣除庫存。`)) {
+      return
+    }
+
+    setDelivering(saleItemId)
+    try {
+      const res = await fetch(`/api/sale-items/${saleItemId}/deliver`, {
+        method: 'POST',
+      })
+
+      const data = await res.json()
+
+      if (data.ok) {
+        alert('出貨成功！')
+        fetchSales()
+      } else {
+        alert(`出貨失敗：${data.error}`)
+      }
+    } catch (err) {
+      alert('出貨失敗')
+    } finally {
+      setDelivering(null)
     }
   }
 
@@ -380,6 +408,8 @@ export default function SalesPage() {
                                             <th className="pb-1 text-right text-gray-600 dark:text-gray-400">數量</th>
                                             <th className="pb-1 text-right text-gray-600 dark:text-gray-400">單價</th>
                                             <th className="pb-1 text-right text-gray-600 dark:text-gray-400">小計</th>
+                                            <th className="pb-1 text-center text-gray-600 dark:text-gray-400">出貨狀態</th>
+                                            <th className="pb-1 text-center text-gray-600 dark:text-gray-400">操作</th>
                                           </tr>
                                         </thead>
                                         <tbody>
@@ -395,6 +425,28 @@ export default function SalesPage() {
                                               </td>
                                               <td className="py-1 text-right text-gray-700 dark:text-gray-300">
                                                 {formatCurrency(item.price * item.quantity)}
+                                              </td>
+                                              <td className="py-1 text-center">
+                                                <span
+                                                  className={`inline-block rounded px-2 py-0.5 text-xs ${
+                                                    item.is_delivered
+                                                      ? 'bg-green-100 text-green-800'
+                                                      : 'bg-gray-100 text-gray-800'
+                                                  }`}
+                                                >
+                                                  {item.is_delivered ? '已出貨' : '未出貨'}
+                                                </span>
+                                              </td>
+                                              <td className="py-1 text-center">
+                                                {!item.is_delivered && (
+                                                  <button
+                                                    onClick={() => handleDeliverItem(item.id, item.snapshot_name)}
+                                                    disabled={delivering === item.id}
+                                                    className="rounded bg-blue-600 px-2 py-0.5 text-xs text-white hover:bg-blue-700 disabled:bg-gray-400"
+                                                  >
+                                                    {delivering === item.id ? '處理中...' : '出貨'}
+                                                  </button>
+                                                )}
                                               </td>
                                             </tr>
                                           ))}
@@ -526,6 +578,8 @@ export default function SalesPage() {
                                     <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">數量</th>
                                     <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">售價</th>
                                     <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">小計</th>
+                                    <th className="pb-2 text-center text-xs font-semibold text-gray-900 dark:text-gray-100">出貨狀態</th>
+                                    <th className="pb-2 text-center text-xs font-semibold text-gray-900 dark:text-gray-100">操作</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y">
@@ -541,6 +595,28 @@ export default function SalesPage() {
                                       </td>
                                       <td className="py-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
                                         {formatCurrency(item.quantity * item.price)}
+                                      </td>
+                                      <td className="py-2 text-center">
+                                        <span
+                                          className={`inline-block rounded px-2 py-1 text-xs ${
+                                            item.is_delivered
+                                              ? 'bg-green-100 text-green-800'
+                                              : 'bg-gray-100 text-gray-800'
+                                          }`}
+                                        >
+                                          {item.is_delivered ? '已出貨' : '未出貨'}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 text-center">
+                                        {!item.is_delivered && (
+                                          <button
+                                            onClick={() => handleDeliverItem(item.id, item.snapshot_name)}
+                                            disabled={delivering === item.id}
+                                            className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-gray-400"
+                                          >
+                                            {delivering === item.id ? '處理中...' : '出貨'}
+                                          </button>
+                                        )}
                                       </td>
                                     </tr>
                                   ))}

@@ -92,7 +92,31 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Calculate summary for each sale
+    // Get delivery status for all sale_items
+    const allSaleItemIds = filteredData?.flatMap((sale: any) => 
+      sale.sale_items?.map((item: any) => item.id) || []
+    )
+
+    const deliveryStatusMap: { [key: string]: boolean } = {}
+    
+    if (allSaleItemIds && allSaleItemIds.length > 0) {
+      const { data: deliveryItems } = await (supabaseServer
+        .from('delivery_items') as any)
+        .select(`
+          sale_item_id,
+          deliveries!inner (
+            status
+          )
+        `)
+        .in('sale_item_id', allSaleItemIds)
+        .eq('deliveries.status', 'confirmed')
+
+      deliveryItems?.forEach((di: any) => {
+        deliveryStatusMap[di.sale_item_id] = true
+      })
+    }
+
+    // Calculate summary for each sale and add delivery status to items
     const salesWithSummary = filteredData?.map((sale: any) => {
       const items = sale.sale_items || []
       const totalQuantity = items.reduce((sum: number, item: any) => sum + item.quantity, 0)
@@ -100,12 +124,18 @@ export async function GET(request: NextRequest) {
         ? items.reduce((sum: number, item: any) => sum + item.price, 0) / items.length
         : 0
 
+      // Add delivery status to each item
+      const itemsWithDeliveryStatus = items.map((item: any) => ({
+        ...item,
+        is_delivered: !!deliveryStatusMap[item.id]
+      }))
+
       return {
         ...sale,
         item_count: items.length,
         total_quantity: totalQuantity,
         avg_price: avgPrice,
-        sale_items: items // Keep items for detailed view
+        sale_items: itemsWithDeliveryStatus
       }
     })
 
@@ -137,15 +167,15 @@ export async function POST(request: NextRequest) {
     const draft = validation.data
 
     // Generate sale_no - 使用最新记录的编号来避免并发冲突
-    const { data: lastSale } = await supabaseServer
+    const { data: lastSaleArray } = await supabaseServer
       .from('sales')
       .select('sale_no')
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
 
     let nextNumber = 1
-    if (lastSale?.sale_no) {
+    if (lastSaleArray && lastSaleArray.length > 0) {
+      const lastSale = lastSaleArray[0] as { sale_no: string }
       // Extract number from sale_no (e.g., "S0001" -> 1)
       const match = lastSale.sale_no.match(/\d+/)
       if (match) {
