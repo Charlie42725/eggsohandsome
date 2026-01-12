@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { formatCurrency, formatDate, formatPaymentMethod } from '@/lib/utils'
+import { formatCurrency, formatDate, formatDateTime, formatPaymentMethod } from '@/lib/utils'
 
 type SaleItem = {
   id: string
@@ -390,7 +390,7 @@ export default function SalesPage() {
                                     {formatPaymentMethod(sale.payment_method)}
                                   </td>
                                   <td className="py-2 text-sm text-gray-900 dark:text-gray-100">
-                                    {formatDate(sale.sale_date)}
+                                    {formatDateTime(sale.created_at)}
                                   </td>
                                   <td className="py-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
                                     {formatCurrency(sale.total)}
@@ -554,7 +554,7 @@ export default function SalesPage() {
                         <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">
                           {formatPaymentMethod(sale.payment_method)}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{formatDate(sale.sale_date)}</td>
+                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{formatDateTime(sale.created_at)}</td>
                         <td className="px-6 py-4 text-right text-sm text-gray-900 dark:text-gray-100">
                           {sale.item_count || 0} 項
                         </td>
