@@ -58,6 +58,8 @@ export default function SalesPage() {
   const [showUndeliveredOnly, setShowUndeliveredOnly] = useState(false)
   const [groupByCustomer, setGroupByCustomer] = useState(false)
   const [sourceFilter, setSourceFilter] = useState<'all' | 'pos' | 'live'>('all')
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 50
 
   const toggleCustomer = (customerKey: string) => {
     const newExpanded = new Set(expandedCustomers)
@@ -81,6 +83,7 @@ export default function SalesPage() {
 
   const fetchSales = async () => {
     setLoading(true)
+    setCurrentPage(1) // 重置到第一頁
     try {
       const params = new URLSearchParams()
       if (keyword) params.set('keyword', keyword)
@@ -516,23 +519,42 @@ export default function SalesPage() {
             </div>
           ) : (
             // 原始列表视图
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="border-b bg-gray-50 dark:bg-gray-900">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">銷售單號</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">客戶</th>
-                    <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">總金額</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">商品摘要</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">付款方式</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">銷售日期</th>
-                    <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">付款</th>
-                    <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">出貨</th>
-                    <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {customerGroups[0]?.sales.map((sale) => (
+            <>
+              {/* 分頁資訊 */}
+              {customerGroups[0]?.sales && customerGroups[0].sales.length > 0 && (
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    共 {customerGroups[0].sales.length} 筆記錄
+                    {customerGroups[0].sales.length > itemsPerPage && (
+                      <span> · 顯示第 {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, customerGroups[0].sales.length)} 筆</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="border-b bg-gray-50 dark:bg-gray-900">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">銷售單號</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">客戶</th>
+                      <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">總金額</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">商品摘要</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">付款方式</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">銷售日期</th>
+                      <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">付款</th>
+                      <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">出貨</th>
+                      <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {(() => {
+                      const allSales = customerGroups[0]?.sales || []
+                      const startIndex = (currentPage - 1) * itemsPerPage
+                      const endIndex = startIndex + itemsPerPage
+                      const paginatedSales = allSales.slice(startIndex, endIndex)
+                      
+                      return paginatedSales.map((sale) => (
                     <React.Fragment key={sale.id}>
                       <tr
                         className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
@@ -677,10 +699,68 @@ export default function SalesPage() {
                         </tr>
                       )}
                     </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  ))
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* 分頁導航 */}
+              {(() => {
+                const allSales = customerGroups[0]?.sales || []
+                const totalPages = Math.ceil(allSales.length / itemsPerPage)
+              
+              if (totalPages <= 1) return null
+
+              return (
+                <div className="mt-4 flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="rounded bg-gray-200 dark:bg-gray-700 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    上一頁
+                  </button>
+                  
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
+                      // 顯示前 3 頁、當前頁周圍、最後 3 頁
+                      const showPage = page <= 3 || page > totalPages - 3 || Math.abs(page - currentPage) <= 1
+                      const showEllipsis = (page === 4 && currentPage > 5) || (page === totalPages - 3 && currentPage < totalPages - 4)
+                      
+                      if (showEllipsis) {
+                        return <span key={page} className="px-2 text-gray-500">...</span>
+                      }
+                      
+                      if (!showPage) return null
+                      
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`min-w-[2.5rem] rounded px-3 py-2 text-sm font-medium ${
+                            currentPage === page
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="rounded bg-gray-200 dark:bg-gray-700 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    下一頁
+                  </button>
+                </div>
+              )
+            })()}
+          </>
           )}
         </div>
       </div>
