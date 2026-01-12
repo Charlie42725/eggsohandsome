@@ -155,6 +155,13 @@ export default function POSPage() {
     fetchClosingStats() // 先獲取結帳統計，包含 lastClosingTime
   }, [])
 
+  // Save pinned products to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('pinnedProducts', JSON.stringify(Array.from(pinnedProductIds)))
+    }
+  }, [pinnedProductIds])
+
   // Refetch today's sales and closing stats when sales mode changes
   useEffect(() => {
     fetchClosingStats() // 重新獲取日結統計（會自動獲取今日銷售）
