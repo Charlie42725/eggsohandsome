@@ -13,10 +13,13 @@ export async function DELETE(
   try {
     const { id } = await context.params
 
-    // 1. Get purchase item details
+    // 1. Get purchase item details including received_quantity
     const { data: item, error: fetchError } = await (supabaseServer
       .from('purchase_items') as any)
-      .select('*, purchases!inner(status)')
+      .select(`
+        *,
+        purchases!inner(status)
+      `)
       .eq('id', id)
       .single()
 
@@ -27,11 +30,24 @@ export async function DELETE(
       )
     }
 
-    // 2. Restore inventory if purchase was confirmed
-    if (item.purchases.status === 'confirmed') {
-      console.log(`[Delete Purchase Item ${id}] Restoring inventory for product ${item.product_id}`)
+    // 2. Restore inventory based on actual received quantity
+    const receivedQty = item.received_quantity || 0
 
-      // Get current product stock and avg_cost
+    if (receivedQty > 0) {
+      console.log(`[Delete Purchase Item ${id}] Restoring ${receivedQty} units for product ${item.product_id}`)
+
+      // 寫入負數的庫存日誌來回補庫存（trigger 會自動更新 products.stock）
+      await (supabaseServer
+        .from('inventory_logs') as any)
+        .insert({
+          product_id: item.product_id,
+          ref_type: 'purchase_item_delete',
+          ref_id: id,
+          qty_change: -receivedQty,
+          memo: `刪除進貨明細回補庫存 - 明細 ID: ${id}`,
+        })
+
+      // 更新平均成本
       const { data: product } = await (supabaseServer
         .from('products') as any)
         .select('stock, avg_cost')
@@ -39,35 +55,35 @@ export async function DELETE(
         .single()
 
       if (product) {
-        const oldStock = product.stock
+        const currentStock = product.stock  // trigger 已經更新過的庫存
         const oldAvgCost = product.avg_cost
-        const newStock = oldStock - item.quantity
 
-        // Calculate new average cost (reverse the purchase)
+        // 計算新的平均成本（移除這次進貨的成本貢獻）
         let newAvgCost = oldAvgCost
-        if (newStock > 0 && oldStock > 0) {
-          // Reverse calculation: remove this item's cost contribution
+        if (currentStock > 0) {
+          const oldStock = currentStock + receivedQty
           const totalCostBefore = oldStock * oldAvgCost
-          const itemCost = item.quantity * item.cost
-          newAvgCost = (totalCostBefore - itemCost) / newStock
-        } else if (newStock <= 0) {
-          // If stock becomes 0 or negative, reset avg_cost
+          const itemCost = receivedQty * item.cost
+          newAvgCost = (totalCostBefore - itemCost) / currentStock
+
+          if (newAvgCost < 0) newAvgCost = 0
+        } else {
           newAvgCost = 0
         }
 
-        // Update product stock and avg_cost
+        // 只更新平均成本
         await (supabaseServer
           .from('products') as any)
-          .update({
-            stock: newStock,
-            avg_cost: newAvgCost,
-          })
+          .update({ avg_cost: newAvgCost })
           .eq('id', item.product_id)
 
-        console.log(`[Delete Purchase Item ${id}] Restored inventory: ${oldStock} -> ${newStock}, avg_cost: ${oldAvgCost.toFixed(2)} -> ${newAvgCost.toFixed(2)}`)
+        console.log(`[Delete Purchase Item ${id}] Restored inventory: stock reduced by ${receivedQty}, avg_cost: ${oldAvgCost.toFixed(2)} -> ${newAvgCost.toFixed(2)}`)
       }
+    } else {
+      console.log(`[Delete Purchase Item ${id}] Item has not been received, no inventory to restore`)
+    }
 
-      // 3. Update purchase total
+    // 3. Update purchase total
       const { data: remainingItems } = await (supabaseServer
         .from('purchase_items') as any)
         .select('quantity, cost')

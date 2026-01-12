@@ -149,3 +149,17 @@ body {
 .dark .scrollbar-thumb-gray-500:hover::-webkit-scrollbar-thumb {
   background-color: rgb(107 114 128);
 }
+
+/* ============================================
+   展開動畫
+   ============================================ */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

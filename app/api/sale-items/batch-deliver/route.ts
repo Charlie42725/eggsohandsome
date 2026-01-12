@@ -159,19 +159,8 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        // 扣除库存并写入日志
+        // 寫入庫存日誌（trigger 會自動扣除庫存）
         for (const item of items) {
-          // 更新库存
-          const { error: stockError } = await (supabaseServer
-            .from('products') as any)
-            .update({ stock: supabaseServer.raw(`stock - ${item.quantity}`) })
-            .eq('id', item.product_id)
-
-          if (stockError) {
-            console.error(`Failed to update stock for product ${item.product_id}:`, stockError)
-          }
-
-          // 写入库存日志
           await (supabaseServer
             .from('inventory_logs') as any)
             .insert({
@@ -179,7 +168,7 @@ export async function POST(request: NextRequest) {
               ref_type: 'delivery',
               ref_id: delivery.id,
               qty_change: -item.quantity,
-              memo: `批量出货 - ${deliveryNo} (${item.snapshot_name})`
+              memo: `批量出貨 - ${deliveryNo} (${item.snapshot_name})`
             })
         }
 

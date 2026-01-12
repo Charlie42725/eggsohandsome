@@ -44,6 +44,7 @@ export default function IchibanKujiPage() {
   const [loading, setLoading] = useState(true)
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchKujis()
@@ -72,6 +73,13 @@ export default function IchibanKujiPage() {
       newExpanded.add(id)
     }
     setExpandedRows(newExpanded)
+  }
+
+  const getProfitColor = (profit: number) => {
+    if (profit >= 200) return 'text-green-700 dark:text-green-400'
+    if (profit >= 50) return 'text-green-600 dark:text-green-300'
+    if (profit >= 0) return 'text-yellow-600 dark:text-yellow-400'
+    return 'text-red-600 dark:text-red-400'
   }
 
   const handleDelete = async (id: string, name: string) => {
@@ -178,7 +186,7 @@ export default function IchibanKujiPage() {
                           {formatCurrency(kuji.price || 0)}
                         </td>
                         <td className="px-6 py-4 text-right text-sm font-bold">
-                          <span className={(kuji.price || 0) > kuji.avg_cost ? 'text-green-600' : 'text-red-600'}>
+                          <span className={getProfitColor((kuji.price || 0) - kuji.avg_cost)}>
                             {formatCurrency((kuji.price || 0) - kuji.avg_cost)}
                           </span>
                         </td>
@@ -197,7 +205,7 @@ export default function IchibanKujiPage() {
                           {formatDate(kuji.created_at)}
                         </td>
                         <td className="px-6 py-4 text-center text-sm" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-center gap-2">
+                          <div className="relative flex items-center justify-center gap-2">
                             <button
                               onClick={() => router.push(`/ichiban-kuji/${kuji.id}/edit`)}
                               className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
@@ -205,23 +213,54 @@ export default function IchibanKujiPage() {
                               編輯
                             </button>
                             <button
-                              onClick={() => handleDelete(kuji.id, kuji.name)}
-                              disabled={deleting === kuji.id}
-                              className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setOpenMenuId(openMenuId === kuji.id ? null : kuji.id)
+                              }}
+                              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-lg font-bold"
+                              title="更多操作"
                             >
-                              {deleting === kuji.id ? '刪除中...' : '刪除'}
+                              ⋯
                             </button>
+                            {openMenuId === kuji.id && (
+                              <>
+                                <div
+                                  className="fixed inset-0 z-10"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setOpenMenuId(null)
+                                  }}
+                                />
+                                <div className="absolute right-0 top-8 z-20 w-32 rounded-lg bg-white dark:bg-gray-700 shadow-lg border border-gray-200 dark:border-gray-600 py-1">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      if (!kuji.is_active) {
+                                        handleDelete(kuji.id, kuji.name)
+                                        setOpenMenuId(null)
+                                      } else {
+                                        alert('請先停用一番賞再刪除')
+                                      }
+                                    }}
+                                    disabled={deleting === kuji.id || kuji.is_active}
+                                    className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed"
+                                  >
+                                    {deleting === kuji.id ? '刪除中...' : '刪除'}
+                                  </button>
+                                </div>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
                       {expandedRows.has(kuji.id) && kuji.ichiban_kuji_prizes && (
-                        <tr key={`${kuji.id}-details`}>
+                        <tr key={`${kuji.id}-details`} className="animate-[fadeIn_200ms_ease-in-out]">
                           <td colSpan={9} className="bg-gray-50 dark:bg-gray-900 px-6 py-4">
                             <div className="space-y-4">
                               {/* 組合價資訊 */}
                               {kuji.combo_prices && kuji.combo_prices.length > 0 && (
-                                <div className="rounded-lg border border-purple-200 dark:border-purple-700 bg-purple-50 dark:bg-purple-900 p-4">
-                                  <h4 className="mb-2 font-semibold text-gray-900 dark:text-gray-100">組合價優惠</h4>
+                                <div className="rounded-lg border-2 border-purple-300 dark:border-purple-600 bg-purple-50/50 dark:bg-purple-900/30 p-4">
+                                  <h4 className="mb-2 text-sm font-semibold text-purple-700 dark:text-purple-300">組合價優惠</h4>
                                   <div className="flex flex-wrap gap-3">
                                     {kuji.combo_prices.map((combo, index) => (
                                       <div key={index} className="rounded bg-white dark:bg-gray-800 px-3 py-2 shadow-sm border border-purple-200 dark:border-purple-700">
@@ -268,8 +307,18 @@ export default function IchibanKujiPage() {
                                         {prize.quantity} {prize.products.unit}
                                       </td>
                                       <td className="py-2 text-right text-sm font-semibold">
-                                        <span className={prize.remaining > 0 ? 'text-green-600' : 'text-red-600'}>
-                                          {prize.remaining} 抽
+                                        <span className={
+                                          prize.remaining === 0 
+                                            ? 'text-gray-500 dark:text-gray-400' 
+                                            : prize.remaining <= 5 
+                                            ? 'text-orange-600 dark:text-orange-400' 
+                                            : 'text-green-600 dark:text-green-400'
+                                        }>
+                                          {prize.remaining === 0 
+                                            ? '完售' 
+                                            : prize.remaining <= 5 
+                                            ? `⚠ ${prize.remaining} 抽` 
+                                            : `${prize.remaining} 抽`}
                                         </span>
                                       </td>
                                       <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
@@ -281,12 +330,12 @@ export default function IchibanKujiPage() {
                                     </tr>
                                   ))}
                                 </tbody>
-                                <tfoot className="border-t bg-gray-50 dark:bg-gray-900">
+                                <tfoot className="border-t-2 bg-gray-100 dark:bg-gray-800">
                                   <tr>
-                                    <td colSpan={6} className="py-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                      總成本:
+                                    <td colSpan={6} className="py-3 text-right text-sm font-semibold text-gray-600 dark:text-gray-400">
+                                      Σ 總成本:
                                     </td>
-                                    <td className="py-2 text-right text-sm font-bold text-gray-900 dark:text-gray-100">
+                                    <td className="py-3 text-right text-base font-bold text-gray-700 dark:text-gray-300">
                                       {formatCurrency(
                                         kuji.ichiban_kuji_prizes.reduce(
                                           (sum, prize) => sum + prize.products.cost * prize.quantity,

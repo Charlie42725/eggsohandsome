@@ -116,7 +116,7 @@ export async function POST(
       )
     }
 
-    // 6. 写入inventory_logs（扣库存）
+    // 6. 寫入庫存日誌（trigger 會自動扣除庫存）
     const { error: logError } = await (supabaseServer
       .from('inventory_logs') as any)
       .insert({
@@ -128,7 +128,7 @@ export async function POST(
       })
 
     if (logError) {
-      // 回滚：删除delivery和delivery_item
+      // 回滾：刪除 delivery 和 delivery_item
       await (supabaseServer.from('deliveries') as any).delete().eq('id', delivery.id)
       return NextResponse.json(
         { ok: false, error: '扣除庫存失敗：' + logError.message },

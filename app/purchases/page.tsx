@@ -87,7 +87,30 @@ export default function PurchasesPage() {
       const res = await fetch(`/api/purchases?${params}`)
       const data = await res.json()
       if (data.ok) {
-        setPurchases(data.data || [])
+        // 计算每个进货单的收货状态
+        const purchasesWithStatus = (data.data || []).map((purchase: Purchase) => {
+          const items = purchase.purchase_items || []
+          let receiving_status = 'none'
+
+          if (items.length > 0) {
+            // 安全地检查字段是否存在
+            const allReceived = items.every(item => item.is_received === true)
+            const anyReceived = items.some(item => (item.received_quantity || 0) > 0)
+
+            if (allReceived) {
+              receiving_status = 'completed'
+            } else if (anyReceived) {
+              receiving_status = 'partial'
+            }
+          }
+
+          return {
+            ...purchase,
+            receiving_status
+          }
+        })
+
+        setPurchases(purchasesWithStatus)
       }
     } catch (err) {
       console.error('Failed to fetch purchases:', err)
