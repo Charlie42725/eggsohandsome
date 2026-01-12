@@ -469,7 +469,7 @@ export default function ARPageV2() {
                                   <td className="py-2 pr-4 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
                                     {formatCurrency(account.balance)}
                                   </td>
-                                  <td className={`py-2 pl-4 text-sm ${isOverdue ? 'font-semibold text-red-600' : 'text-gray-900'}`}>
+                                  <td className={`py-2 pl-4 text-sm ${isOverdue ? 'font-semibold text-red-600' : 'text-gray-900 dark:text-gray-100'}`}>
                                     {formatDate(account.due_date)}
                                     {isOverdue && ' (逾期)'}
                                   </td>
