@@ -23,8 +23,8 @@ export type Customer = {
   customer_name: string
   phone?: string | null
   line_id?: string | null
-  email?: string | null
-  address?: string | null
+  store_address?: string | null  // 門市地址
+  delivery_address?: string | null  // 宅配地址
   payment_method?: string | null
   note?: string | null
   is_active: boolean

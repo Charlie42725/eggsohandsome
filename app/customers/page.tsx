@@ -198,7 +198,7 @@ export default function CustomersPage() {
               type="text"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="搜尋客戶名稱、編號、電話或 Email"
+              placeholder="搜尋客戶名稱、編號、電話、地址"
               className="flex-1 rounded border border-gray-300 dark:border-gray-600 px-4 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700 placeholder:text-gray-900 dark:placeholder:text-gray-400"
             />
             <button
@@ -257,9 +257,9 @@ export default function CustomersPage() {
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">客戶編號</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">客戶名稱</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">電話</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">Email</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">門市地址</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">宅配地址</th>
                     <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">購物金</th>
-                    <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">信用額度</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">付款方式</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">LINE ID</th>
                     <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">狀態</th>
@@ -272,7 +272,16 @@ export default function CustomersPage() {
                       <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{customer.customer_code}</td>
                       <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">{customer.customer_name}</td>
                       <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{customer.phone || '-'}</td>
-                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{customer.email || '-'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">
+                        <div className="max-w-xs truncate" title={customer.store_address || ''}>
+                          {customer.store_address || '-'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">
+                        <div className="max-w-xs truncate" title={customer.delivery_address || ''}>
+                          {customer.delivery_address || '-'}
+                        </div>
+                      </td>
                       <td className="px-6 py-4 text-sm text-right">
                         <span className={`font-semibold ${
                           customer.store_credit >= 0
@@ -281,9 +290,6 @@ export default function CustomersPage() {
                         }`}>
                           ${customer.store_credit?.toFixed(2) || '0.00'}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-right text-gray-900 dark:text-gray-100">
-                        ${customer.credit_limit?.toFixed(2) || '0.00'}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">
                         {customer.payment_method === 'cash' && '現金'}
@@ -385,16 +391,6 @@ export default function CustomersPage() {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">Email</label>
-                  <input
-                    type="email"
-                    value={formData.email || ''}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-                  />
-                </div>
-
-                <div>
                   <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">LINE ID</label>
                   <input
                     type="text"
@@ -424,9 +420,21 @@ export default function CustomersPage() {
                 <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">門市地址</label>
                 <input
                   type="text"
-                  value={formData.address || ''}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  value={formData.store_address || ''}
+                  onChange={(e) => setFormData({ ...formData, store_address: e.target.value })}
                   className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
+                  placeholder="客戶店面地址"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">宅配地址</label>
+                <input
+                  type="text"
+                  value={formData.delivery_address || ''}
+                  onChange={(e) => setFormData({ ...formData, delivery_address: e.target.value })}
+                  className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
+                  placeholder="宅配或郵寄地址"
                 />
               </div>
 

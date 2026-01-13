@@ -5,14 +5,27 @@ import { supabaseServer } from '@/lib/supabase/server'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { sale_item_ids } = body
+    const { items } = body
 
-    if (!sale_item_ids || !Array.isArray(sale_item_ids) || sale_item_ids.length === 0) {
+    if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
-        { ok: false, error: '请提供要出货的商品明细 ID 数组' },
+        { ok: false, error: '請提供要出貨的商品明細陣列' },
         { status: 400 }
       )
     }
+
+    // 驗證每個項目都有 sale_item_id 和 quantity
+    for (const item of items) {
+      if (!item.sale_item_id || typeof item.quantity !== 'number' || item.quantity <= 0) {
+        return NextResponse.json(
+          { ok: false, error: '每個商品必須包含 sale_item_id 和有效的 quantity' },
+          { status: 400 }
+        )
+      }
+    }
+
+    const saleItemIds = items.map((item: any) => item.sale_item_id)
+    const quantityMap = new Map(items.map((item: any) => [item.sale_item_id, item.quantity]))
 
     // 1. 获取所有 sale_items 信息
     const { data: saleItems, error: fetchError } = await (supabaseServer
@@ -31,59 +44,78 @@ export async function POST(request: NextRequest) {
           stock
         )
       `)
-      .in('id', sale_item_ids)
+      .in('id', saleItemIds)
 
     if (fetchError || !saleItems || saleItems.length === 0) {
       return NextResponse.json(
-        { ok: false, error: '找不到指定的商品明细' },
+        { ok: false, error: '找不到指定的商品明細' },
         { status: 404 }
       )
     }
 
-    // 2. 检查是否已经出货
-    const { data: existingDeliveries } = await (supabaseServer
+    // 2. 檢查每個商品的已出貨數量
+    const { data: existingDeliveryItems } = await (supabaseServer
       .from('delivery_items') as any)
       .select(`
         sale_item_id,
+        quantity,
         deliveries!inner (
           id,
           status
         )
       `)
-      .in('sale_item_id', sale_item_ids)
+      .in('sale_item_id', saleItemIds)
       .eq('deliveries.status', 'confirmed')
 
-    const alreadyDeliveredIds = new Set(
-      existingDeliveries?.map((d: any) => d.sale_item_id) || []
-    )
+    // 計算每個 sale_item 已經出貨的數量
+    const deliveredQuantityMap = new Map<string, number>()
+    existingDeliveryItems?.forEach((di: any) => {
+      const currentQty = deliveredQuantityMap.get(di.sale_item_id) || 0
+      deliveredQuantityMap.set(di.sale_item_id, currentQty + di.quantity)
+    })
 
-    // 过滤出未出货的商品
-    const itemsToDeliver = saleItems.filter(
-      (item: any) => !alreadyDeliveredIds.has(item.id)
-    )
+    // 3. 驗證數量和庫存
+    const errors: string[] = []
+    const itemsToDeliver: any[] = []
+
+    for (const item of saleItems) {
+      const requestedQty = quantityMap.get(item.id) || 0
+      const deliveredQty = deliveredQuantityMap.get(item.id) || 0
+      const remainingQty = item.quantity - deliveredQty
+
+      // 檢查是否已經全部出貨
+      if (remainingQty <= 0) {
+        errors.push(`${item.products.name} 已全部出貨`)
+        continue
+      }
+
+      // 檢查請求數量是否超過剩餘數量
+      if (requestedQty > remainingQty) {
+        errors.push(
+          `${item.products.name} 請求數量 (${requestedQty}) 超過剩餘數量 (${remainingQty})`
+        )
+        continue
+      }
+
+      // 檢查庫存是否充足
+      if (item.products.stock < requestedQty) {
+        errors.push(
+          `${item.products.name} 庫存不足 (庫存: ${item.products.stock}, 需要: ${requestedQty})`
+        )
+        continue
+      }
+
+      itemsToDeliver.push({
+        ...item,
+        requestedQty
+      })
+    }
 
     if (itemsToDeliver.length === 0) {
       return NextResponse.json(
-        { ok: false, error: '所有选中的商品都已出货' },
-        { status: 400 }
-      )
-    }
-
-    // 3. 检查库存是否充足
-    const insufficientStock: string[] = []
-    for (const item of itemsToDeliver) {
-      if (item.products.stock < item.quantity) {
-        insufficientStock.push(
-          `${item.products.name} (库存: ${item.products.stock}, 需要: ${item.quantity})`
-        )
-      }
-    }
-
-    if (insufficientStock.length > 0) {
-      return NextResponse.json(
         {
           ok: false,
-          error: '以下商品库存不足：\n' + insufficientStock.join('\n')
+          error: '沒有可以出貨的商品：\n' + errors.join('\n')
         },
         { status: 400 }
       )
@@ -101,7 +133,7 @@ export async function POST(request: NextRequest) {
 
     // 5. 为每个销售单创建出货单
     const createdDeliveries: any[] = []
-    const errors: string[] = []
+    const deliveryErrors: string[] = []
 
     for (const [saleId, items] of itemsBySale.entries()) {
       try {
@@ -124,6 +156,7 @@ export async function POST(request: NextRequest) {
         const deliveryNo = `D${String(nextNumber).padStart(4, '0')}`
 
         // 创建出货单
+        const totalQuantity = items.reduce((sum: number, item: any) => sum + item.requestedQty, 0)
         const { data: delivery, error: deliveryError } = await (supabaseServer
           .from('deliveries') as any)
           .insert({
@@ -131,31 +164,37 @@ export async function POST(request: NextRequest) {
             sale_id: saleId,
             delivery_date: new Date().toISOString().split('T')[0],
             status: 'confirmed',
-            note: `批量出货 - ${items.length} 个商品`
+            note: `批量出貨 - ${items.length} 項商品，共 ${totalQuantity} 件`
           })
           .select()
           .single()
 
         if (deliveryError) {
-          errors.push(`销售单 ${items[0].sales.sale_no} 创建出货单失败: ${deliveryError.message}`)
+          deliveryErrors.push(`銷售單 ${items[0].sales.sale_no} 建立出貨單失敗: ${deliveryError.message}`)
           continue
         }
 
-        // 创建出货明细
+        // 建立出貨明細
         const deliveryItems = items.map((item: any) => ({
           delivery_id: delivery.id,
           sale_item_id: item.id,
           product_id: item.product_id,
-          quantity: item.quantity
+          quantity: item.requestedQty
         }))
+
+        console.log('[Batch Deliver] Creating delivery_items:', deliveryItems)
 
         const { error: itemsError } = await (supabaseServer
           .from('delivery_items') as any)
           .insert(deliveryItems)
 
+        if (!itemsError) {
+          console.log('[Batch Deliver] Successfully created delivery_items')
+        }
+
         if (itemsError) {
           await (supabaseServer.from('deliveries') as any).delete().eq('id', delivery.id)
-          errors.push(`销售单 ${items[0].sales.sale_no} 创建出货明细失败: ${itemsError.message}`)
+          deliveryErrors.push(`銷售單 ${items[0].sales.sale_no} 建立出貨明細失敗: ${itemsError.message}`)
           continue
         }
 
@@ -167,23 +206,29 @@ export async function POST(request: NextRequest) {
               product_id: item.product_id,
               ref_type: 'delivery',
               ref_id: delivery.id,
-              qty_change: -item.quantity,
-              memo: `批量出貨 - ${deliveryNo} (${item.snapshot_name})`
+              qty_change: -item.requestedQty,
+              memo: `批量出貨 - ${deliveryNo} (${item.snapshot_name} x${item.requestedQty})`
             })
         }
 
-        // 更新 sale 的 fulfillment_status
+        // 更新 sale 的 fulfillment_status（考虑部分出货）
         const { data: allSaleItems } = await (supabaseServer
           .from('sale_items') as any)
-          .select('id')
+          .select('id, quantity')
           .eq('sale_id', saleId)
 
         const allItemIds = allSaleItems?.map((item: any) => item.id) || []
+
+        // 创建 sale_item_id -> ordered_quantity 映射
+        const orderedQuantityMap = new Map(
+          allSaleItems?.map((item: any) => [item.id, item.quantity]) || []
+        )
 
         const { data: confirmedDeliveryItems } = await (supabaseServer
           .from('delivery_items') as any)
           .select(`
             sale_item_id,
+            quantity,
             deliveries!inner (
               status
             )
@@ -191,14 +236,32 @@ export async function POST(request: NextRequest) {
           .in('sale_item_id', allItemIds)
           .eq('deliveries.status', 'confirmed')
 
-        const deliveredItemIds = new Set(
-          confirmedDeliveryItems?.map((di: any) => di.sale_item_id) || []
-        )
+        // 计算每个 sale_item 的已出货总量
+        const deliveredQuantityMap = new Map<string, number>()
+        confirmedDeliveryItems?.forEach((di: any) => {
+          const currentQty = deliveredQuantityMap.get(di.sale_item_id) || 0
+          deliveredQuantityMap.set(di.sale_item_id, currentQty + di.quantity)
+        })
+
+        // 计算履行状态
+        let fullyDeliveredCount = 0
+        let partiallyDeliveredCount = 0
+
+        for (const saleItemId of allItemIds) {
+          const orderedQty = orderedQuantityMap.get(saleItemId) || 0
+          const deliveredQty = deliveredQuantityMap.get(saleItemId) || 0
+
+          if (deliveredQty >= orderedQty) {
+            fullyDeliveredCount++
+          } else if (deliveredQty > 0) {
+            partiallyDeliveredCount++
+          }
+        }
 
         let newFulfillmentStatus = 'none'
-        if (deliveredItemIds.size === allItemIds.length) {
+        if (fullyDeliveredCount === allItemIds.length) {
           newFulfillmentStatus = 'completed'
-        } else if (deliveredItemIds.size > 0) {
+        } else if (fullyDeliveredCount > 0 || partiallyDeliveredCount > 0) {
           newFulfillmentStatus = 'partial'
         }
 
@@ -214,7 +277,7 @@ export async function POST(request: NextRequest) {
         })
       } catch (err) {
         console.error('Error creating delivery for sale:', saleId, err)
-        errors.push(`销售单处理失败`)
+        deliveryErrors.push(`銷售單處理失敗`)
       }
     }
 
@@ -222,14 +285,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          error: '批量出货失败：\n' + errors.join('\n')
+          error: '批量出貨失敗：\n' + deliveryErrors.join('\n')
         },
         { status: 500 }
       )
     }
 
-    const message = `成功出货 ${createdDeliveries.length} 个销售单，共 ${itemsToDeliver.length} 个商品${
-      errors.length > 0 ? `\n\n部分失败：\n${errors.join('\n')}` : ''
+    const message = `成功出貨 ${createdDeliveries.length} 個銷售單，共 ${itemsToDeliver.length} 個商品${
+      deliveryErrors.length > 0 ? `\n\n部分失敗：\n${deliveryErrors.join('\n')}` : ''
     }`
 
     return NextResponse.json({
@@ -244,7 +307,7 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     console.error('Batch deliver error:', err)
     return NextResponse.json(
-      { ok: false, error: '批量出货失败' },
+      { ok: false, error: '批量出貨失敗' },
       { status: 500 }
     )
   }

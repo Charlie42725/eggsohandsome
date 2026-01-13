@@ -14,6 +14,7 @@ type SaleItem = {
     unit: string
   }
   is_delivered?: boolean
+  delivered_quantity?: number
 }
 
 type Sale = {
@@ -73,8 +74,6 @@ export default function SalesPage() {
   const [sourceFilter, setSourceFilter] = useState<'all' | 'pos' | 'live'>('all')
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 50
-  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set())
-  const [batchDelivering, setBatchDelivering] = useState(false)
   const [productStats, setProductStats] = useState<ProductStats | null>(null)
 
   const toggleCustomer = (customerKey: string) => {
@@ -259,21 +258,50 @@ export default function SalesPage() {
     }
   }
 
-  const handleDeliverItem = async (saleItemId: string, itemName: string) => {
-    if (!confirm(`確定要出貨「${itemName}」嗎？\n\n此操作將會扣除庫存。`)) {
+  const handleDeliverItem = async (item: SaleItem) => {
+    const deliveredQty = item.delivered_quantity || 0
+    const remainingQty = item.quantity - deliveredQty
+
+    if (remainingQty <= 0) {
+      alert('此商品已全部出貨')
       return
     }
 
-    setDelivering(saleItemId)
+    const qtyInput = prompt(`出貨數量（剩餘: ${remainingQty} ${item.products.unit}）：`, remainingQty.toString())
+
+    if (qtyInput === null) {
+      return // 用戶取消
+    }
+
+    const quantity = parseInt(qtyInput)
+
+    if (isNaN(quantity) || quantity <= 0) {
+      alert('請輸入有效的數量')
+      return
+    }
+
+    if (quantity > remainingQty) {
+      alert(`出貨數量不能超過剩餘數量（${remainingQty}）`)
+      return
+    }
+
+    setDelivering(item.id)
     try {
-      const res = await fetch(`/api/sale-items/${saleItemId}/deliver`, {
+      const res = await fetch('/api/sale-items/batch-deliver', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: [{
+            sale_item_id: item.id,
+            quantity: quantity
+          }]
+        })
       })
 
       const data = await res.json()
 
       if (data.ok) {
-        alert('出貨成功！')
+        alert(data.message || '出貨成功！')
         fetchSales()
       } else {
         alert(`出貨失敗：${data.error}`)
@@ -285,24 +313,57 @@ export default function SalesPage() {
     }
   }
 
-  const handleBatchDeliver = async () => {
+  const handleBatchDeliver = () => {
     if (selectedItemIds.size === 0) {
       alert('請先選擇要出貨的商品')
       return
     }
 
-    if (!confirm(`確定要批量出貨 ${selectedItemIds.size} 個商品嗎？\n\n此操作將會扣除庫存。`)) {
+    // 收集所有選中商品的詳細信息
+    const items: SaleItem[] = []
+    customerGroups.forEach(group => {
+      group.sales.forEach(sale => {
+        sale.sale_items?.forEach(item => {
+          if (selectedItemIds.has(item.id)) {
+            items.push(item)
+          }
+        })
+      })
+    })
+
+    // 初始化每個商品的數量為其最大數量
+    const newQuantities = new Map<string, number>()
+    items.forEach(item => {
+      newQuantities.set(item.id, item.quantity)
+    })
+
+    setSelectedItemsDetails(items)
+    setItemQuantities(newQuantities)
+    setShowQuantityModal(true)
+  }
+
+  const confirmBatchDeliver = async () => {
+    // 計算總出貨數量
+    const totalQty = Array.from(selectedItemIds).reduce((sum, id) => {
+      return sum + (itemQuantities.get(id) || 0)
+    }, 0)
+
+    if (!confirm(`確定要批量出貨 ${selectedItemIds.size} 項商品（共 ${totalQty} 件）嗎？\n\n此操作將會扣除庫存。`)) {
       return
     }
 
     setBatchDelivering(true)
     try {
+      // 構建包含數量的出貨項目陣列
+      const items = Array.from(selectedItemIds).map(id => ({
+        sale_item_id: id,
+        quantity: itemQuantities.get(id) || 0
+      }))
+
       const res = await fetch('/api/sale-items/batch-deliver', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sale_item_ids: Array.from(selectedItemIds)
-        })
+        body: JSON.stringify({ items })
       })
 
       const data = await res.json()
@@ -310,6 +371,8 @@ export default function SalesPage() {
       if (data.ok) {
         alert(data.message || '批量出貨成功！')
         setSelectedItemIds(new Set())
+        setItemQuantities(new Map())
+        setShowQuantityModal(false)
         fetchSales()
       } else {
         alert(`批量出貨失敗：${data.error}`)
@@ -321,47 +384,11 @@ export default function SalesPage() {
     }
   }
 
-  const toggleItemSelection = (itemId: string) => {
-    const newSelected = new Set(selectedItemIds)
-    if (newSelected.has(itemId)) {
-      newSelected.delete(itemId)
-    } else {
-      newSelected.add(itemId)
-    }
-    setSelectedItemIds(newSelected)
-  }
-
-  const toggleAllItemsInSale = (sale: Sale) => {
-    if (!sale.sale_items) return
-
-    const undeliveredItems = sale.sale_items.filter(item => !item.is_delivered)
-    const allSelected = undeliveredItems.every(item => selectedItemIds.has(item.id))
-
-    const newSelected = new Set(selectedItemIds)
-    if (allSelected) {
-      // 取消全選
-      undeliveredItems.forEach(item => newSelected.delete(item.id))
-    } else {
-      // 全選
-      undeliveredItems.forEach(item => newSelected.add(item.id))
-    }
-    setSelectedItemIds(newSelected)
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
       <div className="mx-auto max-w-7xl">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">銷售記錄</h1>
-          {selectedItemIds.size > 0 && (
-            <button
-              onClick={handleBatchDeliver}
-              disabled={batchDelivering}
-              className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {batchDelivering ? '處理中...' : `批量出貨 (${selectedItemIds.size})`}
-            </button>
-          )}
         </div>
 
         {/* Search & Filters */}
@@ -659,47 +686,42 @@ export default function SalesPage() {
                                     <td colSpan={7} className="bg-white dark:bg-gray-800 py-2 px-4">
                                       <div className="flex items-center justify-between mb-2">
                                         <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">商品明細</div>
-                                        {sale.sale_items.some(item => !item.is_delivered) && (
-                                          <button
-                                            onClick={() => toggleAllItemsInSale(sale)}
-                                            className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                                          >
-                                            {sale.sale_items.filter(item => !item.is_delivered).every(item => selectedItemIds.has(item.id))
-                                              ? '取消全選'
-                                              : '全選未出貨'}
-                                          </button>
-                                        )}
                                       </div>
                                       <table className="w-full text-xs">
                                         <thead className="border-b">
                                           <tr>
-                                            <th className="pb-1 text-left text-gray-600 dark:text-gray-400 w-8">選擇</th>
                                             <th className="pb-1 text-left text-gray-600 dark:text-gray-400">品號</th>
-                                            <th className="pb-1 text-left text-gray-600 dark:text-gray-400">商品</th>
-                                            <th className="pb-1 text-right text-gray-600 dark:text-gray-400">數量</th>
+                                            <th className="pb-1 text-left text-gray-600 dark:text-gray-400">商品名稱</th>
+                                            <th className="pb-1 text-right text-gray-600 dark:text-gray-400">訂單數量</th>
+                                            <th className="pb-1 text-right text-gray-600 dark:text-gray-400">已出貨</th>
                                             <th className="pb-1 text-right text-gray-600 dark:text-gray-400">單價</th>
                                             <th className="pb-1 text-right text-gray-600 dark:text-gray-400">小計</th>
-                                            <th className="pb-1 text-center text-gray-600 dark:text-gray-400">出貨狀態</th>
                                             <th className="pb-1 text-center text-gray-600 dark:text-gray-400">操作</th>
                                           </tr>
                                         </thead>
                                         <tbody>
-                                          {sale.sale_items.map((item) => (
+                                          {sale.sale_items.map((item) => {
+                                            const deliveredQty = item.delivered_quantity || 0
+                                            const remainingQty = item.quantity - deliveredQty
+                                            return (
                                             <tr key={item.id}>
-                                              <td className="py-1 text-center">
-                                                {!item.is_delivered && (
-                                                  <input
-                                                    type="checkbox"
-                                                    checked={selectedItemIds.has(item.id)}
-                                                    onChange={() => toggleItemSelection(item.id)}
-                                                    className="h-4 w-4 cursor-pointer"
-                                                  />
-                                                )}
-                                              </td>
                                               <td className="py-1 text-gray-700 dark:text-gray-300">{item.products.item_code}</td>
                                               <td className="py-1 text-gray-700 dark:text-gray-300">{item.snapshot_name}</td>
                                               <td className="py-1 text-right text-gray-700 dark:text-gray-300">
                                                 {item.quantity} {item.products.unit}
+                                              </td>
+                                              <td className="py-1 text-right">
+                                                <span
+                                                  className={`font-medium ${
+                                                    item.is_delivered
+                                                      ? 'text-green-600 dark:text-green-400'
+                                                      : deliveredQty > 0
+                                                      ? 'text-yellow-600 dark:text-yellow-400'
+                                                      : 'text-gray-600 dark:text-gray-400'
+                                                  }`}
+                                                >
+                                                  {deliveredQty} / {item.quantity}
+                                                </span>
                                               </td>
                                               <td className="py-1 text-right text-gray-700 dark:text-gray-300">
                                                 {formatCurrency(item.price)}
@@ -708,20 +730,9 @@ export default function SalesPage() {
                                                 {formatCurrency(item.price * item.quantity)}
                                               </td>
                                               <td className="py-1 text-center">
-                                                <span
-                                                  className={`inline-block rounded px-2 py-0.5 text-xs ${
-                                                    item.is_delivered
-                                                      ? 'bg-green-100 text-green-800'
-                                                      : 'bg-gray-100 text-gray-800'
-                                                  }`}
-                                                >
-                                                  {item.is_delivered ? '已出貨' : '未出貨'}
-                                                </span>
-                                              </td>
-                                              <td className="py-1 text-center">
                                                 {!item.is_delivered && (
                                                   <button
-                                                    onClick={() => handleDeliverItem(item.id, item.snapshot_name)}
+                                                    onClick={() => handleDeliverItem(item)}
                                                     disabled={delivering === item.id}
                                                     className="rounded bg-blue-600 px-2 py-0.5 text-xs text-white hover:bg-blue-700 disabled:bg-gray-400"
                                                   >
@@ -730,7 +741,7 @@ export default function SalesPage() {
                                                 )}
                                               </td>
                                             </tr>
-                                          ))}
+                                          )})}
                                         </tbody>
                                       </table>
                                     </td>
@@ -872,47 +883,42 @@ export default function SalesPage() {
                             <div className="ml-8 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
                               <div className="flex items-center justify-between mb-3">
                                 <h4 className="font-semibold text-gray-900 dark:text-gray-100">銷售明細</h4>
-                                {sale.sale_items.some(item => !item.is_delivered) && (
-                                  <button
-                                    onClick={() => toggleAllItemsInSale(sale)}
-                                    className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                                  >
-                                    {sale.sale_items.filter(item => !item.is_delivered).every(item => selectedItemIds.has(item.id))
-                                      ? '取消全選'
-                                      : '全選未出貨'}
-                                  </button>
-                                )}
                               </div>
                               <table className="w-full">
                                 <thead className="border-b">
                                   <tr>
-                                    <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100 w-10">選擇</th>
                                     <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">品號</th>
                                     <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">商品名稱</th>
-                                    <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">數量</th>
+                                    <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">訂單數量</th>
+                                    <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">已出貨</th>
                                     <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">售價</th>
                                     <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">小計</th>
-                                    <th className="pb-2 text-center text-xs font-semibold text-gray-900 dark:text-gray-100">出貨狀態</th>
                                     <th className="pb-2 text-center text-xs font-semibold text-gray-900 dark:text-gray-100">操作</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y">
-                                  {sale.sale_items.map((item) => (
+                                  {sale.sale_items.map((item) => {
+                                    const deliveredQty = item.delivered_quantity || 0
+                                    const remainingQty = item.quantity - deliveredQty
+                                    return (
                                     <tr key={item.id}>
-                                      <td className="py-2 text-center">
-                                        {!item.is_delivered && (
-                                          <input
-                                            type="checkbox"
-                                            checked={selectedItemIds.has(item.id)}
-                                            onChange={() => toggleItemSelection(item.id)}
-                                            className="h-4 w-4 cursor-pointer"
-                                          />
-                                        )}
-                                      </td>
                                       <td className="py-2 text-sm text-gray-900 dark:text-gray-100">{item.products.item_code}</td>
                                       <td className="py-2 text-sm text-gray-900 dark:text-gray-100">{item.snapshot_name}</td>
                                       <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
-                                        {item.quantity}
+                                        {item.quantity} {item.products.unit}
+                                      </td>
+                                      <td className="py-2 text-right text-sm">
+                                        <span
+                                          className={`font-medium ${
+                                            item.is_delivered
+                                              ? 'text-green-600 dark:text-green-400'
+                                              : deliveredQty > 0
+                                              ? 'text-yellow-600 dark:text-yellow-400'
+                                              : 'text-gray-600 dark:text-gray-400'
+                                          }`}
+                                        >
+                                          {deliveredQty} / {item.quantity}
+                                        </span>
                                       </td>
                                       <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
                                         {formatCurrency(item.price)}
@@ -921,20 +927,9 @@ export default function SalesPage() {
                                         {formatCurrency(item.quantity * item.price)}
                                       </td>
                                       <td className="py-2 text-center">
-                                        <span
-                                          className={`inline-flex items-center gap-1 text-xs ${
-                                            item.is_delivered
-                                              ? 'text-blue-600 dark:text-blue-400'
-                                              : 'text-gray-500 dark:text-gray-400'
-                                          }`}
-                                        >
-                                          {item.is_delivered ? '🚚 已出貨' : '• 未出貨'}
-                                        </span>
-                                      </td>
-                                      <td className="py-2 text-center">
                                         {!item.is_delivered && (
                                           <button
-                                            onClick={() => handleDeliverItem(item.id, item.snapshot_name)}
+                                            onClick={() => handleDeliverItem(item)}
                                             disabled={delivering === item.id}
                                             className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700 disabled:bg-gray-400"
                                           >
@@ -943,7 +938,7 @@ export default function SalesPage() {
                                         )}
                                       </td>
                                     </tr>
-                                  ))}
+                                  )})}
                                 </tbody>
                               </table>
                             </div>

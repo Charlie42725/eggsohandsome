@@ -316,11 +316,16 @@ export async function POST(request: NextRequest) {
     })
 
     // 4. 插入日結記錄
+    // 使用台灣時間 (UTC+8)
+    const now = new Date()
+    const taiwanTime = new Date(now.getTime() + 8 * 60 * 60 * 1000)
+    const closingTime = taiwanTime.toISOString()
+
     const { data: closing, error: closingError } = await (supabaseServer
       .from('business_day_closings') as any)
       .insert({
         source: source,
-        closing_time: new Date().toISOString(),
+        closing_time: closingTime,
         sales_count: stats.sales_count,
         total_sales: stats.total_sales,
         total_cash: stats.total_cash,

@@ -19,8 +19,8 @@ export default function NewCustomerPage() {
       customer_name: formData.get('customer_name'),
       phone: formData.get('phone') || null,
       line_id: formData.get('line_id') || null,
-      email: formData.get('email') || null,
-      address: formData.get('address') || null,
+      store_address: formData.get('store_address') || null,
+      delivery_address: formData.get('delivery_address') || null,
       payment_method: formData.get('payment_method') || null,
       note: formData.get('note') || null,
       credit_limit: parseFloat(formData.get('credit_limit') as string) || 0,
@@ -92,22 +92,22 @@ export default function NewCustomerPage() {
           </div>
 
           <div className="mb-4">
-            <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">Email</label>
+            <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">門市地址</label>
             <input
-              type="email"
-              name="email"
+              type="text"
+              name="store_address"
               className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
-              placeholder="選填"
+              placeholder="客戶店面地址"
             />
           </div>
 
           <div className="mb-4">
-            <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">門市地址</label>
+            <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">宅配地址</label>
             <input
               type="text"
-              name="address"
+              name="delivery_address"
               className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
-              placeholder="選填"
+              placeholder="宅配或郵寄地址"
             />
           </div>
 

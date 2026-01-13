@@ -25,8 +25,8 @@ export const customerSchema = z.object({
   customer_name: z.string().min(1, 'Customer name is required'),
   phone: z.string().optional().nullable(),
   line_id: z.string().optional().nullable(),
-  email: z.string().email().optional().nullable(),
-  address: z.string().optional().nullable(),
+  store_address: z.string().optional().nullable(),  // 門市地址
+  delivery_address: z.string().optional().nullable(),  // 宅配地址
   payment_method: z.string().optional().nullable(),
   note: z.string().optional().nullable(),
   is_active: z.boolean().default(true),

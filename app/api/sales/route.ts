@@ -117,27 +117,42 @@ export async function GET(request: NextRequest) {
     }
 
     // Get delivery status for all sale_items
-    const allSaleItemIds = filteredData?.flatMap((sale: any) => 
+    const allSaleItemIds = filteredData?.flatMap((sale: any) =>
       sale.sale_items?.map((item: any) => item.id) || []
     )
 
-    const deliveryStatusMap: { [key: string]: boolean } = {}
-    
-    if (allSaleItemIds && allSaleItemIds.length > 0) {
-      const { data: deliveryItems } = await (supabaseServer
-        .from('delivery_items') as any)
-        .select(`
-          sale_item_id,
-          deliveries!inner (
-            status
-          )
-        `)
-        .in('sale_item_id', allSaleItemIds)
-        .eq('deliveries.status', 'confirmed')
+    const deliveryQuantityMap: { [key: string]: number } = {}
 
-      deliveryItems?.forEach((di: any) => {
-        deliveryStatusMap[di.sale_item_id] = true
-      })
+    if (allSaleItemIds && allSaleItemIds.length > 0) {
+      // 分批查詢，避免 URL 過長導致 HeadersOverflowError
+      const batchSize = 100
+      for (let i = 0; i < allSaleItemIds.length; i += batchSize) {
+        const batch = allSaleItemIds.slice(i, i + batchSize)
+
+        const { data: deliveryItems, error: deliveryError } = await (supabaseServer
+          .from('delivery_items') as any)
+          .select(`
+            sale_item_id,
+            quantity,
+            deliveries!inner (
+              status
+            )
+          `)
+          .in('sale_item_id', batch)
+          .eq('deliveries.status', 'confirmed')
+
+        if (deliveryError) {
+          console.error('[Sales API] Delivery items query error:', deliveryError)
+          continue
+        }
+
+        deliveryItems?.forEach((di: any) => {
+          const currentQty = deliveryQuantityMap[di.sale_item_id] || 0
+          deliveryQuantityMap[di.sale_item_id] = currentQty + di.quantity
+        })
+      }
+
+      console.log('[Sales API] Delivery quantity map:', deliveryQuantityMap)
     }
 
     // Calculate summary for each sale and add delivery status to items
@@ -148,11 +163,15 @@ export async function GET(request: NextRequest) {
         ? items.reduce((sum: number, item: any) => sum + item.price, 0) / items.length
         : 0
 
-      // Add delivery status to each item
-      const itemsWithDeliveryStatus = items.map((item: any) => ({
-        ...item,
-        is_delivered: !!deliveryStatusMap[item.id]
-      }))
+      // Add delivery status and quantity to each item
+      const itemsWithDeliveryStatus = items.map((item: any) => {
+        const deliveredQty = deliveryQuantityMap[item.id] || 0
+        return {
+          ...item,
+          delivered_quantity: deliveredQty,
+          is_delivered: deliveredQty >= item.quantity
+        }
+      })
 
       return {
         ...sale,

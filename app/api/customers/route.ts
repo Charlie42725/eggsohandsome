@@ -20,9 +20,9 @@ export async function GET(request: NextRequest) {
       query = query.eq('is_active', active === 'true')
     }
 
-    // Search by keyword (name, customer_code, phone, or email)
+    // Search by keyword (name, customer_code, phone, store_address, or delivery_address)
     if (keyword) {
-      query = query.or(`customer_name.ilike.%${keyword}%,customer_code.ilike.%${keyword}%,phone.ilike.%${keyword}%,email.ilike.%${keyword}%`)
+      query = query.or(`customer_name.ilike.%${keyword}%,customer_code.ilike.%${keyword}%,phone.ilike.%${keyword}%,store_address.ilike.%${keyword}%,delivery_address.ilike.%${keyword}%`)
     }
 
     const { data, error } = await query
