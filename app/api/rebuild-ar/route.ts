@@ -87,10 +87,22 @@ export async function POST(request: NextRequest) {
       }
 
       // Create new AR records for items that don't have them
-      const arRecords = itemsToCreate.map((item: any) => {
-        // Proportionally distribute the paid amount
-        const itemPortion = item.subtotal / totalItemSubtotal
-        const itemPaid = totalPaid > 0 ? Math.round(totalPaid * itemPortion) : 0
+      // 使用 sale.total（已扣除購物金）按比例分配
+      let remainingTotal = sale.total - totalARAmount // 尚未分配的金額
+      const arRecords = itemsToCreate.map((item: any, index: number) => {
+        // 按比例分配金額
+        let itemAmount: number
+        if (index === itemsToCreate.length - 1) {
+          // 最後一筆用剩餘金額，避免四捨五入誤差
+          itemAmount = remainingTotal
+        } else {
+          const itemPortion = item.subtotal / totalItemSubtotal
+          itemAmount = Math.round(sale.total * itemPortion)
+          remainingTotal -= itemAmount
+        }
+
+        // 按比例分配已付金額
+        const itemPaid = totalPaid > 0 ? Math.round(totalPaid * (item.subtotal / totalItemSubtotal)) : 0
 
         return {
           partner_type: 'customer',
@@ -99,12 +111,21 @@ export async function POST(request: NextRequest) {
           ref_type: 'sale',
           ref_id: sale.id,
           sale_item_id: item.id,
-          amount: item.subtotal,
-          received_paid: itemPaid,
+          amount: itemAmount,
+          received_paid: Math.min(itemPaid, itemAmount), // 確保已付不超過應付
           due_date: sale.sale_date || new Date().toISOString().split('T')[0],
-          status: itemPaid >= item.subtotal ? 'paid' : itemPaid > 0 ? 'partial' : 'unpaid',
+          status: itemPaid >= itemAmount ? 'paid' : itemPaid > 0 ? 'partial' : 'unpaid',
         }
-      })
+      }).filter((ar: any) => ar.amount > 0) // 過濾掉金額為 0 的記錄
+
+      if (arRecords.length === 0) {
+        results.push({
+          sale_no: sale.sale_no,
+          status: 'skipped',
+          message: 'No AR amount to create (fully covered by store credit)'
+        })
+        continue
+      }
 
       const { error: insertError } = await supabaseServer
         .from('partner_accounts')
@@ -117,11 +138,11 @@ export async function POST(request: NextRequest) {
           message: insertError.message
         })
       } else {
-        totalCreated += itemsToCreate.length
+        totalCreated += arRecords.length
         results.push({
           sale_no: sale.sale_no,
           status: 'success',
-          items_created: itemsToCreate.length
+          items_created: arRecords.length
         })
       }
     }
