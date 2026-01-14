@@ -188,6 +188,63 @@ export async function POST(
             }
         }
 
+        // 5.5. 調整出貨記錄（當數量減少時）
+        if (hasConfirmedDelivery) {
+            for (const adjustment of items) {
+                const originalItem = originalItems.find((item: any) => item.id === adjustment.sale_item_id)
+                if (!originalItem) continue
+
+                const qtyDiff = originalItem.quantity - adjustment.new_quantity
+                if (qtyDiff > 0) {
+                    // 數量減少，需要調整 delivery_items
+                    // 獲取該 sale_item 的所有 delivery_items（已確認的出貨單）
+                    const { data: deliveryItems } = await (supabaseServer
+                        .from('delivery_items') as any)
+                        .select(`
+                            id,
+                            quantity,
+                            delivery_id,
+                            deliveries!inner (status)
+                        `)
+                        .eq('sale_item_id', adjustment.sale_item_id)
+                        .eq('deliveries.status', 'confirmed')
+                        .order('created_at', { ascending: false })
+
+                    if (deliveryItems && deliveryItems.length > 0) {
+                        // 計算總已出貨數量
+                        const totalDelivered = deliveryItems.reduce((sum: number, di: any) => sum + di.quantity, 0)
+                        const newMaxDelivered = adjustment.new_quantity
+
+                        if (totalDelivered > newMaxDelivered) {
+                            // 需要減少出貨數量
+                            let qtyToReduce = totalDelivered - newMaxDelivered
+
+                            // 從最後一筆開始減少
+                            for (const di of deliveryItems) {
+                                if (qtyToReduce <= 0) break
+
+                                if (di.quantity <= qtyToReduce) {
+                                    // 整筆刪除
+                                    await (supabaseServer
+                                        .from('delivery_items') as any)
+                                        .delete()
+                                        .eq('id', di.id)
+                                    qtyToReduce -= di.quantity
+                                } else {
+                                    // 部分減少
+                                    await (supabaseServer
+                                        .from('delivery_items') as any)
+                                        .update({ quantity: di.quantity - qtyToReduce })
+                                        .eq('id', di.id)
+                                    qtyToReduce = 0
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // 6. 更新銷售單總額
         await (supabaseServer
             .from('sales') as any)
