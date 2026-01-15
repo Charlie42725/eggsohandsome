@@ -332,6 +332,28 @@ export async function POST(
             }
         }
 
+        // 8.5. 如果已付款但金額增加，需要產生應收帳款
+        if (sale.is_paid && adjustmentAmount < 0 && sale.customer_code) {
+            const additionalAmount = -adjustmentAmount // 將負數轉為正數
+
+            // 為增加的金額建立 AR 記錄
+            await (supabaseServer
+                .from('partner_accounts') as any)
+                .insert({
+                    partner_type: 'customer',
+                    partner_code: sale.customer_code,
+                    direction: 'AR',
+                    amount: additionalAmount,
+                    ref_type: 'sale_correction',
+                    ref_id: id,
+                    due_date: new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 天
+                    status: 'pending',
+                    note: `銷貨更正補收 - ${sale.sale_no}`,
+                })
+
+            console.log(`[Sale Correction] Created AR for additional amount: ${additionalAmount}`)
+        }
+
         // 9. 建立更正記錄
         await (supabaseServer
             .from('sale_corrections') as any)

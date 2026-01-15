@@ -228,7 +228,7 @@ export async function DELETE(
     // 1. Check if sale exists and get its info
     const { data: sale, error: fetchError } = await (supabaseServer
       .from('sales') as any)
-      .select('status, customer_code, sale_no')
+      .select('status, customer_code, sale_no, is_paid, account_id, total')
       .eq('id', id)
       .single()
 
@@ -285,7 +285,80 @@ export async function DELETE(
       }
     }
 
-    // 2. Get all deliveries for this sale
+    // 1.6. 如果是已付款的銷售，需要退款到帳戶
+    if (sale.is_paid && sale.account_id && sale.total > 0) {
+      // 獲取帳戶餘額
+      const { data: account } = await (supabaseServer
+        .from('accounts') as any)
+        .select('balance')
+        .eq('id', sale.account_id)
+        .single()
+
+      if (account) {
+        const newBalance = account.balance - sale.total
+
+        // 更新帳戶餘額
+        await (supabaseServer
+          .from('accounts') as any)
+          .update({
+            balance: newBalance,
+            updated_at: getTaiwanTime(),
+          })
+          .eq('id', sale.account_id)
+
+        // 記錄帳戶交易
+        await (supabaseServer
+          .from('account_transactions') as any)
+          .insert({
+            account_id: sale.account_id,
+            transaction_type: 'sale_delete',
+            amount: -sale.total,
+            balance_before: account.balance,
+            balance_after: newBalance,
+            ref_type: 'sale_delete',
+            ref_id: id,
+            note: `刪除銷售單 ${sale.sale_no}，退款至帳戶`,
+          })
+
+        console.log(`[Delete Sale ${id}] Refunded ${sale.total} to account ${sale.account_id}`)
+      }
+    }
+
+    // 2. 刪除銷貨更正產生的庫存日誌（避免重複回補）
+    // 更正時已經回補過的庫存不應該再回補
+    const { data: correctionLogs } = await (supabaseServer
+      .from('inventory_logs') as any)
+      .select('id, product_id, qty_change')
+      .eq('ref_type', 'adjustment')
+      .eq('ref_id', id.toString())
+
+    if (correctionLogs && correctionLogs.length > 0) {
+      console.log(`[Delete Sale ${id}] Found ${correctionLogs.length} correction inventory logs, deleting...`)
+      // 刪除這些更正產生的庫存日誌
+      // 注意：這些日誌的 qty_change 已經正向回補過，
+      // 所以我們需要插入反向日誌來抵消，然後刪除原始日誌
+      for (const log of correctionLogs) {
+        // 插入反向日誌抵消之前的回補
+        await (supabaseServer
+          .from('inventory_logs') as any)
+          .insert({
+            product_id: log.product_id,
+            ref_type: 'sale_delete',
+            ref_id: id.toString(),
+            qty_change: -log.qty_change, // 如果更正回補了 +5，這裡就 -5
+            memo: `刪除銷售單 ${sale.sale_no}，抵消更正回補`,
+          })
+      }
+
+      // 刪除更正產生的庫存日誌
+      await (supabaseServer
+        .from('inventory_logs') as any)
+        .delete()
+        .eq('ref_type', 'adjustment')
+        .eq('ref_id', id.toString())
+    }
+
+    // 3. Get all deliveries for this sale
     const { data: deliveries } = await (supabaseServer
       .from('deliveries') as any)
       .select('id, status, delivery_no')
