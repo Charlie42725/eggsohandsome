@@ -38,3 +38,22 @@ BEGIN
   END IF;
 END;
 $function$;
+
+-- 4. 新增 trigger: total = 0 就是已收款
+CREATE OR REPLACE FUNCTION public.fn_auto_paid_on_zero_total()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.total = 0 THEN
+    NEW.is_paid := true;
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS trg_auto_paid_on_zero_total ON sales;
+CREATE TRIGGER trg_auto_paid_on_zero_total
+    BEFORE INSERT OR UPDATE ON sales
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_auto_paid_on_zero_total();
