@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
 import GlobalSplashScreen from "@/components/GlobalSplashScreen";
+import DisableNumberInputScroll from "@/components/DisableNumberInputScroll";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -39,6 +40,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <DisableNumberInputScroll />
         <GlobalSplashScreen showOnEveryVisit={true}>
           <Navigation />
           {children}

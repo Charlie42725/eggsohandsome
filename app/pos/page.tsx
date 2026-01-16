@@ -145,6 +145,18 @@ export default function POSPage() {
   const [closingStats, setClosingStats] = useState<any>(null)
   const [showClosingModal, setShowClosingModal] = useState(false)
   const [closingNote, setClosingNote] = useState('')
+
+  // 收款與找零
+  const [receivedAmount, setReceivedAmount] = useState<string>('')
+
+  // 結帳成功 Toast
+  const [successToast, setSuccessToast] = useState<{
+    show: boolean
+    saleNo: string
+    total: number
+    received: number
+    change: number
+  } | null>(null)
   const [closingInProgress, setClosingInProgress] = useState(false)
 
   useEffect(() => {
@@ -724,10 +736,22 @@ export default function POSPage() {
         setNote('')
         setDiscountType('none')
         setDiscountValue(0)
+        setReceivedAmount('') // 清空收款金額
         fetchTodaySales() // Refresh today's sales
         fetchIchibanKujis() // Refresh ichiban kuji inventory
         fetchCustomers() // Refresh customers to update store credit
-        alert(`銷售完成！單號：${data.data.sale_no}`)
+
+        // 顯示成功 Toast（現金才顯示找零）
+        const received = parseFloat(receivedAmount) || finalTotal
+        setSuccessToast({
+          show: true,
+          saleNo: data.data.sale_no,
+          total: finalTotal,
+          received: paymentMethod === 'cash' ? received : finalTotal,
+          change: paymentMethod === 'cash' ? Math.max(0, received - finalTotal) : 0
+        })
+        // 3秒後自動消失
+        setTimeout(() => setSuccessToast(null), 3000)
       } else {
         setError(data.error || '結帳失敗')
       }
@@ -1430,33 +1454,74 @@ export default function POSPage() {
                 })
               })()}
 
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-slate-400">小計</span>
-                <span className="text-xl font-bold text-white">{formatCurrency(subtotal)}</span>
-              </div>
-              {discountAmount > 0 && (
-                <div className="flex justify-between items-center mb-2 text-red-400">
-                  <span>折扣</span>
-                  <span className="text-xl font-bold">-{formatCurrency(discountAmount)}</span>
+              {/* 折扣/購物金資訊（有時才顯示） */}
+              {(discountAmount > 0 || storeCreditUsed > 0) && (
+                <div className="mb-3 text-sm space-y-1">
+                  {discountAmount > 0 && (
+                    <div className="flex justify-between text-red-400">
+                      <span>折扣</span>
+                      <span>-{formatCurrency(discountAmount)}</span>
+                    </div>
+                  )}
+                  {storeCreditUsed > 0 && (
+                    <div className="flex justify-between text-emerald-400">
+                      <span>購物金</span>
+                      <span>-{formatCurrency(storeCreditUsed)}</span>
+                    </div>
+                  )}
                 </div>
               )}
-              {storeCreditUsed > 0 && (
-                <div className="flex justify-between items-center mb-2 text-emerald-400">
-                  <span>購物金</span>
-                  <span className="text-xl font-bold">-{formatCurrency(storeCreditUsed)}</span>
-                </div>
-              )}
-              <div className="border-t border-slate-600 pt-3 flex justify-between items-center">
-                <span className="text-lg text-slate-300">
-                  {storeCreditUsed > 0 ? '實付金額' : '總計'}
-                </span>
-                <span className="text-4xl font-bold text-white">
-                  {formatCurrency(finalTotal)}
-                </span>
+
+              {/* 應收金額 */}
+              <div className="flex justify-between items-center">
+                <span className="text-base text-slate-400">應收</span>
+                <span className="text-3xl font-bold text-white">{formatCurrency(finalTotal)}</span>
               </div>
-              {storeCreditUsed > 0 && (
-                <div className="mt-2 text-sm text-slate-400">
-                  已使用購物金 {formatCurrency(storeCreditUsed)}，餘額將變為 {formatCurrency(selectedCustomer!.store_credit - storeCreditUsed)}
+
+              {/* 現金收銀區 - 僅現金付款顯示 */}
+              {paymentMethod === 'cash' && cart.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-slate-700">
+                  {/* 實收金額 */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-400 whitespace-nowrap">實收</span>
+                    <input
+                      type="number"
+                      value={receivedAmount}
+                      onChange={(e) => setReceivedAmount(e.target.value)}
+                      onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                      placeholder="0"
+                      className="flex-1 rounded px-3 py-1.5 text-right text-lg font-bold text-white bg-slate-700 border border-slate-600 focus:border-indigo-500 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <button
+                      onClick={() => setReceivedAmount(String(finalTotal))}
+                      className="px-3 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors font-medium whitespace-nowrap"
+                    >
+                      收剛好
+                    </button>
+                    <button
+                      onClick={() => setReceivedAmount('')}
+                      className="px-2 py-1.5 text-xs bg-slate-600 hover:bg-slate-500 text-slate-300 rounded transition-colors whitespace-nowrap"
+                    >
+                      清除
+                    </button>
+                  </div>
+
+                  {/* 找零顯示 */}
+                  {receivedAmount && parseFloat(receivedAmount) > 0 && (
+                    <div className={`mt-2 rounded px-3 py-2 flex items-center justify-between ${parseFloat(receivedAmount) >= finalTotal
+                      ? 'bg-emerald-900/40'
+                      : 'bg-red-900/40'
+                      }`}>
+                      <span className={`text-sm ${parseFloat(receivedAmount) >= finalTotal ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {parseFloat(receivedAmount) === finalTotal ? '✓ 剛好' : parseFloat(receivedAmount) > finalTotal ? '找零' : '尚差'}
+                      </span>
+                      {parseFloat(receivedAmount) !== finalTotal && (
+                        <span className={`text-xl font-bold ${parseFloat(receivedAmount) > finalTotal ? 'text-emerald-300' : 'text-red-300'}`}>
+                          {formatCurrency(Math.abs(parseFloat(receivedAmount) - finalTotal))}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1809,9 +1874,20 @@ export default function POSPage() {
 
             {/* Checkout Button - Fixed at bottom - 放大結帳按鈕 */}
             <div className="p-3 border-t border-slate-700 bg-slate-800">
+              {/* 現金不足提示 */}
+              {paymentMethod === 'cash' && cart.length > 0 && receivedAmount && parseFloat(receivedAmount) > 0 && parseFloat(receivedAmount) < finalTotal && (
+                <div className="mb-2 text-center text-red-400 text-sm">
+                  收款不足，尚差 {formatCurrency(finalTotal - parseFloat(receivedAmount))}
+                </div>
+              )}
               <button
                 onClick={handleCheckout}
-                disabled={loading || cart.length === 0}
+                disabled={
+                  loading ||
+                  cart.length === 0 ||
+                  // 現金付款且有輸入金額但不足時禁用
+                  (paymentMethod === 'cash' && !!receivedAmount && parseFloat(receivedAmount) > 0 && parseFloat(receivedAmount) < finalTotal)
+                }
                 className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-600 text-white font-bold text-xl py-4 rounded-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed"
               >
                 {loading ? '處理中...' : '確認結帳'}
@@ -2209,6 +2285,42 @@ export default function POSPage() {
           </div>
         )}
       </div>
+
+      {/* 結帳成功 Toast */}
+      {successToast && (
+        <div
+          className="fixed top-6 right-6 z-[100] animate-in slide-in-from-right duration-300"
+          onClick={() => setSuccessToast(null)}
+        >
+          <div className="bg-emerald-600 text-white rounded-xl shadow-2xl p-5 min-w-[280px] cursor-pointer hover:bg-emerald-700 transition-colors">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="text-2xl">✓</div>
+              <div>
+                <div className="font-bold text-lg">結帳成功</div>
+                <div className="text-sm text-emerald-200">{successToast.saleNo}</div>
+              </div>
+            </div>
+            <div className="space-y-1 text-sm border-t border-emerald-500 pt-3">
+              <div className="flex justify-between">
+                <span className="text-emerald-200">總計</span>
+                <span className="font-bold">{formatCurrency(successToast.total)}</span>
+              </div>
+              {successToast.change > 0 && (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-emerald-200">收款</span>
+                    <span className="font-bold">{formatCurrency(successToast.received)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-emerald-500 pt-2 mt-2">
+                    <span className="text-emerald-100 font-medium">找零</span>
+                    <span className="font-bold text-xl text-yellow-300">{formatCurrency(successToast.change)}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
