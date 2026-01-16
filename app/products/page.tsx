@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { formatCurrency } from '@/lib/utils'
 import type { Product } from '@/types'
@@ -15,6 +16,8 @@ export default function ProductsPage() {
   const [activeFilter, setActiveFilter] = useState<boolean | null>(null)
   const [page, setPage] = useState(1)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null)
+  const menuButtonRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({})
   const [pagination, setPagination] = useState({
     page: 1,
     pageSize: 50,
@@ -208,8 +211,8 @@ export default function ProductsPage() {
             <button
               onClick={() => setActiveFilter(null)}
               className={`rounded px-4 py-1 font-medium ${activeFilter === null
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                 }`}
             >
               全部
@@ -217,8 +220,8 @@ export default function ProductsPage() {
             <button
               onClick={() => setActiveFilter(true)}
               className={`rounded px-4 py-1 font-medium ${activeFilter === true
-                  ? 'bg-green-600 text-white'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                 }`}
             >
               上架
@@ -226,8 +229,8 @@ export default function ProductsPage() {
             <button
               onClick={() => setActiveFilter(false)}
               className={`rounded px-4 py-1 font-medium ${activeFilter === false
-                  ? 'bg-red-600 text-white'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
+                ? 'bg-red-600 text-white'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                 }`}
             >
               下架
@@ -274,10 +277,10 @@ export default function ProductsPage() {
                       <div className="flex items-center gap-4">
                         <div
                           className={`text-right font-semibold ${product.stock <= 3
-                              ? 'text-red-600 dark:text-red-400'
-                              : product.stock <= 9
-                                ? 'text-orange-600 dark:text-orange-400'
-                                : 'text-gray-900 dark:text-gray-100'
+                            ? 'text-red-600 dark:text-red-400'
+                            : product.stock <= 9
+                              ? 'text-orange-600 dark:text-orange-400'
+                              : 'text-gray-900 dark:text-gray-100'
                             }`}
                         >
                           <div className="text-lg">{product.stock <= 3 && '⚠ '}剩餘 {product.stock}</div>
@@ -309,13 +312,13 @@ export default function ProductsPage() {
         )}
 
         {/* Products table */}
-        <div className="rounded-lg bg-white dark:bg-gray-800 shadow">
+        <div className="rounded-lg bg-white dark:bg-gray-800 shadow overflow-x-auto">
           {loading ? (
             <div className="p-8 text-center text-gray-900 dark:text-gray-100">載入中...</div>
           ) : products.length === 0 ? (
             <div className="p-8 text-center text-gray-900 dark:text-gray-100">沒有商品</div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
               <table className="w-full">
                 <thead className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
                   <tr>
@@ -426,69 +429,38 @@ export default function ProductsPage() {
                       <td className="px-6 py-4 text-center text-sm">
                         <span
                           className={`text-xs whitespace-nowrap ${product.is_active
-                              ? 'text-green-600 dark:text-green-400'
-                              : 'text-gray-500 dark:text-gray-400'
+                            ? 'text-green-600 dark:text-green-400'
+                            : 'text-gray-500 dark:text-gray-400'
                             }`}
                         >
                           {product.is_active ? '上架' : '下架'}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center text-sm">
-                        <div className="relative">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setOpenMenuId(openMenuId === product.id ? null : product.id)
-                            }}
-                            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-lg font-bold"
-                            title="更多操作"
-                          >
-                            ⋯
-                          </button>
-                          {openMenuId === product.id && (
-                            <>
-                              <div
-                                className="fixed inset-0 z-10"
-                                onClick={() => setOpenMenuId(null)}
-                              />
-                              <div className="absolute right-0 top-8 z-20 w-32 rounded-lg bg-white dark:bg-gray-700 shadow-lg border border-gray-200 dark:border-gray-600 py-1">
-                                <Link
-                                  href={`/products/${product.id}/edit`}
-                                  className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
-                                  onClick={() => setOpenMenuId(null)}
-                                >
-                                  編輯
-                                </Link>
-                                <button
-                                  onClick={() => {
-                                    toggleActive(product.id, product.is_active)
-                                    setOpenMenuId(null)
-                                  }}
-                                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
-                                >
-                                  {product.is_active ? '下架' : '上架'}
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    if (confirm(`確定要刪除商品「${product.name}」嗎？此操作無法復原。`)) {
-                                      handleDelete(product.id, product.name)
-                                    }
-                                    setOpenMenuId(null)
-                                  }}
-                                  className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-600"
-                                >
-                                  刪除
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </div>
+                        <button
+                          ref={(el) => { menuButtonRefs.current[product.id] = el }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (openMenuId === product.id) {
+                              setOpenMenuId(null)
+                              setMenuPosition(null)
+                            } else {
+                              const rect = e.currentTarget.getBoundingClientRect()
+                              setMenuPosition({ top: rect.bottom + 4, left: rect.right - 128 })
+                              setOpenMenuId(product.id)
+                            }
+                          }}
+                          className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-lg font-bold"
+                          title="更多操作"
+                        >
+                          ⋯
+                        </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
+            </>
           )}
 
           {/* Pagination */}
@@ -525,8 +497,8 @@ export default function ProductsPage() {
                             <button
                               onClick={() => handlePageChange(p)}
                               className={`min-w-[2rem] rounded px-3 py-1 text-sm ${p === page
-                                  ? 'bg-blue-600 text-white'
-                                  : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                ? 'bg-blue-600 text-white'
+                                : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                                 }`}
                             >
                               {p}
@@ -549,6 +521,61 @@ export default function ProductsPage() {
           )}
         </div>
       </div>
+
+      {/* Dropdown Menu Portal - 渲染在 body 避免被 overflow 裁切 */}
+      {openMenuId && menuPosition && typeof document !== 'undefined' && createPortal(
+        <>
+          <div
+            className="fixed inset-0 z-[100]"
+            onClick={() => {
+              setOpenMenuId(null)
+              setMenuPosition(null)
+            }}
+          />
+          <div
+            className="fixed z-[101] w-32 rounded-lg bg-white dark:bg-gray-700 shadow-lg border border-gray-200 dark:border-gray-600 py-1"
+            style={{ top: menuPosition.top, left: menuPosition.left }}
+          >
+            <Link
+              href={`/products/${openMenuId}/edit`}
+              className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+              onClick={() => {
+                setOpenMenuId(null)
+                setMenuPosition(null)
+              }}
+            >
+              編輯
+            </Link>
+            <button
+              onClick={() => {
+                const product = products.find(p => p.id === openMenuId)
+                if (product) {
+                  toggleActive(product.id, product.is_active)
+                }
+                setOpenMenuId(null)
+                setMenuPosition(null)
+              }}
+              className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+            >
+              {products.find(p => p.id === openMenuId)?.is_active ? '下架' : '上架'}
+            </button>
+            <button
+              onClick={() => {
+                const product = products.find(p => p.id === openMenuId)
+                if (product && confirm(`確定要刪除商品「${product.name}」嗎？此操作無法復原。`)) {
+                  handleDelete(product.id, product.name)
+                }
+                setOpenMenuId(null)
+                setMenuPosition(null)
+              }}
+              className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-600"
+            >
+              刪除
+            </button>
+          </div>
+        </>,
+        document.body
+      )}
     </div>
   )
 }
