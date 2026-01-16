@@ -45,6 +45,18 @@ export default function IchibanKujiPage() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [userRole, setUserRole] = useState<'admin' | 'staff' | null>(null)
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) {
+          setUserRole(data.data.role)
+        }
+      })
+      .catch(() => { })
+  }, [])
 
   useEffect(() => {
     fetchKujis()
@@ -150,9 +162,13 @@ export default function IchibanKujiPage() {
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">名稱</th>
                     <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">總抽數</th>
                     <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">賞項數</th>
-                    <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">平均成本/抽</th>
+                    {userRole === 'admin' && (
+                      <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">平均成本/抽</th>
+                    )}
                     <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">售價/抽</th>
-                    <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">利潤/抽</th>
+                    {userRole === 'admin' && (
+                      <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">利潤/抽</th>
+                    )}
                     <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">狀態</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">建立時間</th>
                     <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">操作</th>
@@ -179,24 +195,27 @@ export default function IchibanKujiPage() {
                         <td className="px-6 py-4 text-center text-sm text-gray-900 dark:text-gray-100">
                           {kuji.ichiban_kuji_prizes?.length || 0}
                         </td>
-                        <td className="px-6 py-4 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
-                          {formatCurrency(kuji.avg_cost)}
-                        </td>
+                        {userRole === 'admin' && (
+                          <td className="px-6 py-4 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
+                            {formatCurrency(kuji.avg_cost)}
+                          </td>
+                        )}
                         <td className="px-6 py-4 text-right text-sm font-semibold text-green-600">
                           {formatCurrency(kuji.price || 0)}
                         </td>
-                        <td className="px-6 py-4 text-right text-sm font-bold">
-                          <span className={getProfitColor((kuji.price || 0) - kuji.avg_cost)}>
-                            {formatCurrency((kuji.price || 0) - kuji.avg_cost)}
-                          </span>
-                        </td>
+                        {userRole === 'admin' && (
+                          <td className="px-6 py-4 text-right text-sm font-bold">
+                            <span className={getProfitColor((kuji.price || 0) - kuji.avg_cost)}>
+                              {formatCurrency((kuji.price || 0) - kuji.avg_cost)}
+                            </span>
+                          </td>
+                        )}
                         <td className="px-6 py-4 text-center text-sm">
                           <span
-                            className={`inline-block rounded px-2 py-1 text-xs ${
-                              kuji.is_active
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}
+                            className={`inline-block rounded px-2 py-1 text-xs ${kuji.is_active
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-100 text-gray-800'
+                              }`}
                           >
                             {kuji.is_active ? '啟用' : '停用'}
                           </span>
@@ -279,73 +298,83 @@ export default function IchibanKujiPage() {
                               {/* 賞項明細 */}
                               <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
                                 <h4 className="mb-3 font-semibold text-gray-900 dark:text-gray-100">賞項明細</h4>
-                              <table className="w-full">
-                                <thead className="border-b">
-                                  <tr>
-                                    <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">賞別</th>
-                                    <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">商品名稱</th>
-                                    <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">品號</th>
-                                    <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">總數</th>
-                                    <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">剩餘</th>
-                                    <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">單位成本</th>
-                                    <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">小計</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y">
-                                  {kuji.ichiban_kuji_prizes.map((prize) => (
-                                    <tr key={prize.id}>
-                                      <td className="py-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                        {prize.prize_tier}
-                                      </td>
-                                      <td className="py-2 text-sm text-gray-900 dark:text-gray-100">
-                                        {prize.products.name}
-                                      </td>
-                                      <td className="py-2 text-sm text-gray-500 dark:text-gray-400">
-                                        {prize.products.item_code}
-                                      </td>
-                                      <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
-                                        {prize.quantity} {prize.products.unit}
-                                      </td>
-                                      <td className="py-2 text-right text-sm font-semibold">
-                                        <span className={
-                                          prize.remaining === 0 
-                                            ? 'text-gray-500 dark:text-gray-400' 
-                                            : prize.remaining <= 5 
-                                            ? 'text-orange-600 dark:text-orange-400' 
-                                            : 'text-green-600 dark:text-green-400'
-                                        }>
-                                          {prize.remaining === 0 
-                                            ? '完售' 
-                                            : prize.remaining <= 5 
-                                            ? `⚠ ${prize.remaining} 抽` 
-                                            : `${prize.remaining} 抽`}
-                                        </span>
-                                      </td>
-                                      <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
-                                        {formatCurrency(prize.products.cost)}
-                                      </td>
-                                      <td className="py-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                        {formatCurrency(prize.products.cost * prize.quantity)}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                                <tfoot className="border-t-2 bg-gray-100 dark:bg-gray-800">
-                                  <tr>
-                                    <td colSpan={6} className="py-3 text-right text-sm font-semibold text-gray-600 dark:text-gray-400">
-                                      Σ 總成本:
-                                    </td>
-                                    <td className="py-3 text-right text-base font-bold text-gray-700 dark:text-gray-300">
-                                      {formatCurrency(
-                                        kuji.ichiban_kuji_prizes.reduce(
-                                          (sum, prize) => sum + prize.products.cost * prize.quantity,
-                                          0
-                                        )
+                                <table className="w-full">
+                                  <thead className="border-b">
+                                    <tr>
+                                      <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">賞別</th>
+                                      <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">商品名稱</th>
+                                      <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">品號</th>
+                                      <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">總數</th>
+                                      <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">剩餘</th>
+                                      {userRole === 'admin' && (
+                                        <>
+                                          <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">單位成本</th>
+                                          <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">小計</th>
+                                        </>
                                       )}
-                                    </td>
-                                  </tr>
-                                </tfoot>
-                              </table>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y">
+                                    {kuji.ichiban_kuji_prizes.map((prize) => (
+                                      <tr key={prize.id}>
+                                        <td className="py-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                          {prize.prize_tier}
+                                        </td>
+                                        <td className="py-2 text-sm text-gray-900 dark:text-gray-100">
+                                          {prize.products.name}
+                                        </td>
+                                        <td className="py-2 text-sm text-gray-500 dark:text-gray-400">
+                                          {prize.products.item_code}
+                                        </td>
+                                        <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
+                                          {prize.quantity} {prize.products.unit}
+                                        </td>
+                                        <td className="py-2 text-right text-sm font-semibold">
+                                          <span className={
+                                            prize.remaining === 0
+                                              ? 'text-gray-500 dark:text-gray-400'
+                                              : prize.remaining <= 5
+                                                ? 'text-orange-600 dark:text-orange-400'
+                                                : 'text-green-600 dark:text-green-400'
+                                          }>
+                                            {prize.remaining === 0
+                                              ? '完售'
+                                              : prize.remaining <= 5
+                                                ? `⚠ ${prize.remaining} 抽`
+                                                : `${prize.remaining} 抽`}
+                                          </span>
+                                        </td>
+                                        {userRole === 'admin' && (
+                                          <>
+                                            <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
+                                              {formatCurrency(prize.products.cost)}
+                                            </td>
+                                            <td className="py-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                              {formatCurrency(prize.products.cost * prize.quantity)}
+                                            </td>
+                                          </>
+                                        )}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                  {userRole === 'admin' && (
+                                    <tfoot className="border-t-2 bg-gray-100 dark:bg-gray-800">
+                                      <tr>
+                                        <td colSpan={5} className="py-3 text-right text-sm font-semibold text-gray-600 dark:text-gray-400">
+                                          Σ 總成本:
+                                        </td>
+                                        <td colSpan={2} className="py-3 text-right text-base font-bold text-gray-700 dark:text-gray-300">
+                                          {formatCurrency(
+                                            kuji.ichiban_kuji_prizes.reduce(
+                                              (sum, prize) => sum + prize.products.cost * prize.quantity,
+                                              0
+                                            )
+                                          )}
+                                        </td>
+                                      </tr>
+                                    </tfoot>
+                                  )}
+                                </table>
                               </div>
                             </div>
                           </td>

@@ -21,10 +21,10 @@ const navItems: NavItem[] = [
   { href: '/pos-live', label: '📱 直播收銀', roles: ['admin', 'staff'] },
   {
     label: '庫存管理',
-    roles: ['admin'],
+    roles: ['admin', 'staff'],
     submenu: [
-      { href: '/products', label: '商品庫', roles: ['admin'] },
-      { href: '/ichiban-kuji', label: '一番賞庫', roles: ['admin'] },
+      { href: '/products', label: '商品庫', roles: ['admin', 'staff'] },
+      { href: '/ichiban-kuji', label: '一番賞庫', roles: ['admin', 'staff'] },
     ],
   },
   {
@@ -128,11 +128,10 @@ export default function Navigation() {
                   // 下拉菜单
                   <div key={item.label} className="relative group">
                     <button
-                      className={`whitespace-nowrap rounded-lg px-2.5 xl:px-3 py-2 text-sm font-semibold transition-all duration-200 flex items-center gap-1 ${
-                        isInSubmenu(item)
+                      className={`whitespace-nowrap rounded-lg px-2.5 xl:px-3 py-2 text-sm font-semibold transition-all duration-200 flex items-center gap-1 ${isInSubmenu(item)
                           ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md'
                           : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700 hover:shadow-sm'
-                      }`}
+                        }`}
                     >
                       {item.label}
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -146,11 +145,10 @@ export default function Navigation() {
                           <Link
                             key={subItem.href}
                             href={subItem.href!}
-                            className={`block px-4 py-2 text-sm transition-colors ${
-                              pathname === subItem.href
+                            className={`block px-4 py-2 text-sm transition-colors ${pathname === subItem.href
                                 ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 font-semibold'
                                 : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700'
-                            }`}
+                              }`}
                           >
                             {subItem.label}
                           </Link>
@@ -163,11 +161,10 @@ export default function Navigation() {
                   <Link
                     key={item.href}
                     href={item.href!}
-                    className={`whitespace-nowrap rounded-lg px-2.5 xl:px-3 py-2 text-sm font-semibold transition-all duration-200 ${
-                      pathname === item.href
+                    className={`whitespace-nowrap rounded-lg px-2.5 xl:px-3 py-2 text-sm font-semibold transition-all duration-200 ${pathname === item.href
                         ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md scale-105'
                         : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700 hover:shadow-sm'
-                    }`}
+                      }`}
                   >
                     {item.label}
                   </Link>
@@ -183,11 +180,10 @@ export default function Navigation() {
                 <span className="text-xs font-medium text-gray-700 dark:text-gray-200">
                   {user.username}
                 </span>
-                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-                  user.role === 'admin'
+                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${user.role === 'admin'
                     ? 'bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200'
                     : 'bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200'
-                }`}>
+                  }`}>
                   {user.role === 'admin' ? '管理員' : '員工'}
                 </span>
               </div>
@@ -236,11 +232,10 @@ export default function Navigation() {
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
                     {user.username}
                   </span>
-                  <span className={`text-xs font-medium px-2.5 py-1 rounded ${
-                    user.role === 'admin'
+                  <span className={`text-xs font-medium px-2.5 py-1 rounded ${user.role === 'admin'
                       ? 'bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200'
                       : 'bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200'
-                  }`}>
+                    }`}>
                     {user.role === 'admin' ? '管理員' : '員工'}
                   </span>
                 </div>
@@ -264,17 +259,16 @@ export default function Navigation() {
                   <div key={item.label}>
                     <button
                       onClick={() => setOpenSubmenu(openSubmenu === item.label ? null : item.label)}
-                      className={`w-full rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-200 shadow-sm flex items-center justify-between ${
-                        isInSubmenu(item)
+                      className={`w-full rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-200 shadow-sm flex items-center justify-between ${isInSubmenu(item)
                           ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md'
                           : 'text-gray-700 bg-white hover:bg-gray-50 dark:text-gray-200 dark:bg-gray-700 dark:hover:bg-gray-650 border border-gray-200 dark:border-gray-600'
-                      }`}
+                        }`}
                     >
                       {item.label}
-                      <svg 
+                      <svg
                         className={`w-4 h-4 transition-transform ${openSubmenu === item.label ? 'rotate-180' : ''}`}
-                        fill="none" 
-                        stroke="currentColor" 
+                        fill="none"
+                        stroke="currentColor"
                         viewBox="0 0 24 24"
                       >
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -287,11 +281,10 @@ export default function Navigation() {
                             key={subItem.href}
                             href={subItem.href!}
                             onClick={() => setIsMenuOpen(false)}
-                            className={`rounded-lg px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
-                              pathname === subItem.href
+                            className={`rounded-lg px-4 py-2.5 text-sm font-medium transition-all duration-200 ${pathname === subItem.href
                                 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
                                 : 'text-gray-600 bg-gray-50 hover:bg-gray-100 dark:text-gray-300 dark:bg-gray-750 dark:hover:bg-gray-700'
-                            }`}
+                              }`}
                           >
                             {subItem.label}
                           </Link>
@@ -305,11 +298,10 @@ export default function Navigation() {
                     key={item.href}
                     href={item.href!}
                     onClick={() => setIsMenuOpen(false)}
-                    className={`rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-200 shadow-sm ${
-                      pathname === item.href
+                    className={`rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-200 shadow-sm ${pathname === item.href
                         ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md scale-[1.02]'
                         : 'text-gray-700 bg-white hover:bg-gray-50 dark:text-gray-200 dark:bg-gray-700 dark:hover:bg-gray-650 border border-gray-200 dark:border-gray-600'
-                    }`}
+                      }`}
                   >
                     {item.label}
                   </Link>

@@ -305,6 +305,7 @@ export default function PurchasesPage() {
                       )}
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">商品摘要</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">進貨日期</th>
+                      <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">審核</th>
                       <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">付款</th>
                       <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">收貨</th>
                       {isAdmin && (
@@ -317,253 +318,264 @@ export default function PurchasesPage() {
                       const startIndex = (currentPage - 1) * itemsPerPage
                       const endIndex = startIndex + itemsPerPage
                       const paginatedPurchases = purchases.slice(startIndex, endIndex)
-                      
+
                       return paginatedPurchases.map((purchase) => (
-                    <React.Fragment key={purchase.id}>
-                      <tr
-                        className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 cursor-pointer transition-colors"
-                        onClick={() => toggleRow(purchase.id)}
-                      >
-                        <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-400 text-xs">
-                              {expandedRows.has(purchase.id) ? '▾' : '▸'}
-                            </span>
-                            {purchase.purchase_no}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{purchase.vendors?.vendor_name || purchase.vendor_code}</td>
-                        {isAdmin && (
-                          <td className={`px-6 py-4 text-right text-lg font-semibold ${
-                            purchase.total > 0 
-                              ? 'text-gray-900 dark:text-gray-100' 
-                              : 'text-gray-400 dark:text-gray-500'
-                          }`}>
-                            {formatCurrency(purchase.total)}
-                          </td>
-                        )}
-                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
-                          {purchase.item_count || 0} 項 / {purchase.total_quantity || 0} 件
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">
-                          {formatDate(purchase.purchase_date)}
-                        </td>
-                        <td className="px-6 py-4 text-center text-sm">
-                          <span
-                            className={`inline-flex items-center gap-1 text-xs ${
-                              purchase.is_paid
-                                ? 'text-green-600 dark:text-green-400'
-                                : 'text-gray-500 dark:text-gray-400'
-                            }`}
+                        <React.Fragment key={purchase.id}>
+                          <tr
+                            className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 cursor-pointer transition-colors"
+                            onClick={() => toggleRow(purchase.id)}
                           >
-                            {purchase.is_paid ? '✓ 已付' : '○ 未付'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-center text-sm">
-                          <span
-                            className={`inline-flex items-center gap-1 text-xs ${
-                              purchase.receiving_status === 'completed'
-                                ? 'text-blue-600 dark:text-blue-400'
-                                : purchase.receiving_status === 'partial'
-                                ? 'text-amber-600 dark:text-amber-400'
-                                : 'text-gray-500 dark:text-gray-400'
-                            }`}
-                          >
-                            {purchase.receiving_status === 'completed'
-                              ? '📦 已收貨'
-                              : purchase.receiving_status === 'partial'
-                              ? '⚡ 部分收貨'
-                              : '• 未收貨'}
-                          </span>
-                        </td>
-                        {isAdmin && (
-                          <td className="px-6 py-4 text-center text-sm" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex gap-2 justify-center">
-                              {purchase.status === 'pending' && (
-                                <Link
-                                  href={`/purchases/${purchase.id}/review`}
-                                  className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
-                                >
-                                  審核
-                                </Link>
-                              )}
-                              <button
-                              onClick={() => {
-                                if (confirm(`確定要刪除進貨單 ${purchase.purchase_no} 嗎？此操作無法復原。`)) {
-                                  handleDeletePurchase(purchase.id, purchase.purchase_no)
-                                }
-                              }}
-                              disabled={deleting === purchase.id}
-                              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-lg font-bold disabled:text-gray-300 disabled:cursor-not-allowed"
-                              title="更多操作"
-                            >
-                              {deleting === purchase.id ? '...' : '⋯'}
-                              </button>
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                      {expandedRows.has(purchase.id) && purchase.purchase_items && (
-                        <tr key={`${purchase.id}-details`}>
-                          <td colSpan={isAdmin ? 10 : 7} className="bg-gray-50 dark:bg-gray-900 px-6 py-4">
-                            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-                              <h4 className="mb-3 font-semibold text-gray-900 dark:text-gray-100">進貨明細</h4>
-                              <table className="w-full">
-                                <thead className="border-b">
-                                  <tr>
-                                    <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">品號</th>
-                                    <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">商品名稱</th>
-                                    <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">進貨數量</th>
-                                    <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">已收貨</th>
-                                    {isAdmin && (
-                                      <>
-                                        <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">成本</th>
-                                        <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">小計</th>
-                                        <th className="pb-2 text-center text-xs font-semibold text-gray-900 dark:text-gray-100">操作</th>
-                                      </>
-                                    )}
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y dark:divide-gray-700">
-                                  {purchase.purchase_items.map((item) => {
-                                    const remainingQty = item.quantity - (item.received_quantity || 0)
-                                    return (
-                                      <tr key={item.id}>
-                                        <td className="py-2 text-sm text-gray-900 dark:text-gray-100">{item.products.item_code}</td>
-                                        <td className="py-2 text-sm text-gray-900 dark:text-gray-100">{item.products.name}</td>
-                                        <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
-                                          {item.quantity} {item.products.unit}
-                                        </td>
-                                        <td className="py-2 text-right text-sm">
-                                          <span
-                                            className={`font-medium ${
-                                              item.is_received
-                                                ? 'text-green-600 dark:text-green-400'
-                                                : item.received_quantity > 0
-                                                ? 'text-yellow-600 dark:text-yellow-400'
-                                                : 'text-gray-600 dark:text-gray-400'
-                                            }`}
-                                          >
-                                            {item.received_quantity || 0} / {item.quantity}
-                                          </span>
-                                        </td>
+                            <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-400 text-xs">
+                                  {expandedRows.has(purchase.id) ? '▾' : '▸'}
+                                </span>
+                                {purchase.purchase_no}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{purchase.vendors?.vendor_name || purchase.vendor_code}</td>
+                            {isAdmin && (
+                              <td className={`px-6 py-4 text-right text-lg font-semibold ${purchase.total > 0
+                                ? 'text-gray-900 dark:text-gray-100'
+                                : 'text-gray-400 dark:text-gray-500'
+                                }`}>
+                                {formatCurrency(purchase.total)}
+                              </td>
+                            )}
+                            <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                              {purchase.item_count || 0} 項 / {purchase.total_quantity || 0} 件
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">
+                              {formatDate(purchase.purchase_date)}
+                            </td>
+                            <td className="px-6 py-4 text-center text-sm">
+                              <span
+                                className={`inline-flex items-center gap-1 text-xs ${purchase.status === 'approved'
+                                  ? 'text-green-600 dark:text-green-400'
+                                  : 'text-orange-500 dark:text-orange-400'
+                                  }`}
+                              >
+                                {purchase.status === 'approved' ? '✓ 已審核' : '○ 待審核'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-center text-sm">
+                              <span
+                                className={`inline-flex items-center gap-1 text-xs ${purchase.is_paid
+                                  ? 'text-green-600 dark:text-green-400'
+                                  : 'text-gray-500 dark:text-gray-400'
+                                  }`}
+                              >
+                                {purchase.is_paid ? '✓ 已付' : '○ 未付'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-center text-sm">
+                              <span
+                                className={`inline-flex items-center gap-1 text-xs ${purchase.receiving_status === 'completed'
+                                  ? 'text-blue-600 dark:text-blue-400'
+                                  : purchase.receiving_status === 'partial'
+                                    ? 'text-amber-600 dark:text-amber-400'
+                                    : 'text-gray-500 dark:text-gray-400'
+                                  }`}
+                              >
+                                {purchase.receiving_status === 'completed'
+                                  ? '📦 已收貨'
+                                  : purchase.receiving_status === 'partial'
+                                    ? '⚡ 部分收貨'
+                                    : '• 未收貨'}
+                              </span>
+                            </td>
+                            {isAdmin && (
+                              <td className="px-6 py-4 text-center text-sm" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex gap-2 justify-center">
+                                  {purchase.status === 'pending' && (
+                                    <Link
+                                      href={`/purchases/${purchase.id}/review`}
+                                      className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
+                                    >
+                                      審核
+                                    </Link>
+                                  )}
+                                  <button
+                                    onClick={() => {
+                                      if (confirm(`確定要刪除進貨單 ${purchase.purchase_no} 嗎？此操作無法復原。`)) {
+                                        handleDeletePurchase(purchase.id, purchase.purchase_no)
+                                      }
+                                    }}
+                                    disabled={deleting === purchase.id}
+                                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-lg font-bold disabled:text-gray-300 disabled:cursor-not-allowed"
+                                    title="更多操作"
+                                  >
+                                    {deleting === purchase.id ? '...' : '⋯'}
+                                  </button>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                          {expandedRows.has(purchase.id) && purchase.purchase_items && (
+                            <tr key={`${purchase.id}-details`}>
+                              <td colSpan={isAdmin ? 9 : 7} className="bg-gray-50 dark:bg-gray-900 px-6 py-4">
+                                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                                  <h4 className="mb-3 font-semibold text-gray-900 dark:text-gray-100">進貨明細</h4>
+                                  <table className="w-full">
+                                    <thead className="border-b">
+                                      <tr>
+                                        <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">品號</th>
+                                        <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">商品名稱</th>
+                                        <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">進貨數量</th>
+                                        <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">已收貨</th>
                                         {isAdmin && (
                                           <>
-                                            <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
-                                              {formatCurrency(item.cost)}
-                                            </td>
-                                            <td className="py-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                              {formatCurrency(item.quantity * item.cost)}
-                                            </td>
-                                            <td className="py-2 text-center text-sm">
-                                              <div className="flex gap-2 justify-center">
-                                                {!item.is_received && (
-                                                  <button
-                                                    onClick={() => handleReceiveItem(item.id, item.products.name, remainingQty)}
-                                                    disabled={deleting === item.id}
-                                                    className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                                                  >
-                                                    {deleting === item.id ? '收貨中' : '收貨'}
-                                                  </button>
-                                                )}
-                                                <button
-                                                  onClick={() => {
-                                                    if (confirm(`確定要刪除 ${item.products.name} 嗎？此操作無法復原。`)) {
-                                                      handleDeleteItem(item.id, item.products.name, purchase.id)
-                                                    }
-                                                  }}
-                                                  disabled={deleting === item.id}
-                                                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-base font-bold disabled:text-gray-300 disabled:cursor-not-allowed"
-                                                  title="刪除項目"
-                                                >
-                                                  {deleting === item.id ? '...' : '⋯'}
-                                                </button>
-                                              </div>
-                                            </td>
+                                            <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">成本</th>
+                                            <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">小計</th>
                                           </>
                                         )}
+                                        {(isAdmin || purchase.status === 'approved') && (
+                                          <th className="pb-2 text-center text-xs font-semibold text-gray-900 dark:text-gray-100">操作</th>
+                                        )}
                                       </tr>
-                                    )
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  ))
+                                    </thead>
+                                    <tbody className="divide-y dark:divide-gray-700">
+                                      {purchase.purchase_items.map((item) => {
+                                        const remainingQty = item.quantity - (item.received_quantity || 0)
+                                        return (
+                                          <tr key={item.id}>
+                                            <td className="py-2 text-sm text-gray-900 dark:text-gray-100">{item.products.item_code}</td>
+                                            <td className="py-2 text-sm text-gray-900 dark:text-gray-100">{item.products.name}</td>
+                                            <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
+                                              {item.quantity} {item.products.unit}
+                                            </td>
+                                            <td className="py-2 text-right text-sm">
+                                              <span
+                                                className={`font-medium ${item.is_received
+                                                  ? 'text-green-600 dark:text-green-400'
+                                                  : item.received_quantity > 0
+                                                    ? 'text-yellow-600 dark:text-yellow-400'
+                                                    : 'text-gray-600 dark:text-gray-400'
+                                                  }`}
+                                              >
+                                                {item.received_quantity || 0} / {item.quantity}
+                                              </span>
+                                            </td>
+                                            {isAdmin && (
+                                              <>
+                                                <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
+                                                  {formatCurrency(item.cost)}
+                                                </td>
+                                                <td className="py-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                                  {formatCurrency(item.quantity * item.cost)}
+                                                </td>
+                                              </>
+                                            )}
+                                            {(isAdmin || purchase.status === 'approved') && (
+                                              <td className="py-2 text-center text-sm">
+                                                <div className="flex gap-2 justify-center">
+                                                  {!item.is_received && (
+                                                    <button
+                                                      onClick={() => handleReceiveItem(item.id, item.products.name, remainingQty)}
+                                                      disabled={deleting === item.id}
+                                                      className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                                    >
+                                                      {deleting === item.id ? '收貨中' : '收貨'}
+                                                    </button>
+                                                  )}
+                                                  {isAdmin && (
+                                                    <button
+                                                      onClick={() => {
+                                                        if (confirm(`確定要刪除 ${item.products.name} 嗎？此操作無法復原。`)) {
+                                                          handleDeleteItem(item.id, item.products.name, purchase.id)
+                                                        }
+                                                      }}
+                                                      disabled={deleting === item.id}
+                                                      className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-base font-bold disabled:text-gray-300 disabled:cursor-not-allowed"
+                                                      title="刪除項目"
+                                                    >
+                                                      {deleting === item.id ? '...' : '⋯'}
+                                                    </button>
+                                                  )}
+                                                </div>
+                                              </td>
+                                            )}
+                                          </tr>
+                                        )
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      ))
                     })()}
-                </tbody>
-              </table>
-            </div>
-            
-            {/* Pagination */}
-            {purchases.length > itemsPerPage && (
-              <div className="mt-4 flex items-center justify-center gap-2">
-                <button
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  上一頁
-                </button>
-                
-                {(() => {
-                  const totalPages = Math.ceil(purchases.length / itemsPerPage)
-                  const pages: (number | string)[] = []
-                  
-                  if (totalPages <= 7) {
-                    for (let i = 1; i <= totalPages; i++) pages.push(i)
-                  } else {
-                    if (currentPage <= 4) {
-                      for (let i = 1; i <= 5; i++) pages.push(i)
-                      pages.push('...')
-                      pages.push(totalPages)
-                    } else if (currentPage >= totalPages - 3) {
-                      pages.push(1)
-                      pages.push('...')
-                      for (let i = totalPages - 4; i <= totalPages; i++) pages.push(i)
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {purchases.length > itemsPerPage && (
+                <div className="mt-4 flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    上一頁
+                  </button>
+
+                  {(() => {
+                    const totalPages = Math.ceil(purchases.length / itemsPerPage)
+                    const pages: (number | string)[] = []
+
+                    if (totalPages <= 7) {
+                      for (let i = 1; i <= totalPages; i++) pages.push(i)
                     } else {
-                      pages.push(1)
-                      pages.push('...')
-                      for (let i = currentPage - 1; i <= currentPage + 1; i++) pages.push(i)
-                      pages.push('...')
-                      pages.push(totalPages)
+                      if (currentPage <= 4) {
+                        for (let i = 1; i <= 5; i++) pages.push(i)
+                        pages.push('...')
+                        pages.push(totalPages)
+                      } else if (currentPage >= totalPages - 3) {
+                        pages.push(1)
+                        pages.push('...')
+                        for (let i = totalPages - 4; i <= totalPages; i++) pages.push(i)
+                      } else {
+                        pages.push(1)
+                        pages.push('...')
+                        for (let i = currentPage - 1; i <= currentPage + 1; i++) pages.push(i)
+                        pages.push('...')
+                        pages.push(totalPages)
+                      }
                     }
-                  }
-                  
-                  return pages.map((page, idx) => 
-                    typeof page === 'number' ? (
-                      <button
-                        key={page}
-                        onClick={() => setCurrentPage(page)}
-                        className={`px-3 py-1 text-sm rounded ${
-                          currentPage === page
+
+                    return pages.map((page, idx) =>
+                      typeof page === 'number' ? (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`px-3 py-1 text-sm rounded ${currentPage === page
                             ? 'bg-blue-600 text-white'
                             : 'border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    ) : (
-                      <span key={`ellipsis-${idx}`} className="px-2 text-gray-500">
-                        {page}
-                      </span>
+                            }`}
+                        >
+                          {page}
+                        </button>
+                      ) : (
+                        <span key={`ellipsis-${idx}`} className="px-2 text-gray-500">
+                          {page}
+                        </span>
+                      )
                     )
-                  )
-                })()}
-                
-                <button
-                  onClick={() => setCurrentPage(p => Math.min(Math.ceil(purchases.length / itemsPerPage), p + 1))}
-                  disabled={currentPage >= Math.ceil(purchases.length / itemsPerPage)}
-                  className="px-3 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  下一頁
-                </button>
-              </div>
-            )}
-          </>
+                  })()}
+
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(Math.ceil(purchases.length / itemsPerPage), p + 1))}
+                    disabled={currentPage >= Math.ceil(purchases.length / itemsPerPage)}
+                    className="px-3 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    下一頁
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

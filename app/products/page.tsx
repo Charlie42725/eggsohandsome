@@ -29,6 +29,19 @@ export default function ProductsPage() {
   const [lowStockProducts, setLowStockProducts] = useState<Product[]>([])
   const [loadingLowStock, setLoadingLowStock] = useState(true)
   const [showLowStock, setShowLowStock] = useState(false)
+  const [userRole, setUserRole] = useState<'admin' | 'staff' | null>(null)
+
+  // 獲取用戶角色
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) {
+          setUserRole(data.data.role)
+        }
+      })
+      .catch(() => { })
+  }, [])
 
   const fetchProducts = async (currentPage: number = page) => {
     setLoading(true)
@@ -350,15 +363,17 @@ export default function ProductsPage() {
                         <SortIcon field="price" />
                       </div>
                     </th>
-                    <th
-                      className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none"
-                      onClick={() => handleSort('avg_cost')}
-                    >
-                      <div className="flex items-center justify-end">
-                        成本
-                        <SortIcon field="avg_cost" />
-                      </div>
-                    </th>
+                    {userRole === 'admin' && (
+                      <th
+                        className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none"
+                        onClick={() => handleSort('avg_cost')}
+                      >
+                        <div className="flex items-center justify-end">
+                          成本
+                          <SortIcon field="avg_cost" />
+                        </div>
+                      </th>
+                    )}
                     <th
                       className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none"
                       onClick={() => handleSort('stock')}
@@ -394,9 +409,11 @@ export default function ProductsPage() {
                       <td className="px-6 py-4 text-right text-sm text-gray-900 dark:text-gray-100">
                         {formatCurrency(product.price)}
                       </td>
-                      <td className="px-6 py-4 text-right text-sm text-gray-900 dark:text-gray-100">
-                        {formatCurrency(product.avg_cost)}
-                      </td>
+                      {userRole === 'admin' && (
+                        <td className="px-6 py-4 text-right text-sm text-gray-900 dark:text-gray-100">
+                          {formatCurrency(product.avg_cost)}
+                        </td>
+                      )}
                       <td className="px-6 py-4 text-right text-sm">
                         <span
                           className={
