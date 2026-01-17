@@ -578,20 +578,20 @@ export default function SalesPage() {
     }
   }
 
-  // 執行單品轉購物金
+  // 執行單品轉購物金（只適用於售價為 $0 的品項）
   const handleItemToStoreCredit = async (item: SaleItem, sale: Sale) => {
     if (!sale.customer_code) {
       alert('此銷售單沒有關聯客戶，無法轉為購物金')
       return
     }
 
-    const itemSubtotal = item.price * item.quantity
-    if (itemSubtotal <= 0) {
-      alert('此品項金額為 0，無法轉換')
+    // 只允許售價為 0 的品項
+    if (item.price !== 0) {
+      alert('只有售價為 $0 的品項才能轉購物金')
       return
     }
 
-    const amountInput = prompt(`將「${item.snapshot_name}」轉為購物金\n\n品項金額：${formatCurrency(itemSubtotal)}\n\n請輸入要轉換的金額：`, itemSubtotal.toString())
+    const amountInput = prompt(`將「${item.snapshot_name}」(${item.quantity} 件) 轉為購物金\n\n請輸入零用金金額：\n（此金額將作為購物金及回補成本）`)
 
     if (amountInput === null) {
       return // 用戶取消
@@ -603,12 +603,8 @@ export default function SalesPage() {
       return
     }
 
-    if (amount > itemSubtotal) {
-      alert(`金額不能超過品項金額 ${formatCurrency(itemSubtotal)}`)
-      return
-    }
-
-    if (!confirm(`確定要將 ${formatCurrency(amount)} 轉為購物金嗎？\n\n此操作將會回補庫存並清除應收帳款。`)) {
+    const unitCost = amount / item.quantity
+    if (!confirm(`確定要將 ${formatCurrency(amount)} 轉為購物金嗎？\n\n• 購物金增加：${formatCurrency(amount)}\n• 庫存回補：${item.quantity} 件\n• 回補成本：${formatCurrency(unitCost)}/件`)) {
       return
     }
 
@@ -619,7 +615,6 @@ export default function SalesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount: amount,
-          refund_inventory: amount >= itemSubtotal, // 只有全額轉換才回補庫存
           note: `單品轉購物金 - ${item.snapshot_name}`,
         }),
       })
@@ -627,7 +622,7 @@ export default function SalesPage() {
       const data = await res.json()
 
       if (data.ok) {
-        alert(`轉購物金成功！\n\n客戶：${data.data.customer_name}\n商品：${data.data.product_name}\n轉換金額：${formatCurrency(data.data.conversion_amount)}\n購物金餘額：${formatCurrency(data.data.store_credit_before)} → ${formatCurrency(data.data.store_credit_after)}\n回補庫存：${data.data.inventory_restored} 件`)
+        alert(`轉購物金成功！\n\n客戶：${data.data.customer_name}\n商品：${data.data.product_name}\n購物金：${formatCurrency(data.data.store_credit_before)} → ${formatCurrency(data.data.store_credit_after)}\n回補庫存：${data.data.inventory_restored} 件\n新平均成本：${formatCurrency(data.data.new_avg_cost)}`)
         fetchSales()
       } else {
         alert(`轉換失敗：${data.error}`)
@@ -1025,7 +1020,7 @@ export default function SalesPage() {
                                                         {delivering === item.id ? '處理中...' : '出貨'}
                                                       </button>
                                                     )}
-                                                    {sale.customer_code && item.price > 0 && (
+                                                    {sale.customer_code && item.price === 0 && (
                                                       <button
                                                         onClick={() => handleItemToStoreCredit(item, sale)}
                                                         disabled={convertingItemId === item.id}
@@ -1266,7 +1261,7 @@ export default function SalesPage() {
                                                     {delivering === item.id ? '處理中...' : '出貨'}
                                                   </button>
                                                 )}
-                                                {sale.customer_code && item.price > 0 && (
+                                                {sale.customer_code && item.price === 0 && (
                                                   <button
                                                     onClick={() => handleItemToStoreCredit(item, sale)}
                                                     disabled={convertingItemId === item.id}

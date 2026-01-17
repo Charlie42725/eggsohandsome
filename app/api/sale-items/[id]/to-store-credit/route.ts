@@ -7,6 +7,8 @@ type RouteContext = {
 }
 
 // POST /api/sale-items/:id/to-store-credit - 將單一銷售品項轉為購物金
+// 條件：只有售價=0的品項才能轉購物金
+// 流程：輸入金額 -> 增加客戶購物金 -> 回補庫存（以輸入金額作為成本）
 export async function POST(
     request: NextRequest,
     context: RouteContext
@@ -14,7 +16,15 @@ export async function POST(
     try {
         const { id: saleItemId } = await context.params
         const body = await request.json()
-        const { amount, refund_inventory = true, note } = body
+        const { amount, note } = body
+
+        // 驗證金額
+        if (!amount || amount <= 0) {
+            return NextResponse.json(
+                { ok: false, error: '請輸入有效的金額' },
+                { status: 400 }
+            )
+        }
 
         // 1. 查詢銷售品項
         const { data: saleItem, error: itemError } = await (supabaseServer
@@ -34,7 +44,8 @@ export async function POST(
         products (
           id,
           name,
-          stock
+          stock,
+          avg_cost
         )
       `)
             .eq('id', saleItemId)
@@ -47,6 +58,14 @@ export async function POST(
             )
         }
 
+        // 2. 驗證售價必須為 0
+        if (saleItem.price !== 0) {
+            return NextResponse.json(
+                { ok: false, error: '只有售價為 $0 的品項才能轉購物金' },
+                { status: 400 }
+            )
+        }
+
         const sale = saleItem.sales
         if (!sale) {
             return NextResponse.json(
@@ -55,7 +74,7 @@ export async function POST(
             )
         }
 
-        // 2. 驗證客戶
+        // 3. 驗證客戶
         if (!sale.customer_code) {
             return NextResponse.json(
                 { ok: false, error: '此銷售單沒有關聯客戶，無法轉為購物金' },
@@ -71,9 +90,7 @@ export async function POST(
             )
         }
 
-        // 3. 計算轉換金額
-        const itemSubtotal = saleItem.price * saleItem.quantity
-        const conversionAmount = amount && amount > 0 && amount <= itemSubtotal ? amount : itemSubtotal
+        const conversionAmount = parseFloat(amount)
         const storeCreditBefore = customer.store_credit || 0
         const storeCreditAfter = storeCreditBefore + conversionAmount
 
@@ -106,9 +123,29 @@ export async function POST(
                 created_at: getTaiwanTime(),
             })
 
-        // 6. 回補庫存（如果需要）
+        // 6. 回補庫存（使用輸入金額作為成本）
         let inventoryRestored = 0
-        if (refund_inventory && saleItem.product_id) {
+        let newAvgCost = 0
+        if (saleItem.product_id) {
+            const product = saleItem.products
+            const currentStock = product?.stock || 0
+            const currentAvgCost = product?.avg_cost || 0
+            const restoreQty = saleItem.quantity
+            const unitCost = conversionAmount / restoreQty // 用輸入金額當作成本
+
+            // 計算新的平均成本
+            // 新平均成本 = (現有庫存 * 現有平均成本 + 回補數量 * 單位成本) / (現有庫存 + 回補數量)
+            const totalCostBefore = currentStock * currentAvgCost
+            const addedCost = restoreQty * unitCost
+            const newTotalStock = currentStock + restoreQty
+            newAvgCost = newTotalStock > 0 ? (totalCostBefore + addedCost) / newTotalStock : unitCost
+
+            // 更新商品平均成本
+            await (supabaseServer
+                .from('products') as any)
+                .update({ avg_cost: newAvgCost })
+                .eq('id', saleItem.product_id)
+
             // 寫入庫存日誌（trigger 會自動更新 stock）
             const { error: invLogError } = await (supabaseServer
                 .from('inventory_logs') as any)
@@ -116,12 +153,13 @@ export async function POST(
                     product_id: saleItem.product_id,
                     ref_type: 'return',
                     ref_id: saleItem.id,
-                    qty_change: saleItem.quantity,
-                    memo: `銷售品項轉購物金回補 - ${sale.sale_no}`,
+                    qty_change: restoreQty,
+                    unit_cost: unitCost,
+                    memo: `轉購物金回補 - ${sale.sale_no} (成本: $${unitCost.toFixed(2)}/件)`,
                 })
 
             if (!invLogError) {
-                inventoryRestored = saleItem.quantity
+                inventoryRestored = restoreQty
             }
         }
 
@@ -137,41 +175,17 @@ export async function POST(
             .insert({
                 sale_id: sale.id,
                 correction_type: 'to_store_credit',
-                original_total: itemSubtotal,
-                corrected_total: itemSubtotal - conversionAmount,
-                adjustment_amount: -conversionAmount,
+                original_total: 0,
+                corrected_total: 0,
+                adjustment_amount: 0,
                 store_credit_granted: conversionAmount,
                 items_adjusted: [{ sale_item_id: saleItem.id, quantity: saleItem.quantity, amount: conversionAmount }],
                 note: note || `單品轉購物金 - ${saleItem.products?.name}`,
                 created_at: getTaiwanTime(),
             })
 
-        // 9. 更新品項價格（扣除轉換金額）
-        const newItemPrice = conversionAmount >= itemSubtotal ? 0 : (saleItem.price - (conversionAmount / saleItem.quantity))
-        const { error: updateItemError } = await (supabaseServer
-            .from('sale_items') as any)
-            .update({ price: Math.max(0, newItemPrice) })
-            .eq('id', saleItemId)
-
-        if (updateItemError) {
-            console.error('Failed to update sale item price:', updateItemError)
-        }
-
-        // 10. 更新銷售單總額
-        const { data: allItems } = await (supabaseServer
-            .from('sale_items') as any)
-            .select('price, quantity')
-            .eq('sale_id', sale.id)
-
-        const newTotal = allItems?.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0) || 0
-
-        await (supabaseServer
-            .from('sales') as any)
-            .update({
-                total: newTotal,
-                updated_at: getTaiwanTime()
-            })
-            .eq('id', sale.id)
+        // 9. 標記品項為已轉換（可選：刪除品項或添加標記）
+        // 這裡不需要更新價格因為已經是 0
 
         return NextResponse.json({
             ok: true,
@@ -184,6 +198,7 @@ export async function POST(
                 store_credit_before: storeCreditBefore,
                 store_credit_after: storeCreditAfter,
                 inventory_restored: inventoryRestored,
+                new_avg_cost: newAvgCost,
             }
         })
     } catch (error) {
