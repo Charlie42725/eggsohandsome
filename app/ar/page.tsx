@@ -80,7 +80,7 @@ export default function ARPageV2() {
 
   // 分頁狀態
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize] = useState(100)
+  const [pageSize] = useState(50)
   const [totalPages, setTotalPages] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
 

@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     const dueBefore = searchParams.get('due_before')
     const keyword = searchParams.get('keyword')
     const page = parseInt(searchParams.get('page') || '1')
-    const pageSize = parseInt(searchParams.get('pageSize') || '100')
+    const pageSize = parseInt(searchParams.get('pageSize') || '50')
 
     // 如果有 keyword，先搜尋銷貨單號和客戶名稱找出對應的 ID
     let saleRefIds: string[] = []
@@ -33,23 +33,23 @@ export async function GET(request: NextRequest) {
       matchingCustomerCodes = (customersResult.data as any[])?.map(c => c.customer_code) || []
     }
 
-    let query = supabaseServer
+    // 首先獲取所有符合條件的 partner_code（不分頁），以確保完整分組
+    let allQuery = supabaseServer
       .from('partner_accounts')
-      .select('*', { count: 'exact' })
+      .select('partner_code')
       .eq('partner_type', 'customer')
       .eq('direction', 'AR')
-      .order('created_at', { ascending: false })
 
     if (customerCode) {
-      query = query.eq('partner_code', customerCode)
+      allQuery = allQuery.eq('partner_code', customerCode)
     }
 
     if (status) {
-      query = query.eq('status', status)
+      allQuery = allQuery.eq('status', status)
     }
 
     if (dueBefore) {
-      query = query.lte('due_date', dueBefore)
+      allQuery = allQuery.lte('due_date', dueBefore)
     }
 
     if (keyword) {
@@ -62,16 +62,48 @@ export async function GET(request: NextRequest) {
         conditions.push(`ref_id.in.(${saleRefIds.join(',')})`)
       }
       if (conditions.length > 0) {
-        query = query.or(conditions.join(','))
+        allQuery = allQuery.or(conditions.join(','))
       }
     }
 
-    // 分頁
-    const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
-    query = query.range(from, to)
+    const { data: allAccounts } = await allQuery
 
-    const { data: accounts, error, count } = await query
+    // 取得唯一的 partner_codes 並按照它們分頁
+    const uniquePartnerCodes = [...new Set((allAccounts || []).map((a: any) => a.partner_code))]
+    const totalCustomers = uniquePartnerCodes.length
+    const totalPages = Math.ceil(totalCustomers / pageSize)
+
+    // 對客戶代碼進行分頁
+    const from = (page - 1) * pageSize
+    const to = from + pageSize
+    const pagedPartnerCodes = uniquePartnerCodes.slice(from, to)
+
+    if (pagedPartnerCodes.length === 0) {
+      return NextResponse.json({
+        ok: true,
+        data: [],
+        pagination: { page, pageSize, total: totalCustomers, totalPages }
+      })
+    }
+
+    // 獲取這些客戶的所有帳款記錄
+    let query = supabaseServer
+      .from('partner_accounts')
+      .select('*')
+      .eq('partner_type', 'customer')
+      .eq('direction', 'AR')
+      .in('partner_code', pagedPartnerCodes)
+      .order('created_at', { ascending: false })
+
+    if (status) {
+      query = query.eq('status', status)
+    }
+
+    if (dueBefore) {
+      query = query.lte('due_date', dueBefore)
+    }
+
+    const { data: accounts, error } = await query
 
     if (error) {
       return NextResponse.json(
@@ -84,7 +116,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         ok: true,
         data: [],
-        pagination: { page, pageSize, total: count || 0, totalPages: 0 }
+        pagination: { page, pageSize, total: totalCustomers, totalPages }
       })
     }
 
@@ -161,8 +193,8 @@ export async function GET(request: NextRequest) {
       pagination: {
         page,
         pageSize,
-        total: count || 0,
-        totalPages: Math.ceil((count || 0) / pageSize)
+        total: totalCustomers,
+        totalPages
       }
     })
   } catch (error) {
