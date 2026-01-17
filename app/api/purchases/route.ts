@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
     if (productKeyword) {
       filteredData = data?.filter((purchase: any) => {
         const items = purchase.purchase_items || []
-        return items.some((item: any) => 
+        return items.some((item: any) =>
           item.products?.name?.toLowerCase().includes(productKeyword.toLowerCase()) ||
           item.products?.item_code?.toLowerCase().includes(productKeyword.toLowerCase())
         )
@@ -131,30 +131,67 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate purchase_no
-    const { count } = await supabaseServer
-      .from('purchases')
-      .select('*', { count: 'exact', head: true })
+    // Generate purchase_no with retry logic
+    let purchase: any = null
+    let purchaseError: any = null
+    let attempts = 0
+    const maxAttempts = 3
 
-    const purchaseNo = generateCode('P', count || 0)
+    while (attempts < maxAttempts) {
+      attempts++
 
-    // 1. Create purchase (draft)
-    const { data: purchase, error: purchaseError } = await (supabaseServer
-      .from('purchases') as any)
-      .insert({
-        purchase_no: purchaseNo,
-        vendor_code: draft.vendor_code,
-        is_paid: draft.is_paid,
-        note: draft.note || null,
-        status: 'draft',
-        total: 0,
-      })
-      .select()
-      .single()
+      // Get latest purchase_no to determine next number
+      // We explicitly order by created_at desc to find the most recent one
+      const { data: lastPurchase } = await supabaseServer
+        .from('purchases')
+        .select('purchase_no')
+        .order('id', { ascending: false })
+        .limit(1)
+        .single()
 
-    if (purchaseError) {
+      let nextNum = 1
+      if (lastPurchase?.purchase_no) {
+        // Extract number from P0001 format
+        const match = lastPurchase.purchase_no.match(/P(\d+)/)
+        if (match) {
+          nextNum = parseInt(match[1], 10) + 1
+        }
+      }
+
+      const purchaseNo = `P${nextNum.toString().padStart(4, '0')}`
+
+      // 1. Create purchase (draft)
+      const result = await (supabaseServer
+        .from('purchases') as any)
+        .insert({
+          purchase_no: purchaseNo,
+          vendor_code: draft.vendor_code,
+          is_paid: draft.is_paid,
+          note: draft.note || null,
+          status: 'draft',
+          total: 0,
+        })
+        .select()
+        .single()
+
+      if (result.error) {
+        // Check for unique violation (Postgres error 23505)
+        if (result.error.code === '23505' && result.error.message.includes('purchases_purchase_no_key')) {
+          console.warn(`[Purchase] Purchase number collision: ${purchaseNo}. Retrying (${attempts}/${maxAttempts})...`)
+          continue // Retry loop will fetch new latest ID and try again
+        }
+
+        purchaseError = result.error
+        break
+      }
+
+      purchase = result.data
+      break
+    }
+
+    if (!purchase || purchaseError) {
       return NextResponse.json(
-        { ok: false, error: purchaseError.message },
+        { ok: false, error: purchaseError?.message || 'Failed to generate unique purchase number after retries' },
         { status: 500 }
       )
     }
