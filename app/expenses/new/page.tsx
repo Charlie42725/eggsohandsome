@@ -68,6 +68,7 @@ export default function NewExpensePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (loading) return  // Prevent double submit
     setLoading(true)
     setError('')
 

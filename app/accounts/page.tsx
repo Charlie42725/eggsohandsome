@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
+import { useSubmitGuard } from '@/hooks/useSubmitGuard'
 
 type Account = {
   id: string
@@ -33,6 +34,7 @@ export default function AccountsPage() {
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingAccount, setEditingAccount] = useState<Account | null>(null)
+  const { isSubmitting, guardSubmit, stopSubmitting } = useSubmitGuard()
   const [formData, setFormData] = useState({
     account_name: '',
     account_type: 'cash' as 'cash' | 'bank' | 'petty_cash',
@@ -92,14 +94,14 @@ export default function AccountsPage() {
 
   const submitAdjustment = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
+    if (!guardSubmit()) return
     try {
       const res = await fetch('/api/accounts/adjust', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           accountId: adjustmentData.accountId,
-          amount: parseFloat(adjustmentData.amount) || 0,  // Convert string to number on submit
+          amount: parseFloat(adjustmentData.amount) || 0,
           date: adjustmentData.date,
           note: adjustmentData.note
         })
@@ -115,13 +117,13 @@ export default function AccountsPage() {
     } catch (err) {
       alert('調整發生錯誤')
     } finally {
-      setLoading(false)
+      stopSubmitting()
     }
   }
 
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
+    if (!guardSubmit()) return
     try {
       const res = await fetch('/api/accounts/transfer', {
         method: 'POST',
@@ -146,12 +148,13 @@ export default function AccountsPage() {
     } catch (err) {
       alert('轉帳發生錯誤')
     } finally {
-      setLoading(false)
+      stopSubmitting()
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!guardSubmit()) return
 
     const url = editingAccount ? `/api/accounts/${editingAccount.id}` : '/api/accounts'
     const method = editingAccount ? 'PATCH' : 'POST'
@@ -176,6 +179,8 @@ export default function AccountsPage() {
       }
     } catch (err) {
       alert('操作失敗')
+    } finally {
+      stopSubmitting()
     }
   }
 
@@ -321,9 +326,10 @@ export default function AccountsPage() {
                 <div className="flex gap-3 pt-2">
                   <button
                     type="submit"
-                    className="flex-1 rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+                    disabled={isSubmitting}
+                    className="flex-1 rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                   >
-                    確認調整
+                    {isSubmitting ? '處理中...' : '確認調整'}
                   </button>
                   <button
                     type="button"
@@ -431,9 +437,10 @@ export default function AccountsPage() {
                 <div className="flex gap-3 pt-2">
                   <button
                     type="submit"
-                    className="flex-1 rounded bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700"
+                    disabled={isSubmitting}
+                    className="flex-1 rounded bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                   >
-                    確認轉帳
+                    {isSubmitting ? '處理中...' : '確認轉帳'}
                   </button>
                   <button
                     type="button"
@@ -516,9 +523,10 @@ export default function AccountsPage() {
                 <div className="flex gap-3 pt-2">
                   <button
                     type="submit"
-                    className="flex-1 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+                    disabled={isSubmitting}
+                    className="flex-1 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                   >
-                    {editingAccount ? '更新' : '新增'}
+                    {isSubmitting ? '處理中...' : (editingAccount ? '更新' : '新增')}
                   </button>
                   <button
                     type="button"
