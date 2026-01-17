@@ -3,6 +3,14 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import type { Vendor } from '@/types'
+import { MoreHorizontal, Edit, Trash2 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Button } from '@/components/ui/button'
 
 export default function VendorsPage() {
   const [vendors, setVendors] = useState<Vendor[]>([])
@@ -150,8 +158,8 @@ export default function VendorsPage() {
             <button
               onClick={() => setActiveFilter(null)}
               className={`rounded px-4 py-1 font-medium ${activeFilter === null
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                 }`}
             >
               全部
@@ -159,8 +167,8 @@ export default function VendorsPage() {
             <button
               onClick={() => setActiveFilter(true)}
               className={`rounded px-4 py-1 font-medium ${activeFilter === true
-                  ? 'bg-green-600 text-white'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                 }`}
             >
               啟用
@@ -168,8 +176,8 @@ export default function VendorsPage() {
             <button
               onClick={() => setActiveFilter(false)}
               className={`rounded px-4 py-1 font-medium ${activeFilter === false
-                  ? 'bg-red-600 text-white'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
+                ? 'bg-red-600 text-white'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                 }`}
             >
               停用
@@ -210,28 +218,34 @@ export default function VendorsPage() {
                       <td className="px-6 py-4 text-center text-sm">
                         <span
                           className={`inline-block rounded px-2 py-1 text-xs ${vendor.is_active
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
                             }`}
                         >
                           {vendor.is_active ? '啟用' : '停用'}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center text-sm">
-                        <div className="flex justify-center gap-2">
-                          <button
-                            onClick={() => openEditModal(vendor)}
-                            className="font-medium text-blue-600 hover:underline"
-                          >
-                            編輯
-                          </button>
-                          <button
-                            onClick={() => handleDelete(vendor)}
-                            className="font-medium text-red-600 hover:underline"
-                          >
-                            刪除
-                          </button>
-                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEditModal(vendor)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              編輯
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleDelete(vendor)}
+                              className="text-red-600 focus:text-red-600"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              刪除
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </td>
                     </tr>
                   ))}

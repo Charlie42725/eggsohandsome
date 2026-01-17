@@ -50,6 +50,11 @@ type DashboardStats = {
     grossProfit: number
     grossMargin: number
   }>
+  depreciation?: {
+    total_monthly: number
+    total_assets: number
+    total_remaining: number
+  }
 }
 
 type RecentSale = {
@@ -267,6 +272,22 @@ export default function DashboardPage() {
         (extendedData.apAging?.days61_90 || 0) +
         (extendedData.apAging?.over90 || 0)
 
+      // Fetch fixed asset depreciation summary
+      let depreciation = { total_monthly: 0, total_assets: 0, total_remaining: 0 }
+      try {
+        const depRes = await fetch('/api/fixed-assets/summary')
+        const depData = await depRes.json()
+        if (depData.ok) {
+          depreciation = {
+            total_monthly: depData.data.summary.total_monthly_depreciation,
+            total_assets: depData.data.summary.total_assets,
+            total_remaining: depData.data.summary.total_remaining_value
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch depreciation:', err)
+      }
+
       setStats({
         todaySales: totalSales,
         todayOrders: salesInRange.length,
@@ -285,8 +306,8 @@ export default function DashboardPage() {
         arOverdueList: extendedData.arOverdueList,
         apDueSoon: extendedData.apDueSoon,
         apOverdueList: extendedData.apOverdueList,
-        inventory: extendedData.inventory,
         profitTrend: extendedData.profitTrend,
+        depreciation,
       })
 
       // Fetch recent sales
@@ -531,81 +552,18 @@ export default function DashboardPage() {
             )}
           </div>
 
-          <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow">
-            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">📦 庫存總金額</div>
-            <div className="mt-2 text-3xl font-bold text-purple-600">
-              {formatCurrency(stats.inventory?.totalValue || 0)}
+          <Link href="/fixed-assets" className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow hover:shadow-lg transition-shadow">
+            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">每月攤提費用</div>
+            <div className="mt-2 text-3xl font-bold text-orange-600">
+              {formatCurrency(stats.depreciation?.total_monthly || 0)}
             </div>
             <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-              總數量: {stats.inventory?.totalQuantity?.toLocaleString() || 0} 件
+              固定資產 {stats.depreciation?.total_assets || 0} 項 | 剩餘價值 {formatCurrency(stats.depreciation?.total_remaining || 0)}
             </div>
-          </div>
+          </Link>
         </div>
 
-        {/* 帳齡分析與到期提醒 */}
-        <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {/* AR 帳齡分析 */}
-          <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow">
-            <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">📊 應收帳款帳齡分析</h2>
-            {stats.arAging ? (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center p-2 bg-green-50 dark:bg-green-900/20 rounded">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">0-30 天 (正常)</span>
-                  <span className="font-semibold text-green-600">{formatCurrency(stats.arAging.current)}</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">31-60 天</span>
-                  <span className="font-semibold text-yellow-600">{formatCurrency(stats.arAging.days31_60)}</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-orange-50 dark:bg-orange-900/20 rounded">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">61-90 天</span>
-                  <span className="font-semibold text-orange-600">{formatCurrency(stats.arAging.days61_90)}</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-red-50 dark:bg-red-900/20 rounded">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">90 天以上 ⚠️</span>
-                  <span className="font-semibold text-red-600">{formatCurrency(stats.arAging.over90)}</span>
-                </div>
-                <div className="border-t pt-2 mt-2 flex justify-between items-center">
-                  <span className="font-medium text-gray-900 dark:text-gray-100">總計</span>
-                  <span className="font-bold text-blue-600">{formatCurrency(stats.arAging.total)}</span>
-                </div>
-              </div>
-            ) : (
-              <p className="text-gray-500">無數據</p>
-            )}
-          </div>
 
-          {/* AP 帳齡分析 */}
-          <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow">
-            <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">📊 應付帳款帳齡分析</h2>
-            {stats.apAging ? (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center p-2 bg-green-50 dark:bg-green-900/20 rounded">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">0-30 天 (正常)</span>
-                  <span className="font-semibold text-green-600">{formatCurrency(stats.apAging.current)}</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">31-60 天</span>
-                  <span className="font-semibold text-yellow-600">{formatCurrency(stats.apAging.days31_60)}</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-orange-50 dark:bg-orange-900/20 rounded">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">61-90 天</span>
-                  <span className="font-semibold text-orange-600">{formatCurrency(stats.apAging.days61_90)}</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-red-50 dark:bg-red-900/20 rounded">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">90 天以上 ⚠️</span>
-                  <span className="font-semibold text-red-600">{formatCurrency(stats.apAging.over90)}</span>
-                </div>
-                <div className="border-t pt-2 mt-2 flex justify-between items-center">
-                  <span className="font-medium text-gray-900 dark:text-gray-100">總計</span>
-                  <span className="font-bold text-orange-600">{formatCurrency(stats.apAging.total)}</span>
-                </div>
-              </div>
-            ) : (
-              <p className="text-gray-500">無數據</p>
-            )}
-          </div>
-        </div>
 
         {/* 到期提醒 */}
         <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -646,24 +604,6 @@ export default function DashboardPage() {
               </div>
             </div>
           )}
-
-          {/* AR 逾期清單 */}
-          {stats.arOverdueList && stats.arOverdueList.length > 0 && (
-            <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow border-l-4 border-red-500">
-              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">🚨 應收帳款已逾期</h2>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {stats.arOverdueList.map((item, index) => (
-                  <div key={index} className="flex justify-between items-center p-2 bg-red-50 dark:bg-red-900/20 rounded">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">{item.partner_code}</span>
-                    <div className="text-right">
-                      <span className="font-semibold text-red-600">{formatCurrency(item.balance)}</span>
-                      <span className="ml-2 text-xs text-gray-500">(逾期 {item.days_overdue} 天)</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* 毛利率趨勢 */}
@@ -686,9 +626,9 @@ export default function DashboardPage() {
                       </span>
                       <div
                         className={`w-10 rounded-t transition-all ${isNegative ? 'bg-red-500' :
-                            day.grossMargin >= 30 ? 'bg-green-500' :
-                              day.grossMargin >= 20 ? 'bg-yellow-500' :
-                                day.grossMargin >= 10 ? 'bg-orange-500' : 'bg-red-400'
+                          day.grossMargin >= 30 ? 'bg-green-500' :
+                            day.grossMargin >= 20 ? 'bg-yellow-500' :
+                              day.grossMargin >= 10 ? 'bg-orange-500' : 'bg-red-400'
                           }`}
                         style={{ height: `${Math.max(absHeight, 8)}px` }}
                         title={`營收: ${formatCurrency(day.revenue)}\n成本: ${formatCurrency(day.cost)}\n毛利: ${formatCurrency(day.grossProfit)}`}
@@ -708,11 +648,15 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Cost Breakdown */}
+        {/* Cost Breakdown - Collapsible */}
         {stats.costBreakdown && stats.costBreakdown.length > 0 && (
-          <div className="mb-6 rounded-lg bg-white dark:bg-gray-800 p-6 shadow">
-            <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">期間成本明細</h2>
-            <div className="overflow-x-auto">
+          <details className="mb-6 rounded-lg bg-white dark:bg-gray-800 shadow">
+            <summary className="p-6 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg">
+              <span className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                期間成本明細 ({stats.costBreakdown.length} 項, 合計 {formatCurrency(stats.totalCost)})
+              </span>
+            </summary>
+            <div className="px-6 pb-6 overflow-x-auto">
               <table className="w-full">
                 <thead className="border-b bg-gray-50 dark:bg-gray-900">
                   <tr>
@@ -750,56 +694,8 @@ export default function DashboardPage() {
                 </tfoot>
               </table>
             </div>
-          </div>
+          </details>
         )}
-
-        {/* Recent Sales */}
-        <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">最近銷售</h2>
-            <Link
-              href="/sales"
-              className="text-sm text-blue-600 hover:underline"
-            >
-              查看全部
-            </Link>
-          </div>
-
-          {recentSales.length === 0 ? (
-            <p className="py-8 text-center text-gray-900">暫無銷售記錄</p>
-          ) : (
-            <div className="space-y-3">
-              {recentSales.map((sale) => (
-                <div
-                  key={sale.id}
-                  className="flex items-center justify-between rounded border border-gray-200 dark:border-gray-700 p-3"
-                >
-                  <div>
-                    <div className="font-medium text-gray-900 dark:text-gray-100">
-                      {sale.sale_no}
-                    </div>
-                    <div className="text-sm text-gray-900 dark:text-gray-100">
-                      {sale.customer_code || '散客'}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-semibold text-gray-900 dark:text-gray-100">
-                      {formatCurrency(sale.total)}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {new Date(sale.created_at).toLocaleString('zh-TW', {
-                        month: '2-digit',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
 
 
       </div>

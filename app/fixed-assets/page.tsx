@@ -2,6 +2,14 @@
 
 import React, { useState, useEffect } from 'react'
 import { formatCurrency } from '@/lib/utils'
+import { MoreHorizontal, Edit, Trash2 } from 'lucide-react'
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Button } from '@/components/ui/button'
 
 type FixedAsset = {
     id: string
@@ -316,8 +324,8 @@ export default function FixedAssetsPage() {
                                                     <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                                                         <div
                                                             className={`h-full rounded-full ${asset.is_fully_depreciated
-                                                                    ? 'bg-green-500'
-                                                                    : 'bg-blue-500'
+                                                                ? 'bg-green-500'
+                                                                : 'bg-blue-500'
                                                                 }`}
                                                             style={{ width: `${asset.progress_percent}%` }}
                                                         />
@@ -331,20 +339,26 @@ export default function FixedAssetsPage() {
                                                 {formatCurrency(asset.remaining_value)}
                                             </td>
                                             <td className="px-4 py-3 text-center">
-                                                <div className="flex gap-2 justify-center">
-                                                    <button
-                                                        onClick={() => handleEdit(asset)}
-                                                        className="text-blue-600 hover:text-blue-800 text-sm"
-                                                    >
-                                                        編輯
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDelete(asset.id, asset.asset_name)}
-                                                        className="text-red-600 hover:text-red-800 text-sm"
-                                                    >
-                                                        刪除
-                                                    </button>
-                                                </div>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" className="h-8 w-8 p-0">
+                                                            <MoreHorizontal className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem onClick={() => handleEdit(asset)}>
+                                                            <Edit className="mr-2 h-4 w-4" />
+                                                            編輯
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                            onClick={() => handleDelete(asset.id, asset.asset_name)}
+                                                            className="text-red-600 focus:text-red-600"
+                                                        >
+                                                            <Trash2 className="mr-2 h-4 w-4" />
+                                                            刪除
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
                                             </td>
                                         </tr>
                                     ))}

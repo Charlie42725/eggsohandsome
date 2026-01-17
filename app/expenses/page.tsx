@@ -3,6 +3,14 @@
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { MoreHorizontal, Edit, Trash2 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Button } from '@/components/ui/button'
 
 type Expense = {
   id: number
@@ -300,21 +308,27 @@ export default function ExpensesPage() {
                         {expense.note || '-'}
                       </td>
                       <td className="px-6 py-4 text-center text-sm">
-                        <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => router.push(`/expenses/${expense.id}/edit`)}
-                            className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
-                          >
-                            編輯
-                          </button>
-                          <button
-                            onClick={() => handleDelete(expense.id, expense.category)}
-                            disabled={deleting === expense.id}
-                            className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-400"
-                          >
-                            {deleting === expense.id ? '刪除中...' : '刪除'}
-                          </button>
-                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => router.push(`/expenses/${expense.id}/edit`)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              編輯
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleDelete(expense.id, expense.category)}
+                              disabled={deleting === expense.id}
+                              className="text-red-600 focus:text-red-600"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              {deleting === expense.id ? '刪除中...' : '刪除'}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </td>
                     </tr>
                   ))}

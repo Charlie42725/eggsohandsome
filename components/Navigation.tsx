@@ -42,6 +42,7 @@ const navItems: NavItem[] = [
     roles: ['admin', 'staff'],
     submenu: [
       { href: '/expenses', label: '會計記帳', roles: ['admin', 'staff'] },
+      { href: '/fixed-assets', label: '固定資產', roles: ['admin'] },
       { href: '/ar', label: '應收帳款', roles: ['admin'] },
       { href: '/ap', label: '應付帳款', roles: ['admin'] },
     ],
@@ -51,7 +52,6 @@ const navItems: NavItem[] = [
     roles: ['admin'],
     submenu: [
       { href: '/accounts', label: '帳戶管理', roles: ['admin'] },
-      { href: '/fixed-assets', label: '固定資產', roles: ['admin'] },
       { href: '/finance', label: '財務總覽', roles: ['admin'] },
     ],
   },

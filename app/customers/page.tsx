@@ -3,6 +3,14 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import type { Customer } from '@/types'
+import { MoreHorizontal, Edit, Trash2, Wallet } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Button } from '@/components/ui/button'
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -222,8 +230,8 @@ export default function CustomersPage() {
             <button
               onClick={() => setActiveFilter(null)}
               className={`rounded px-4 py-1 font-medium ${activeFilter === null
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                 }`}
             >
               全部
@@ -231,8 +239,8 @@ export default function CustomersPage() {
             <button
               onClick={() => setActiveFilter(true)}
               className={`rounded px-4 py-1 font-medium ${activeFilter === true
-                  ? 'bg-green-600 text-white'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                 }`}
             >
               啟用
@@ -240,8 +248,8 @@ export default function CustomersPage() {
             <button
               onClick={() => setActiveFilter(false)}
               className={`rounded px-4 py-1 font-medium ${activeFilter === false
-                  ? 'bg-red-600 text-white'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
+                ? 'bg-red-600 text-white'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                 }`}
             >
               停用
@@ -290,8 +298,8 @@ export default function CustomersPage() {
                       </td>
                       <td className="px-4 py-3 text-sm text-right">
                         <span className={`font-bold ${customer.store_credit >= 0
-                            ? 'text-green-600 dark:text-green-400'
-                            : 'text-red-600 dark:text-red-400'
+                          ? 'text-green-600 dark:text-green-400'
+                          : 'text-red-600 dark:text-red-400'
                           }`}>
                           ${customer.store_credit?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
                         </span>
@@ -309,35 +317,38 @@ export default function CustomersPage() {
                       <td className="px-4 py-3 text-center text-sm">
                         <span
                           className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${customer.is_active
-                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
                             }`}
                         >
                           {customer.is_active ? '啟用' : '停用'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center text-sm">
-                        <div className="flex justify-center gap-1">
-                          <button
-                            onClick={() => openAdjustModal(customer)}
-                            className="rounded px-2 py-1 text-xs font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20"
-                            title="調整購物金"
-                          >
-                            💰
-                          </button>
-                          <button
-                            onClick={() => openEditModal(customer)}
-                            className="rounded px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                          >
-                            編輯
-                          </button>
-                          <button
-                            onClick={() => handleDelete(customer)}
-                            className="rounded px-2 py-1 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-                          >
-                            刪除
-                          </button>
-                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openAdjustModal(customer)}>
+                              <Wallet className="mr-2 h-4 w-4" />
+                              調整購物金
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEditModal(customer)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              編輯
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleDelete(customer)}
+                              className="text-red-600 focus:text-red-600"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              刪除
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </td>
                     </tr>
                   ))}
@@ -573,8 +584,8 @@ export default function CustomersPage() {
               <div>
                 <span className="text-sm font-medium text-gray-600 dark:text-gray-300">當前餘額：</span>
                 <span className={`ml-2 text-lg font-bold ${adjustingCustomer.store_credit >= 0
-                    ? 'text-green-600 dark:text-green-400'
-                    : 'text-red-600 dark:text-red-400'
+                  ? 'text-green-600 dark:text-green-400'
+                  : 'text-red-600 dark:text-red-400'
                   }`}>
                   ${adjustingCustomer.store_credit?.toFixed(2) || '0.00'}
                 </span>
