@@ -151,6 +151,7 @@ export default function SalesPage() {
   const [storeCreditAmount, setStoreCreditAmount] = useState<string>('')
   const [correcting, setCorrecting] = useState(false)
   const [convertingToStoreCredit, setConvertingToStoreCredit] = useState(false)
+  const [convertingItemId, setConvertingItemId] = useState<string | null>(null)
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null)
 
   const toggleCustomer = (customerKey: string) => {
@@ -577,6 +578,67 @@ export default function SalesPage() {
     }
   }
 
+  // 執行單品轉購物金
+  const handleItemToStoreCredit = async (item: SaleItem, sale: Sale) => {
+    if (!sale.customer_code) {
+      alert('此銷售單沒有關聯客戶，無法轉為購物金')
+      return
+    }
+
+    const itemSubtotal = item.price * item.quantity
+    if (itemSubtotal <= 0) {
+      alert('此品項金額為 0，無法轉換')
+      return
+    }
+
+    const amountInput = prompt(`將「${item.snapshot_name}」轉為購物金\n\n品項金額：${formatCurrency(itemSubtotal)}\n\n請輸入要轉換的金額：`, itemSubtotal.toString())
+
+    if (amountInput === null) {
+      return // 用戶取消
+    }
+
+    const amount = parseFloat(amountInput)
+    if (isNaN(amount) || amount <= 0) {
+      alert('請輸入有效的金額')
+      return
+    }
+
+    if (amount > itemSubtotal) {
+      alert(`金額不能超過品項金額 ${formatCurrency(itemSubtotal)}`)
+      return
+    }
+
+    if (!confirm(`確定要將 ${formatCurrency(amount)} 轉為購物金嗎？\n\n此操作將會回補庫存並清除應收帳款。`)) {
+      return
+    }
+
+    setConvertingItemId(item.id)
+    try {
+      const res = await fetch(`/api/sale-items/${item.id}/to-store-credit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: amount,
+          refund_inventory: amount >= itemSubtotal, // 只有全額轉換才回補庫存
+          note: `單品轉購物金 - ${item.snapshot_name}`,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (data.ok) {
+        alert(`轉購物金成功！\n\n客戶：${data.data.customer_name}\n商品：${data.data.product_name}\n轉換金額：${formatCurrency(data.data.conversion_amount)}\n購物金餘額：${formatCurrency(data.data.store_credit_before)} → ${formatCurrency(data.data.store_credit_after)}\n回補庫存：${data.data.inventory_restored} 件`)
+        fetchSales()
+      } else {
+        alert(`轉換失敗：${data.error}`)
+      }
+    } catch (err) {
+      alert('轉換失敗')
+    } finally {
+      setConvertingItemId(null)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
       <div className="mx-auto max-w-7xl">
@@ -953,15 +1015,26 @@ export default function SalesPage() {
                                                   {formatCurrency(item.price * item.quantity)}
                                                 </td>
                                                 <td className="py-1 text-center">
-                                                  {!item.is_delivered && (
-                                                    <button
-                                                      onClick={() => handleDeliverItem(item)}
-                                                      disabled={delivering === item.id}
-                                                      className="rounded bg-blue-600 px-2 py-0.5 text-xs text-white hover:bg-blue-700 disabled:bg-gray-400"
-                                                    >
-                                                      {delivering === item.id ? '處理中...' : '出貨'}
-                                                    </button>
-                                                  )}
+                                                  <div className="flex items-center justify-center gap-1">
+                                                    {!item.is_delivered && (
+                                                      <button
+                                                        onClick={() => handleDeliverItem(item)}
+                                                        disabled={delivering === item.id}
+                                                        className="rounded bg-blue-600 px-2 py-0.5 text-xs text-white hover:bg-blue-700 disabled:bg-gray-400"
+                                                      >
+                                                        {delivering === item.id ? '處理中...' : '出貨'}
+                                                      </button>
+                                                    )}
+                                                    {sale.customer_code && item.price > 0 && (
+                                                      <button
+                                                        onClick={() => handleItemToStoreCredit(item, sale)}
+                                                        disabled={convertingItemId === item.id}
+                                                        className="rounded px-2 py-0.5 text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30 disabled:opacity-50"
+                                                      >
+                                                        {convertingItemId === item.id ? '處理中...' : '💰'}
+                                                      </button>
+                                                    )}
+                                                  </div>
                                                 </td>
                                               </tr>
                                             )
@@ -1183,15 +1256,26 @@ export default function SalesPage() {
                                               {formatCurrency(item.quantity * item.price)}
                                             </td>
                                             <td className="py-2 text-center">
-                                              {!item.is_delivered && (
-                                                <button
-                                                  onClick={() => handleDeliverItem(item)}
-                                                  disabled={delivering === item.id}
-                                                  className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700 disabled:bg-gray-400"
-                                                >
-                                                  {delivering === item.id ? '處理中...' : '出貨'}
-                                                </button>
-                                              )}
+                                              <div className="flex items-center justify-center gap-1">
+                                                {!item.is_delivered && (
+                                                  <button
+                                                    onClick={() => handleDeliverItem(item)}
+                                                    disabled={delivering === item.id}
+                                                    className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700 disabled:bg-gray-400"
+                                                  >
+                                                    {delivering === item.id ? '處理中...' : '出貨'}
+                                                  </button>
+                                                )}
+                                                {sale.customer_code && item.price > 0 && (
+                                                  <button
+                                                    onClick={() => handleItemToStoreCredit(item, sale)}
+                                                    disabled={convertingItemId === item.id}
+                                                    className="rounded px-2 py-1 text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30 disabled:opacity-50"
+                                                  >
+                                                    {convertingItemId === item.id ? '處理中...' : '💰'}
+                                                  </button>
+                                                )}
+                                              </div>
                                             </td>
                                           </tr>
                                         )

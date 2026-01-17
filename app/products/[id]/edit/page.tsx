@@ -5,6 +5,8 @@ import { useRouter, useParams } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 import type { Product } from '@/types'
 
+type UserRole = 'admin' | 'staff'
+
 type StockAdjustment = {
   id: string
   product_id: string
@@ -26,6 +28,7 @@ export default function EditProductPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [barcode, setBarcode] = useState('')
+  const [userRole, setUserRole] = useState<UserRole | null>(null)
 
   // Stock adjustment states
   const [adjustments, setAdjustments] = useState<StockAdjustment[]>([])
@@ -34,7 +37,20 @@ export default function EditProductPage() {
   const [adjustNote, setAdjustNote] = useState('')
   const [adjusting, setAdjusting] = useState(false)
 
+  const isAdmin = userRole === 'admin'
+
   useEffect(() => {
+    // Fetch current user role
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) {
+          setUserRole(data.data.role)
+        }
+      })
+      .catch(() => {
+        // Ignore error
+      })
     fetchProduct()
     fetchAdjustments()
   }, [productId])
@@ -211,10 +227,12 @@ export default function EditProductPage() {
               <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">目前庫存</label>
               <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{product.stock}</div>
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">平均成本</label>
-              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">NT$ {product.avg_cost.toFixed(2)}</div>
-            </div>
+            {isAdmin && (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">平均成本</label>
+                <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">NT$ {product.avg_cost.toFixed(2)}</div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -256,8 +274,8 @@ export default function EditProductPage() {
                       parseInt(adjustedStock) - product.stock > 0
                         ? 'text-green-600 dark:text-green-400'
                         : parseInt(adjustedStock) - product.stock < 0
-                        ? 'text-red-600 dark:text-red-400'
-                        : 'text-gray-600 dark:text-gray-400'
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-gray-600 dark:text-gray-400'
                     }>
                       {parseInt(adjustedStock) - product.stock > 0 ? '+' : ''}
                       {parseInt(adjustedStock) - product.stock}
@@ -321,9 +339,8 @@ export default function EditProductPage() {
                         <td className="py-1 text-gray-900 dark:text-gray-100">{formatDate(adj.created_at)}</td>
                         <td className="py-1 text-right text-gray-900 dark:text-gray-100">{adj.previous_stock}</td>
                         <td className="py-1 text-right text-gray-900 dark:text-gray-100">{adj.adjusted_stock}</td>
-                        <td className={`py-1 text-right ${
-                          adj.difference > 0 ? 'text-green-600 dark:text-green-400' : adj.difference < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'
-                        }`}>
+                        <td className={`py-1 text-right ${adj.difference > 0 ? 'text-green-600 dark:text-green-400' : adj.difference < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'
+                          }`}>
                           {adj.difference > 0 ? '+' : ''}{adj.difference}
                         </td>
                         <td className="py-1 text-gray-900 dark:text-gray-100">{adj.note || '-'}</td>
@@ -414,20 +431,22 @@ export default function EditProductPage() {
               />
             </div>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
-                成本 <span className="text-xs text-gray-500 dark:text-gray-400">（參考成本，可隨時修改）</span>
-              </label>
-              <input
-                type="number"
-                name="cost"
-                min="0"
-                step="0.01"
-                key={`cost-${product.cost}`}
-                defaultValue={product.cost}
-                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-              />
-            </div>
+            {isAdmin && (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
+                  成本 <span className="text-xs text-gray-500 dark:text-gray-400">（參考成本，可隨時修改）</span>
+                </label>
+                <input
+                  type="number"
+                  name="cost"
+                  min="0"
+                  step="0.01"
+                  key={`cost-${product.cost}`}
+                  defaultValue={product.cost}
+                  className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                />
+              </div>
+            )}
           </div>
 
           <div className="mb-6">
