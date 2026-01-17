@@ -40,6 +40,26 @@ export default function AccountsPage() {
     is_active: true,
   })
 
+  // Transfer State
+  const [showTransferModal, setShowTransferModal] = useState(false)
+  const [transferData, setTransferData] = useState({
+    fromAccountId: '',
+    toAccountId: '',
+    amount: 0,
+    date: new Date().toISOString().split('T')[0],
+    note: ''
+  })
+
+  // Adjustment State
+  const [showAdjustmentModal, setShowAdjustmentModal] = useState(false)
+  const [adjustmentData, setAdjustmentData] = useState({
+    accountId: '',
+    accountName: '',
+    amount: 0,
+    date: new Date().toISOString().split('T')[0],
+    note: ''
+  })
+
   useEffect(() => {
     fetchAccounts()
   }, [])
@@ -54,6 +74,77 @@ export default function AccountsPage() {
       }
     } catch (err) {
       console.error('Failed to fetch accounts:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAdjustment = (account: Account) => {
+    setAdjustmentData({
+      accountId: account.id,
+      accountName: account.account_name,
+      amount: 0,
+      date: new Date().toISOString().split('T')[0],
+      note: ''
+    })
+    setShowAdjustmentModal(true)
+  }
+
+  const submitAdjustment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      const res = await fetch('/api/accounts/adjust', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: adjustmentData.accountId,
+          amount: adjustmentData.amount,
+          date: adjustmentData.date,
+          note: adjustmentData.note
+        })
+      })
+      const data = await res.json()
+      if (data.ok) {
+        alert('餘額調整成功！')
+        setShowAdjustmentModal(false)
+        fetchAccounts()
+      } else {
+        alert(`調整失敗: ${data.error}`)
+      }
+    } catch (err) {
+      alert('調整發生錯誤')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleTransfer = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      const res = await fetch('/api/accounts/transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(transferData)
+      })
+      const data = await res.json()
+      if (data.ok) {
+        alert('轉帳成功！')
+        setShowTransferModal(false)
+        setTransferData({
+          fromAccountId: '',
+          toAccountId: '',
+          amount: 0,
+          date: new Date().toISOString().split('T')[0],
+          note: ''
+        })
+        fetchAccounts()
+      } else {
+        alert(`轉帳失敗: ${data.error}`)
+      }
+    } catch (err) {
+      alert('轉帳發生錯誤')
     } finally {
       setLoading(false)
     }
@@ -93,7 +184,7 @@ export default function AccountsPage() {
     setFormData({
       account_name: account.account_name,
       account_type: account.account_type,
-      balance: account.balance,
+      balance: 0, // Not used for edit anymore
       is_active: account.is_active,
     })
     setShowAddForm(true)
@@ -150,13 +241,205 @@ export default function AccountsPage() {
       <div className="mx-auto max-w-7xl">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">帳戶管理</h1>
-          <button
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
-          >
-            {showAddForm ? '取消' : '+ 新增帳戶'}
-          </button>
+          <div className="flex gap-4">
+            <button
+              onClick={() => setShowTransferModal(true)}
+              className="rounded bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700"
+            >
+              資金轉帳
+            </button>
+            <button
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
+            >
+              {showAddForm ? '取消' : '+ 新增帳戶'}
+            </button>
+          </div>
         </div>
+
+        {/* Adjustment Modal */}
+        {showAdjustmentModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowAdjustmentModal(false)}>
+            <div
+              className="mx-4 w-full max-w-lg rounded-lg bg-white dark:bg-gray-800 p-6 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">
+                餘額調整 - {adjustmentData.accountName}
+              </h2>
+              <form onSubmit={submitAdjustment} className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
+                    調整金額 (正數增加，負數減少)
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={adjustmentData.amount}
+                    onChange={(e) => setAdjustmentData({ ...adjustmentData, amount: Number(e.target.value) })}
+                    className="w-full rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 px-3 py-2 text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none"
+                    placeholder="輸入金額"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    例如：輸入 500 表示增加 $500；輸入 -500 表示減少 $500
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
+                    日期
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={adjustmentData.date}
+                    onChange={(e) => setAdjustmentData({ ...adjustmentData, date: e.target.value })}
+                    className="w-full rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 px-3 py-2 text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
+                    備註
+                  </label>
+                  <input
+                    type="text"
+                    value={adjustmentData.note}
+                    onChange={(e) => setAdjustmentData({ ...adjustmentData, note: e.target.value })}
+                    className="w-full rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 px-3 py-2 text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none"
+                    placeholder="例如：期初開帳、盤點調整"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="submit"
+                    className="flex-1 rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+                  >
+                    確認調整
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAdjustmentModal(false)}
+                    className="flex-1 rounded bg-gray-500 px-4 py-2 text-white hover:bg-gray-600"
+                  >
+                    取消
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Transfer Modal */}
+        {showTransferModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowTransferModal(false)}>
+            <div
+              className="mx-4 w-full max-w-lg rounded-lg bg-white dark:bg-gray-800 p-6 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">
+                資金轉帳 (零用金儲值)
+              </h2>
+              <form onSubmit={handleTransfer} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
+                      轉出帳戶 (From)
+                    </label>
+                    <select
+                      required
+                      value={transferData.fromAccountId}
+                      onChange={(e) => setTransferData({ ...transferData, fromAccountId: e.target.value })}
+                      className="w-full rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 px-3 py-2 text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none"
+                    >
+                      <option value="">請選擇帳戶</option>
+                      {accounts.map(acc => (
+                        <option key={acc.id} value={acc.id} disabled={acc.id === transferData.toAccountId}>
+                          {acc.account_name} (${formatCurrency(acc.balance)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
+                      轉入帳戶 (To)
+                    </label>
+                    <select
+                      required
+                      value={transferData.toAccountId}
+                      onChange={(e) => setTransferData({ ...transferData, toAccountId: e.target.value })}
+                      className="w-full rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 px-3 py-2 text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none"
+                    >
+                      <option value="">請選擇帳戶</option>
+                      {accounts.map(acc => (
+                        <option key={acc.id} value={acc.id} disabled={acc.id === transferData.fromAccountId}>
+                          {acc.account_name} (${formatCurrency(acc.balance)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
+                    金額
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    value={transferData.amount}
+                    onChange={(e) => setTransferData({ ...transferData, amount: Number(e.target.value) })}
+                    className="w-full rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 px-3 py-2 text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
+                    日期
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={transferData.date}
+                    onChange={(e) => setTransferData({ ...transferData, date: e.target.value })}
+                    className="w-full rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 px-3 py-2 text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
+                    備註
+                  </label>
+                  <input
+                    type="text"
+                    value={transferData.note}
+                    onChange={(e) => setTransferData({ ...transferData, note: e.target.value })}
+                    className="w-full rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 px-3 py-2 text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none"
+                    placeholder="例如：零用金補充"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="submit"
+                    className="flex-1 rounded bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700"
+                  >
+                    確認轉帳
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowTransferModal(false)}
+                    className="flex-1 rounded bg-gray-500 px-4 py-2 text-white hover:bg-gray-600"
+                  >
+                    取消
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* Add/Edit Modal */}
         {showAddForm && (
@@ -207,19 +490,7 @@ export default function AccountsPage() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
-                    初始餘額
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.balance}
-                    onChange={(e) =>
-                      setFormData({ ...formData, balance: Number(e.target.value) })
-                    }
-                    className="w-full rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 px-3 py-2 text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
+                {/* Balance input removed - Use Adjustment instead */}
 
                 <div className="flex items-center">
                   <label className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -357,6 +628,13 @@ export default function AccountsPage() {
                                     </DropdownMenuItem>
                                   </Link>
                                   <DropdownMenuItem
+                                    onClick={() => handleAdjustment(account)}
+                                    className="cursor-pointer text-blue-600 focus:text-blue-600"
+                                  >
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    餘額調整
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
                                     onClick={() => handleEdit(account)}
                                     className="cursor-pointer"
                                   >
@@ -387,4 +665,3 @@ export default function AccountsPage() {
     </div>
   )
 }
-

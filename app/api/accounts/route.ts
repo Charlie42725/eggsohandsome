@@ -72,7 +72,8 @@ export async function POST(request: NextRequest) {
       .insert({
         account_name: account.account_name,
         account_type: account.account_type,
-        balance: account.balance || 0,
+        // Balance is always 0 on creation now. Adjustments must be made via transaction.
+        balance: 0,
         is_active: account.is_active !== false,
         created_at: getTaiwanTime(),
       })
