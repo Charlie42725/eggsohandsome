@@ -62,6 +62,7 @@ export default function FixedAssetsPage() {
     const [summary, setSummary] = useState<Summary | null>(null)
     const [loading, setLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
+    const [submitting, setSubmitting] = useState(false)
     const [editingAsset, setEditingAsset] = useState<FixedAsset | null>(null)
     const [formData, setFormData] = useState({
         asset_name: '',
@@ -110,6 +111,8 @@ export default function FixedAssetsPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (submitting) return
+        setSubmitting(true)
 
         const months = formData.use_years
             ? parseInt(formData.useful_life_years) * 12
@@ -152,6 +155,8 @@ export default function FixedAssetsPage() {
             }
         } catch (err) {
             alert('操作失敗')
+        } finally {
+            setSubmitting(false)
         }
     }
 
@@ -519,9 +524,10 @@ export default function FixedAssetsPage() {
                                 <div className="flex gap-3 pt-2">
                                     <button
                                         type="submit"
-                                        className="flex-1 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+                                        disabled={submitting}
+                                        className="flex-1 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                                     >
-                                        {editingAsset ? '更新' : '新增'}
+                                        {submitting ? '處理中...' : (editingAsset ? '更新' : '新增')}
                                     </button>
                                     <button
                                         type="button"
