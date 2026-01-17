@@ -135,19 +135,19 @@ export async function POST(request: NextRequest) {
     let purchase: any = null
     let purchaseError: any = null
     let attempts = 0
-    const maxAttempts = 3
+    const maxAttempts = 5
 
     while (attempts < maxAttempts) {
       attempts++
 
       // Get latest purchase_no to determine next number
-      // We explicitly order by created_at desc to find the most recent one
-      const { data: lastPurchase } = await supabaseServer
+      // Order by purchase_no DESC to find the highest number (since they're zero-padded)
+      const { data: lastPurchase, error: fetchError } = await supabaseServer
         .from('purchases')
         .select('purchase_no')
-        .order('id', { ascending: false })
+        .order('purchase_no', { ascending: false })
         .limit(1)
-        .single()
+        .maybeSingle()
 
       let nextNum = 1
       if (lastPurchase && (lastPurchase as any).purchase_no) {
@@ -158,7 +158,13 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Add attempt number as additional offset to reduce collision chance on retry
+      if (attempts > 1) {
+        nextNum += attempts - 1
+      }
+
       const purchaseNo = `P${nextNum.toString().padStart(4, '0')}`
+      console.log(`[Purchase] Attempting to create purchase with number: ${purchaseNo} (attempt ${attempts}/${maxAttempts})`)
 
       // 1. Create purchase (draft)
       const result = await (supabaseServer
@@ -182,10 +188,12 @@ export async function POST(request: NextRequest) {
         }
 
         purchaseError = result.error
+        console.error(`[Purchase] Insert failed:`, result.error)
         break
       }
 
       purchase = result.data
+      console.log(`[Purchase] Successfully created purchase: ${purchaseNo}`)
       break
     }
 

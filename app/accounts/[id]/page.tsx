@@ -35,6 +35,8 @@ const TRANSACTION_TYPE_LABELS: Record<string, string> = {
     customer_payment: '客戶收款',
     adjustment: '餘額調整',
     settlement: '結算',
+    transfer_out: '轉出',
+    transfer_in: '轉入',
 }
 
 export default function AccountDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -218,7 +220,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
                                         const balanceBefore = tx.balance_before;
                                         const change = tx.balance_after - balanceBefore;
                                         // Fallback logic if balance_before is missing: assume sale/customer_payment is +
-                                        const isPositive = ['sale', 'customer_payment', 'adjustment_increase'].includes(tx.transaction_type) || change >= 0;
+                                        const isPositive = ['sale', 'customer_payment', 'adjustment_increase', 'transfer_in'].includes(tx.transaction_type) || change >= 0;
 
                                         return (
                                             <tr key={tx.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
@@ -226,11 +228,11 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
                                                     {formatDate(tx.created_at)}
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${['sale', 'customer_payment'].includes(tx.transaction_type)
-                                                            ? 'bg-green-100 text-green-800'
-                                                            : ['expense', 'purchase_payment'].includes(tx.transaction_type)
-                                                                ? 'bg-red-100 text-red-800'
-                                                                : 'bg-gray-100 text-gray-800'
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${['sale', 'customer_payment', 'transfer_in'].includes(tx.transaction_type)
+                                                        ? 'bg-green-100 text-green-800'
+                                                        : ['expense', 'purchase_payment', 'transfer_out'].includes(tx.transaction_type)
+                                                            ? 'bg-red-100 text-red-800'
+                                                            : 'bg-gray-100 text-gray-800'
                                                         }`}>
                                                         {TRANSACTION_TYPE_LABELS[tx.transaction_type] || tx.transaction_type}
                                                     </span>
