@@ -40,20 +40,20 @@ type Summary = {
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
-    equipment: '設備器材',
-    furniture: '傢俱裝潢',
-    renovation: '裝修工程',
-    deposit: '押金保證金',
-    startup: '開店資本',
+    machinery: '機械設備',
+    transport: '運輸設備',
+    office: '辦公設備',
+    computer: '電腦設備',
+    leasehold: '租賃改良',
     other: '其他',
 }
 
 const CATEGORY_OPTIONS = [
-    { value: 'equipment', label: '設備器材' },
-    { value: 'furniture', label: '傢俱裝潢' },
-    { value: 'renovation', label: '裝修工程' },
-    { value: 'deposit', label: '押金保證金' },
-    { value: 'startup', label: '開店資本' },
+    { value: 'machinery', label: '機械設備' },
+    { value: 'transport', label: '運輸設備' },
+    { value: 'office', label: '辦公設備' },
+    { value: 'computer', label: '電腦設備' },
+    { value: 'leasehold', label: '租賃改良' },
     { value: 'other', label: '其他' },
 ]
 
@@ -65,7 +65,7 @@ export default function FixedAssetsPage() {
     const [editingAsset, setEditingAsset] = useState<FixedAsset | null>(null)
     const [formData, setFormData] = useState({
         asset_name: '',
-        category: 'equipment',
+        category: 'machinery',
         purchase_date: new Date().toISOString().split('T')[0],
         purchase_amount: '',
         residual_value: '0',
@@ -199,7 +199,7 @@ export default function FixedAssetsPage() {
     const resetForm = () => {
         setFormData({
             asset_name: '',
-            category: 'equipment',
+            category: 'machinery',
             purchase_date: new Date().toISOString().split('T')[0],
             purchase_amount: '',
             residual_value: '0',
