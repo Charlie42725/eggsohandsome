@@ -53,7 +53,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
             {/* Logo 圖片 - 第二層 - 白色/漸變背景 */}
             <div className="relative z-10 w-[320px] h-[320px] rounded-full bg-gradient-to-br from-white via-yellow-50 to-orange-50 p-6 shadow-2xl ring-2 ring-yellow-400/30 flex items-center justify-center">
               <img
-                src="/logo3.png"
+                src="/logo.jpg"
                 alt="蛋要酷事務所"
                 width={308}
                 height={308}

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
 import ThemeToggle from './ThemeToggle'
 
 type UserRole = 'admin' | 'staff'
@@ -112,14 +113,34 @@ export default function Navigation() {
         <div className="flex min-h-[4rem] items-center justify-between gap-2 sm:gap-4 py-2">
           <div className="flex items-center gap-3 sm:gap-6 lg:gap-8 min-w-0 flex-1">
             <Link href="/" className="flex items-center gap-2 shrink-0">
-              <Image
-                src="/logo.jpg"
-                alt="ToyFlow ERP Logo"
-                width={40}
-                height={40}
-                className="rounded-lg shadow-sm sm:w-11 sm:h-11"
-              />
-              <span className="hidden sm:inline text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 dark:from-blue-400 dark:to-blue-300 bg-clip-text text-transparent">蛋要酷 ERP</span>
+              <motion.div
+                initial={{ scale: 0, rotate: -180 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{
+                  type: "spring",
+                  stiffness: 260,
+                  damping: 20,
+                  duration: 0.6
+                }}
+                whileHover={{ scale: 1.1, rotate: 5 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Image
+                  src="/logo.jpg"
+                  alt="ToyFlow ERP Logo"
+                  width={40}
+                  height={40}
+                  className="rounded-lg shadow-sm sm:w-11 sm:h-11"
+                />
+              </motion.div>
+              <motion.span
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.3, duration: 0.5 }}
+                className="hidden sm:inline text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 dark:from-blue-400 dark:to-blue-300 bg-clip-text text-transparent"
+              >
+                蛋要酷 ERP
+              </motion.span>
             </Link>
 
             {/* Desktop Navigation - 允许换行，不使用滚动 */}

@@ -3,15 +3,14 @@
 import { useEffect, useState } from 'react'
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<'light' | 'dark'>('light')
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark')
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
-    // Check localStorage or system preference
+    // Check localStorage, default to dark mode
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null
-    const systemPreference = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-    const initialTheme = savedTheme || systemPreference
+    const initialTheme = savedTheme || 'dark'
     setTheme(initialTheme)
     document.documentElement.classList.toggle('dark', initialTheme === 'dark')
     document.documentElement.classList.toggle('light', initialTheme === 'light')
