@@ -50,6 +50,15 @@ export default function PurchasesPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 50
 
+  // Sorting state
+  type SortField = 'purchase_no' | 'vendor_name' | 'total' | 'purchase_date' | 'status' | 'is_paid' | 'receiving_status'
+  const [sortField, setSortField] = useState<SortField>('purchase_date')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+
+  // Batch receiving state
+  const [selectedPurchases, setSelectedPurchases] = useState<Set<string>>(new Set())
+  const [batchReceiving, setBatchReceiving] = useState(false)
+
   useEffect(() => {
     // Fetch current user role
     fetch('/api/auth/me')
@@ -218,6 +227,140 @@ export default function PurchasesPage() {
     }
   }
 
+  // Sorting handler
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortOrder('asc')
+    }
+  }
+
+  // Sort purchases
+  const sortedPurchases = [...purchases].sort((a, b) => {
+    let aValue: any
+    let bValue: any
+
+    switch (sortField) {
+      case 'purchase_no':
+        aValue = a.purchase_no
+        bValue = b.purchase_no
+        break
+      case 'vendor_name':
+        aValue = a.vendors?.vendor_name || a.vendor_code
+        bValue = b.vendors?.vendor_name || b.vendor_code
+        break
+      case 'total':
+        aValue = a.total
+        bValue = b.total
+        break
+      case 'purchase_date':
+        aValue = new Date(a.purchase_date).getTime()
+        bValue = new Date(b.purchase_date).getTime()
+        break
+      case 'status':
+        aValue = a.status
+        bValue = b.status
+        break
+      case 'is_paid':
+        aValue = a.is_paid ? 1 : 0
+        bValue = b.is_paid ? 1 : 0
+        break
+      case 'receiving_status':
+        const statusOrder = { completed: 2, partial: 1, none: 0 }
+        aValue = statusOrder[a.receiving_status as keyof typeof statusOrder] || 0
+        bValue = statusOrder[b.receiving_status as keyof typeof statusOrder] || 0
+        break
+      default:
+        return 0
+    }
+
+    if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1
+    if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1
+    return 0
+  })
+
+  // Check if a purchase can be selected for batch receiving
+  const canSelectForReceiving = (purchase: Purchase) => {
+    return purchase.status === 'approved' && purchase.receiving_status !== 'completed'
+  }
+
+  // Get selectable purchases for current page
+  const getSelectablePurchases = () => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return sortedPurchases.slice(startIndex, endIndex).filter(canSelectForReceiving)
+  }
+
+  // Toggle single purchase selection
+  const togglePurchaseSelection = (id: string) => {
+    const newSelected = new Set(selectedPurchases)
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
+    } else {
+      newSelected.add(id)
+    }
+    setSelectedPurchases(newSelected)
+  }
+
+  // Toggle all selectable purchases on current page
+  const toggleSelectAll = () => {
+    const selectable = getSelectablePurchases()
+    const allSelected = selectable.every(p => selectedPurchases.has(p.id))
+
+    const newSelected = new Set(selectedPurchases)
+    if (allSelected) {
+      // Deselect all
+      selectable.forEach(p => newSelected.delete(p.id))
+    } else {
+      // Select all
+      selectable.forEach(p => newSelected.add(p.id))
+    }
+    setSelectedPurchases(newSelected)
+  }
+
+  // Batch receive handler
+  const handleBatchReceive = async () => {
+    if (selectedPurchases.size === 0) {
+      alert('請先選擇要收貨的進貨單')
+      return
+    }
+
+    if (!confirm(`確定要批量收貨 ${selectedPurchases.size} 筆進貨單嗎？\n\n這將會收取所有選中進貨單中尚未收貨的商品。`)) {
+      return
+    }
+
+    setBatchReceiving(true)
+    try {
+      const res = await fetch('/api/purchases/batch-receive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ purchase_ids: Array.from(selectedPurchases) }),
+      })
+
+      const data = await res.json()
+
+      if (data.ok) {
+        alert(data.message || '批量收貨完成')
+        setSelectedPurchases(new Set())
+        fetchPurchases()
+      } else {
+        alert(`批量收貨失敗：${data.error}`)
+      }
+    } catch (err) {
+      alert('批量收貨失敗')
+    } finally {
+      setBatchReceiving(false)
+    }
+  }
+
+  // Sort indicator component
+  const SortIndicator = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <span className="ml-1 text-gray-300 dark:text-gray-600">⇅</span>
+    return <span className="ml-1">{sortOrder === 'asc' ? '▲' : '▼'}</span>
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
       <div className="mx-auto max-w-7xl">
@@ -298,16 +441,61 @@ export default function PurchasesPage() {
                 <table className="w-full">
                   <thead className="border-b bg-gray-50 dark:bg-gray-900">
                     <tr>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">進貨單號</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">廠商名稱</th>
+                      {/* Checkbox column */}
+                      <th className="px-3 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={getSelectablePurchases().length > 0 && getSelectablePurchases().every(p => selectedPurchases.has(p.id))}
+                          onChange={toggleSelectAll}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          title="全選可收貨訂單"
+                        />
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                        onClick={() => handleSort('purchase_no')}
+                      >
+                        進貨單號<SortIndicator field="purchase_no" />
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                        onClick={() => handleSort('vendor_name')}
+                      >
+                        廠商名稱<SortIndicator field="vendor_name" />
+                      </th>
                       {isAdmin && (
-                        <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">總金額</th>
+                        <th
+                          className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                          onClick={() => handleSort('total')}
+                        >
+                          總金額<SortIndicator field="total" />
+                        </th>
                       )}
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">商品摘要</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">進貨日期</th>
-                      <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">審核</th>
-                      <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">付款</th>
-                      <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">收貨</th>
+                      <th
+                        className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                        onClick={() => handleSort('purchase_date')}
+                      >
+                        進貨日期<SortIndicator field="purchase_date" />
+                      </th>
+                      <th
+                        className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                        onClick={() => handleSort('status')}
+                      >
+                        審核<SortIndicator field="status" />
+                      </th>
+                      <th
+                        className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                        onClick={() => handleSort('is_paid')}
+                      >
+                        付款<SortIndicator field="is_paid" />
+                      </th>
+                      <th
+                        className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                        onClick={() => handleSort('receiving_status')}
+                      >
+                        收貨<SortIndicator field="receiving_status" />
+                      </th>
                       {isAdmin && (
                         <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">操作</th>
                       )}
@@ -317,7 +505,7 @@ export default function PurchasesPage() {
                     {(() => {
                       const startIndex = (currentPage - 1) * itemsPerPage
                       const endIndex = startIndex + itemsPerPage
-                      const paginatedPurchases = purchases.slice(startIndex, endIndex)
+                      const paginatedPurchases = sortedPurchases.slice(startIndex, endIndex)
 
                       return paginatedPurchases.map((purchase) => (
                         <React.Fragment key={purchase.id}>
@@ -325,6 +513,19 @@ export default function PurchasesPage() {
                             className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 cursor-pointer transition-colors"
                             onClick={() => toggleRow(purchase.id)}
                           >
+                            {/* Checkbox cell */}
+                            <td className="px-3 py-4 text-center" onClick={(e) => e.stopPropagation()}>
+                              {canSelectForReceiving(purchase) ? (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedPurchases.has(purchase.id)}
+                                  onChange={() => togglePurchaseSelection(purchase.id)}
+                                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                              ) : (
+                                <span className="text-gray-300 dark:text-gray-600">—</span>
+                              )}
+                            </td>
                             <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">
                               <div className="flex items-center gap-2">
                                 <span className="text-gray-400 text-xs">
@@ -413,7 +614,7 @@ export default function PurchasesPage() {
                           </tr>
                           {expandedRows.has(purchase.id) && purchase.purchase_items && (
                             <tr key={`${purchase.id}-details`}>
-                              <td colSpan={isAdmin ? 9 : 7} className="bg-gray-50 dark:bg-gray-900 px-6 py-4">
+                              <td colSpan={isAdmin ? 10 : 8} className="bg-gray-50 dark:bg-gray-900 px-6 py-4">
                                 <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
                                   <h4 className="mb-3 font-semibold text-gray-900 dark:text-gray-100">進貨明細</h4>
                                   <table className="w-full">
@@ -594,6 +795,32 @@ export default function PurchasesPage() {
             </>
           )}
         </div>
+
+        {/* Floating action bar for batch receiving */}
+        {selectedPurchases.size > 0 && (
+          <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg px-6 py-4 z-50">
+            <div className="mx-auto max-w-7xl flex items-center justify-between">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                已選擇 <span className="font-semibold text-blue-600 dark:text-blue-400">{selectedPurchases.size}</span> 筆進貨單
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setSelectedPurchases(new Set())}
+                  className="rounded border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  取消選擇
+                </button>
+                <button
+                  onClick={handleBatchReceive}
+                  disabled={batchReceiving}
+                  className="rounded bg-green-600 px-6 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  {batchReceiving ? '處理中...' : '📦 一鍵收貨'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -211,6 +211,7 @@ export async function POST(request: NextRequest) {
     }
 
     const draft = validation.data
+    const pointProgramId = body.point_program_id || null
 
     // Generate sale_no - 查找所有销售记录中的最大编号
     const { data: allSales } = await supabaseServer
@@ -283,6 +284,9 @@ export async function POST(request: NextRequest) {
         delivery_method: delivery_method || null,
         expected_delivery_date: expected_delivery_date || null,
         delivery_note: delivery_note || null,
+        point_program_id: pointProgramId, // 點數計劃
+        points_earned: 0, // 稍後計算
+        point_cost_estimated: 0, // 稍後計算
         created_at: createdAt, // 手動設定為台灣時間
       })
       .select()
@@ -711,7 +715,97 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 10. 自動創建應收帳款（AR）記錄 - 如果客戶未付款且有應收金額
+    // 10. 點數累積（如果有選擇點數計劃且有客戶）
+    let pointsEarned = 0
+    let pointCostEstimated = 0
+
+    if (pointProgramId && draft.customer_code) {
+      // 取得客戶 ID
+      const { data: customerData } = await (supabaseServer
+        .from('customers') as any)
+        .select('id')
+        .eq('customer_code', draft.customer_code)
+        .single()
+
+      if (customerData) {
+        // 取得點數計劃
+        const { data: program } = await (supabaseServer
+          .from('point_programs') as any)
+          .select('*')
+          .eq('id', pointProgramId)
+          .eq('is_active', true)
+          .single()
+
+        if (program) {
+          // 計算獲得的點數（使用原始 total，不是扣除購物金後的金額）
+          pointsEarned = Math.floor(total / program.spend_per_point)
+
+          if (pointsEarned > 0) {
+            // 計算預估成本
+            pointCostEstimated = pointsEarned * Number(program.cost_per_point)
+
+            // 更新或建立客戶點數餘額
+            const { data: existingPoints } = await (supabaseServer
+              .from('customer_points') as any)
+              .select('*')
+              .eq('customer_id', customerData.id)
+              .eq('program_id', pointProgramId)
+              .single()
+
+            if (existingPoints) {
+              // 更新現有點數
+              await (supabaseServer
+                .from('customer_points') as any)
+                .update({
+                  points: existingPoints.points + pointsEarned,
+                  total_earned: existingPoints.total_earned + pointsEarned,
+                  estimated_cost: Number(existingPoints.estimated_cost) + pointCostEstimated,
+                  updated_at: getTaiwanTime()
+                })
+                .eq('id', existingPoints.id)
+            } else {
+              // 建立新的點數記錄
+              await (supabaseServer
+                .from('customer_points') as any)
+                .insert({
+                  customer_id: customerData.id,
+                  program_id: pointProgramId,
+                  points: pointsEarned,
+                  total_earned: pointsEarned,
+                  total_redeemed: 0,
+                  estimated_cost: pointCostEstimated
+                })
+            }
+
+            // 記錄點數日誌
+            await (supabaseServer
+              .from('point_logs') as any)
+              .insert({
+                customer_id: customerData.id,
+                program_id: pointProgramId,
+                sale_id: sale.id,
+                change_type: 'earn',
+                points_change: pointsEarned,
+                cost_amount: pointCostEstimated,
+                sale_amount: total,
+                note: `銷售單 ${saleNo} 累積 ${pointsEarned} 點（消費 $${total}）`,
+                created_at: getTaiwanTime()
+              })
+
+            // 更新銷售單的點數資訊
+            await (supabaseServer
+              .from('sales') as any)
+              .update({
+                points_earned: pointsEarned,
+                point_cost_estimated: pointCostEstimated
+              })
+              .eq('id', sale.id)
+          }
+        }
+      }
+    }
+
+    // 11. 自動創建應收帳款（AR）記錄 - 如果客戶未付款且有應收金額
     if (draft.customer_code && !draft.is_paid && finalTotal > 0) {
       // 計算每個商品的到期日（預設 7 天後）
       const dueDate = new Date(taiwanTime)

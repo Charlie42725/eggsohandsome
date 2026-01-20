@@ -119,7 +119,7 @@ export default function Navigation() {
                 height={40}
                 className="rounded-lg shadow-sm sm:w-11 sm:h-11"
               />
-              <span className="hidden sm:inline text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 dark:from-blue-400 dark:to-blue-300 bg-clip-text text-transparent">失控 ERP</span>
+              <span className="hidden sm:inline text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 dark:from-blue-400 dark:to-blue-300 bg-clip-text text-transparent">蛋要酷 ERP</span>
             </Link>
 
             {/* Desktop Navigation - 允许换行，不使用滚动 */}

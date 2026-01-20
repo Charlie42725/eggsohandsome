@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const keyword = searchParams.get('keyword') || ''
     const active = searchParams.get('active')
+    const categoryId = searchParams.get('categoryId')
     const all = searchParams.get('all') === 'true' // New parameter to get all products
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = 50
@@ -23,6 +24,11 @@ export async function GET(request: NextRequest) {
     // Filter by active status
     if (active !== null) {
       query = query.eq('is_active', active === 'true')
+    }
+
+    // Filter by category
+    if (categoryId) {
+      query = query.eq('category_id', categoryId)
     }
 
     // Search by keyword (name, item_code, or barcode)

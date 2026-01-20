@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import type { Customer } from '@/types'
-import { MoreHorizontal, Edit, Trash2, Wallet } from 'lucide-react'
+import type { Customer, PointProgram, CustomerPoints, PointLog } from '@/types'
+import { MoreHorizontal, Edit, Trash2, Coins, Gift, History, ArrowRight } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
+  const [programs, setPrograms] = useState<PointProgram[]>([])
   const [loading, setLoading] = useState(true)
   const [keyword, setKeyword] = useState('')
   const [activeFilter, setActiveFilter] = useState<boolean | null>(null)
@@ -26,10 +27,20 @@ export default function CustomersPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
 
-  // 购物金调整相关状态
-  const [adjustingCustomer, setAdjustingCustomer] = useState<Customer | null>(null)
+  // 點數管理相關狀態
+  const [pointsCustomer, setPointsCustomer] = useState<Customer | null>(null)
+  const [customerPoints, setCustomerPoints] = useState<CustomerPoints[]>([])
+  const [pointLogs, setPointLogs] = useState<PointLog[]>([])
+  const [loadingPoints, setLoadingPoints] = useState(false)
+
+  // 兌換 modal
+  const [redeemingProgram, setRedeemingProgram] = useState<CustomerPoints | null>(null)
+  const [selectedTier, setSelectedTier] = useState<string>('')
+  const [redeemError, setRedeemError] = useState('')
+
+  // 調整點數 modal
+  const [adjustingPoints, setAdjustingPoints] = useState<CustomerPoints | null>(null)
   const [adjustAmount, setAdjustAmount] = useState<string>('')
-  const [adjustType, setAdjustType] = useState<'recharge' | 'deduct' | 'adjustment'>('recharge')
   const [adjustNote, setAdjustNote] = useState('')
   const [adjustError, setAdjustError] = useState('')
 
@@ -52,13 +63,49 @@ export default function CustomersPage() {
     }
   }
 
+  const fetchPrograms = async () => {
+    try {
+      const res = await fetch('/api/point-programs')
+      const data = await res.json()
+      if (data.ok) {
+        setPrograms(data.data || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch programs:', err)
+    }
+  }
+
+  const fetchCustomerPoints = async (customerId: string) => {
+    setLoadingPoints(true)
+    try {
+      const [pointsRes, logsRes] = await Promise.all([
+        fetch(`/api/customer-points?customer_id=${customerId}`),
+        fetch(`/api/customer-points/logs?customer_id=${customerId}`)
+      ])
+
+      const pointsData = await pointsRes.json()
+      const logsData = await logsRes.json()
+
+      if (pointsData.ok) {
+        setCustomerPoints(pointsData.data || [])
+      }
+      if (logsData.ok) {
+        setPointLogs(logsData.data || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch customer points:', err)
+    } finally {
+      setLoadingPoints(false)
+    }
+  }
+
   useEffect(() => {
-    fetchCustomers()
+    Promise.all([fetchCustomers(), fetchPrograms()])
   }, [activeFilter])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    setCurrentPage(1) // 搜尋時重置到第一頁
+    setCurrentPage(1)
     fetchCustomers()
   }
 
@@ -130,29 +177,75 @@ export default function CustomersPage() {
     }
   }
 
-  const openAdjustModal = (customer: Customer) => {
-    setAdjustingCustomer(customer)
+  // 點數管理
+  const openPointsModal = (customer: Customer) => {
+    setPointsCustomer(customer)
+    fetchCustomerPoints(customer.id)
+  }
+
+  const closePointsModal = () => {
+    setPointsCustomer(null)
+    setCustomerPoints([])
+    setPointLogs([])
+    setRedeemingProgram(null)
+    setAdjustingPoints(null)
+  }
+
+  // 兌換
+  const openRedeemModal = (cp: CustomerPoints) => {
+    setRedeemingProgram(cp)
+    setSelectedTier('')
+    setRedeemError('')
+  }
+
+  const handleRedeem = async () => {
+    if (!redeemingProgram || !selectedTier || !pointsCustomer) return
+
+    setProcessing(true)
+    setRedeemError('')
+
+    try {
+      const res = await fetch('/api/customer-points/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_id: pointsCustomer.id,
+          program_id: redeemingProgram.program_id,
+          tier_id: selectedTier,
+        })
+      })
+
+      const data = await res.json()
+
+      if (data.ok) {
+        alert(`兌換成功！獲得購物金 $${data.data.reward_value}`)
+        setRedeemingProgram(null)
+        fetchCustomerPoints(pointsCustomer.id)
+        fetchCustomers()
+      } else {
+        setRedeemError(data.error || '兌換失敗')
+      }
+    } catch (err) {
+      setRedeemError('兌換失敗')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  // 調整點數
+  const openAdjustModal = (cp: CustomerPoints) => {
+    setAdjustingPoints(cp)
     setAdjustAmount('')
-    setAdjustType('recharge')
     setAdjustNote('')
     setAdjustError('')
   }
 
-  const closeAdjustModal = () => {
-    setAdjustingCustomer(null)
-    setAdjustAmount('')
-    setAdjustType('recharge')
-    setAdjustNote('')
-    setAdjustError('')
-  }
+  const handleAdjustPoints = async () => {
+    if (!adjustingPoints || !pointsCustomer) return
 
-  const handleAdjustBalance = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!adjustingCustomer) return
-
-    const amount = parseFloat(adjustAmount)
+    const amount = parseInt(adjustAmount)
     if (isNaN(amount) || amount === 0) {
-      setAdjustError('請輸入有效的金額')
+      setAdjustError('請輸入有效的點數')
       return
     }
 
@@ -160,31 +253,23 @@ export default function CustomersPage() {
     setAdjustError('')
 
     try {
-      // 根据类型计算实际金额
-      let finalAmount = amount
-      if (adjustType === 'deduct') {
-        finalAmount = -Math.abs(amount)
-      } else if (adjustType === 'recharge') {
-        finalAmount = Math.abs(amount)
-      }
-
-      const res = await fetch('/api/customers/balance', {
+      const res = await fetch('/api/customer-points/adjust', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          customer_code: adjustingCustomer.customer_code,
-          amount: finalAmount,
-          type: adjustType,
+          customer_id: pointsCustomer.id,
+          program_id: adjustingPoints.program_id,
+          points: amount,
           note: adjustNote || undefined,
-        }),
+        })
       })
 
       const data = await res.json()
 
       if (data.ok) {
-        fetchCustomers()
-        closeAdjustModal()
         alert('調整成功')
+        setAdjustingPoints(null)
+        fetchCustomerPoints(pointsCustomer.id)
       } else {
         setAdjustError(data.error || '調整失敗')
       }
@@ -192,6 +277,26 @@ export default function CustomersPage() {
       setAdjustError('調整失敗')
     } finally {
       setProcessing(false)
+    }
+  }
+
+  const getChangeTypeLabel = (type: string) => {
+    switch (type) {
+      case 'earn': return '累積'
+      case 'redeem': return '兌換'
+      case 'expire': return '過期'
+      case 'adjust': return '調整'
+      default: return type
+    }
+  }
+
+  const getChangeTypeColor = (type: string) => {
+    switch (type) {
+      case 'earn': return 'text-green-600 dark:text-green-400'
+      case 'redeem': return 'text-blue-600 dark:text-blue-400'
+      case 'expire': return 'text-gray-500'
+      case 'adjust': return 'text-orange-600 dark:text-orange-400'
+      default: return 'text-gray-600'
     }
   }
 
@@ -273,7 +378,6 @@ export default function CustomersPage() {
                     <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">電話</th>
                     <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">門市地址</th>
                     <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">宅配地址</th>
-                    <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400">購物金</th>
                     <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">付款方式</th>
                     <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">LINE ID</th>
                     <th className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-400">狀態</th>
@@ -295,14 +399,6 @@ export default function CustomersPage() {
                         <div className="max-w-[200px] truncate" title={customer.delivery_address || ''}>
                           {customer.delivery_address || '-'}
                         </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-right">
-                        <span className={`font-bold ${customer.store_credit >= 0
-                          ? 'text-green-600 dark:text-green-400'
-                          : 'text-red-600 dark:text-red-400'
-                          }`}>
-                          ${customer.store_credit?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
-                        </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-center">
                         <span className="inline-block px-2 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
@@ -332,9 +428,9 @@ export default function CustomersPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openAdjustModal(customer)}>
-                              <Wallet className="mr-2 h-4 w-4" />
-                              調整購物金
+                            <DropdownMenuItem onClick={() => openPointsModal(customer)}>
+                              <Coins className="mr-2 h-4 w-4" />
+                              管理點數
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openEditModal(customer)}>
                               <Edit className="mr-2 h-4 w-4" />
@@ -403,7 +499,7 @@ export default function CustomersPage() {
       {/* Edit Modal */}
       {editingCustomer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-          <div className="w-full max-w-2xl rounded-lg bg-white dark:bg-gray-800 p-6">
+          <div className="w-full max-w-2xl rounded-lg bg-white dark:bg-gray-800 p-6 max-h-[90vh] overflow-y-auto">
             <h2 className="mb-4 text-2xl font-semibold text-gray-900 dark:text-gray-100">編輯客戶</h2>
 
             {error && (
@@ -506,35 +602,6 @@ export default function CustomersPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">購物金餘額</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.store_credit ?? 0}
-                    onChange={(e) => setFormData({ ...formData, store_credit: parseFloat(e.target.value) || 0 })}
-                    className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-                    disabled
-                    title="請使用「調整購物金」按鈕進行修改"
-                  />
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">購物金請使用下方的「調整購物金」按鈕修改</p>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">信用額度</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.credit_limit ?? 0}
-                    onChange={(e) => setFormData({ ...formData, credit_limit: parseFloat(e.target.value) || 0 })}
-                    className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-                  />
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">設為 0 表示不允許欠款</p>
-                </div>
-              </div>
-
               <div>
                 <label className="flex items-center gap-2">
                   <input
@@ -568,75 +635,258 @@ export default function CustomersPage() {
         </div>
       )}
 
-      {/* Adjust Balance Modal */}
-      {adjustingCustomer && (
+      {/* Points Modal */}
+      {pointsCustomer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="w-full max-w-3xl rounded-lg bg-white dark:bg-gray-800 p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                  {pointsCustomer.customer_name} 的點數
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {pointsCustomer.customer_code}
+                </p>
+              </div>
+              <button
+                onClick={closePointsModal}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {loadingPoints ? (
+              <div className="py-8 text-center text-gray-500">載入中...</div>
+            ) : (
+              <>
+                {/* 點數卡片 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  {customerPoints.map((cp) => (
+                    <div
+                      key={cp.program_id}
+                      className="rounded-lg border border-gray-200 dark:border-gray-700 p-4"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                          {cp.program?.name || '點數計劃'}
+                        </h3>
+                        <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                          {cp.points} 點
+                        </span>
+                      </div>
+
+                      <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                        <div>累計獲得: {cp.total_earned} 點</div>
+                        <div>累計兌換: {cp.total_redeemed} 點</div>
+                        <div>預估成本: ${Number(cp.estimated_cost).toFixed(0)}</div>
+                      </div>
+
+                      {/* 兌換方案 */}
+                      {cp.program?.tiers && cp.program.tiers.length > 0 && (
+                        <div className="border-t dark:border-gray-700 pt-3 mt-3">
+                          <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            兌換方案：
+                          </div>
+                          <div className="space-y-1 mb-3">
+                            {cp.program.tiers.map((tier) => (
+                              <div
+                                key={tier.id}
+                                className={`flex items-center justify-between text-sm px-2 py-1 rounded ${
+                                  cp.points >= tier.points_required
+                                    ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                                    : 'text-gray-500'
+                                }`}
+                              >
+                                <span>{tier.points_required}點 → ${tier.reward_value}</span>
+                                {cp.points >= tier.points_required && (
+                                  <span className="text-xs font-medium">可兌換</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openAdjustModal(cp)}
+                          className="flex-1 text-sm rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                        >
+                          調整點數
+                        </button>
+                        {cp.points > 0 && cp.program?.tiers?.some(t => cp.points >= t.points_required) && (
+                          <button
+                            onClick={() => openRedeemModal(cp)}
+                            className="flex-1 text-sm rounded bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700"
+                          >
+                            兌換
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 點數歷史 */}
+                <div className="border-t dark:border-gray-700 pt-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2">
+                    <History className="h-5 w-5" />
+                    點數變動記錄
+                  </h3>
+                  <div className="max-h-[300px] overflow-y-auto space-y-2">
+                    {pointLogs.length === 0 ? (
+                      <div className="py-4 text-center text-gray-500">暫無記錄</div>
+                    ) : (
+                      pointLogs.slice(0, 20).map((log) => (
+                        <div key={log.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-sm font-medium ${getChangeTypeColor(log.change_type)}`}>
+                                {getChangeTypeLabel(log.change_type)}
+                              </span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                {log.program?.name}
+                              </span>
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              {log.note}
+                            </div>
+                            <div className="text-xs text-gray-400 dark:text-gray-500">
+                              {new Date(log.created_at).toLocaleString('zh-TW')}
+                            </div>
+                          </div>
+                          <div className={`text-lg font-bold ${
+                            log.points_change > 0
+                              ? 'text-green-600 dark:text-green-400'
+                              : 'text-red-600 dark:text-red-400'
+                          }`}>
+                            {log.points_change > 0 ? '+' : ''}{log.points_change}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Redeem Modal */}
+      {redeemingProgram && pointsCustomer && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50 p-4">
           <div className="w-full max-w-md rounded-lg bg-white dark:bg-gray-800 p-6">
-            <h2 className="mb-4 text-2xl font-semibold text-gray-900 dark:text-gray-100">調整購物金</h2>
+            <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">
+              兌換 {redeemingProgram.program?.name} 點數
+            </h2>
 
             <div className="mb-4 rounded-lg bg-gray-50 dark:bg-gray-700 p-4">
-              <div className="mb-2">
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-300">客戶：</span>
-                <span className="ml-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  {adjustingCustomer.customer_name} ({adjustingCustomer.customer_code})
-                </span>
+              <div className="text-sm text-gray-600 dark:text-gray-300">當前點數</div>
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                {redeemingProgram.points} 點
               </div>
-              <div>
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-300">當前餘額：</span>
-                <span className={`ml-2 text-lg font-bold ${adjustingCustomer.store_credit >= 0
-                  ? 'text-green-600 dark:text-green-400'
-                  : 'text-red-600 dark:text-red-400'
-                  }`}>
-                  ${adjustingCustomer.store_credit?.toFixed(2) || '0.00'}
-                </span>
+            </div>
+
+            {redeemError && (
+              <div className="mb-4 rounded bg-red-50 dark:bg-red-900/30 p-3 text-red-700 dark:text-red-200">
+                {redeemError}
               </div>
-              {adjustingCustomer.credit_limit > 0 && (
-                <div className="mt-2">
-                  <span className="text-sm font-medium text-gray-600 dark:text-gray-300">信用額度：</span>
-                  <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
-                    ${adjustingCustomer.credit_limit.toFixed(2)}
-                  </span>
-                </div>
-              )}
+            )}
+
+            <div className="mb-4 space-y-2">
+              {redeemingProgram.program?.tiers?.map((tier) => (
+                <label
+                  key={tier.id}
+                  className={`flex items-center justify-between p-3 rounded border cursor-pointer transition ${
+                    selectedTier === tier.id
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : redeemingProgram.points >= tier.points_required
+                        ? 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        : 'border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="tier"
+                      value={tier.id}
+                      checked={selectedTier === tier.id}
+                      onChange={(e) => setSelectedTier(e.target.value)}
+                      disabled={redeemingProgram.points < tier.points_required}
+                      className="h-4 w-4"
+                    />
+                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                      {tier.points_required} 點
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <ArrowRight className="h-4 w-4 text-gray-400" />
+                    <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                      ${tier.reward_value}
+                    </span>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setRedeemingProgram(null)}
+                className="flex-1 rounded border border-gray-300 dark:border-gray-600 px-4 py-2 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleRedeem}
+                disabled={!selectedTier || processing}
+                className="flex-1 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600"
+              >
+                {processing ? '處理中...' : '確認兌換'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Adjust Points Modal */}
+      {adjustingPoints && pointsCustomer && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white dark:bg-gray-800 p-6">
+            <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">
+              調整 {adjustingPoints.program?.name} 點數
+            </h2>
+
+            <div className="mb-4 rounded-lg bg-gray-50 dark:bg-gray-700 p-4">
+              <div className="text-sm text-gray-600 dark:text-gray-300">當前點數</div>
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                {adjustingPoints.points} 點
+              </div>
             </div>
 
             {adjustError && (
-              <div className="mb-4 rounded bg-red-50 dark:bg-red-900/30 p-3 text-red-700 dark:text-red-200">{adjustError}</div>
+              <div className="mb-4 rounded bg-red-50 dark:bg-red-900/30 p-3 text-red-700 dark:text-red-200">
+                {adjustError}
+              </div>
             )}
 
-            <form onSubmit={handleAdjustBalance} className="space-y-4">
+            <div className="space-y-4 mb-4">
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
-                  調整類型 <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={adjustType}
-                  onChange={(e) => setAdjustType(e.target.value as any)}
-                  className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-                  required
-                >
-                  <option value="recharge">充值（增加購物金）</option>
-                  <option value="deduct">扣減（減少購物金）</option>
-                  <option value="adjustment">調整（可正可負）</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
-                  金額 <span className="text-red-500">*</span>
+                  調整點數 <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
-                  step="0.01"
                   value={adjustAmount}
                   onChange={(e) => setAdjustAmount(e.target.value)}
                   className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-                  placeholder="請輸入金額"
-                  required
+                  placeholder="正數增加，負數減少"
                 />
-                {adjustType === 'adjustment' && (
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">正數為增加，負數為減少</p>
-                )}
               </div>
 
               <div>
@@ -644,29 +894,30 @@ export default function CustomersPage() {
                 <textarea
                   value={adjustNote}
                   onChange={(e) => setAdjustNote(e.target.value)}
-                  rows={3}
+                  rows={2}
                   className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
                   placeholder="選填"
                 />
               </div>
+            </div>
 
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={closeAdjustModal}
-                  className="flex-1 rounded border border-gray-300 dark:border-gray-600 px-4 py-2 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700"
-                >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  disabled={processing}
-                  className="flex-1 rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:bg-gray-300 dark:disabled:bg-gray-600"
-                >
-                  {processing ? '處理中...' : '確認調整'}
-                </button>
-              </div>
-            </form>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setAdjustingPoints(null)}
+                className="flex-1 rounded border border-gray-300 dark:border-gray-600 px-4 py-2 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleAdjustPoints}
+                disabled={!adjustAmount || processing}
+                className="flex-1 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600"
+              >
+                {processing ? '處理中...' : '確認調整'}
+              </button>
+            </div>
           </div>
         </div>
       )}

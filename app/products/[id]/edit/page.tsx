@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
-import type { Product } from '@/types'
+import type { Product, Category } from '@/types'
+import ImageUpload from '@/components/ImageUpload'
 
 type UserRole = 'admin' | 'staff'
 
@@ -36,6 +37,8 @@ export default function EditProductPage() {
   const [adjustedStock, setAdjustedStock] = useState('')
   const [adjustNote, setAdjustNote] = useState('')
   const [adjusting, setAdjusting] = useState(false)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('')
 
   const isAdmin = userRole === 'admin'
 
@@ -51,6 +54,17 @@ export default function EditProductPage() {
       .catch(() => {
         // Ignore error
       })
+
+    // Fetch categories
+    fetch('/api/categories')
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) {
+          setCategories(data.data || [])
+        }
+      })
+      .catch(() => { })
+
     fetchProduct()
     fetchAdjustments()
   }, [productId])
@@ -62,6 +76,7 @@ export default function EditProductPage() {
       if (data.ok) {
         setProduct(data.data)
         setBarcode(data.data.barcode || '')
+        setSelectedCategoryId(data.data.category_id || '')
       } else {
         setError('商品不存在')
       }
@@ -117,6 +132,7 @@ export default function EditProductPage() {
       price: parseFloat(formData.get('price') as string) || 0,
       cost: parseFloat(formData.get('cost') as string) || 0,
       allow_negative: formData.get('allow_negative') === 'on',
+      category_id: selectedCategoryId || null,
     }
 
     console.log('Updating product with data:', data)
@@ -134,6 +150,7 @@ export default function EditProductPage() {
       if (result.ok) {
         setSuccess('商品資訊已更新')
         setProduct(result.data)
+        alert('儲存成功！')
         // Auto-hide success message after 3 seconds
         setTimeout(() => setSuccess(''), 3000)
       } else {
@@ -414,6 +431,17 @@ export default function EditProductPage() {
             )}
           </div>
 
+          {/* Image Upload */}
+          <div className="mb-4">
+            <ImageUpload
+              productId={productId}
+              currentImageUrl={product.image_url}
+              onImageChange={(url) => {
+                setProduct(prev => prev ? { ...prev, image_url: url } : null)
+              }}
+            />
+          </div>
+
           <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -460,6 +488,27 @@ export default function EditProductPage() {
               <span className="text-sm text-gray-900 dark:text-gray-100">允許負庫存</span>
             </label>
           </div>
+
+          {/* Category Selector */}
+          {categories.length > 0 && (
+            <div className="mb-6">
+              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
+                商品分類
+              </label>
+              <select
+                value={selectedCategoryId}
+                onChange={(e) => setSelectedCategoryId(e.target.value)}
+                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+              >
+                <option value="">無分類</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <button

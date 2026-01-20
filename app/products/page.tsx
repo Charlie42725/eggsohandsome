@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import Image from 'next/image'
 import { formatCurrency } from '@/lib/utils'
-import type { Product } from '@/types'
+import type { Product, Category } from '@/types'
 
 type SortField = 'item_code' | 'name' | 'price' | 'avg_cost' | 'stock' | 'updated_at'
 type SortOrder = 'asc' | 'desc'
@@ -30,6 +31,8 @@ export default function ProductsPage() {
   const [loadingLowStock, setLoadingLowStock] = useState(true)
   const [showLowStock, setShowLowStock] = useState(false)
   const [userRole, setUserRole] = useState<'admin' | 'staff' | null>(null)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
 
   // 獲取用戶角色
   useEffect(() => {
@@ -41,6 +44,16 @@ export default function ProductsPage() {
         }
       })
       .catch(() => { })
+
+    // Fetch categories
+    fetch('/api/categories')
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) {
+          setCategories(data.data || [])
+        }
+      })
+      .catch(() => { })
   }, [])
 
   const fetchProducts = async (currentPage: number = page) => {
@@ -49,6 +62,7 @@ export default function ProductsPage() {
       const params = new URLSearchParams()
       if (keyword) params.set('keyword', keyword)
       if (activeFilter !== null) params.set('active', String(activeFilter))
+      if (categoryFilter) params.set('categoryId', categoryFilter)
       params.set('page', String(currentPage))
       params.set('sortBy', sortBy)
       params.set('sortOrder', sortOrder)
@@ -106,7 +120,7 @@ export default function ProductsPage() {
   useEffect(() => {
     setPage(1)
     fetchProducts(1)
-  }, [activeFilter, sortBy, sortOrder])
+  }, [activeFilter, sortBy, sortOrder, categoryFilter])
 
   useEffect(() => {
     fetchLowStockProducts()
@@ -199,6 +213,12 @@ export default function ProductsPage() {
             >
               + 新增商品
             </Link>
+            <Link
+              href="/categories"
+              className="rounded border border-gray-300 dark:border-gray-600 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              分類管理
+            </Link>
           </div>
         </div>
 
@@ -248,6 +268,28 @@ export default function ProductsPage() {
             >
               下架
             </button>
+
+            {/* Category Filter */}
+            {categories.length > 0 && (
+              <>
+                <div className="mx-2 h-6 border-l border-gray-300 dark:border-gray-600" />
+                <select
+                  value={categoryFilter || ''}
+                  onChange={(e) => {
+                    setCategoryFilter(e.target.value || null)
+                    setPage(1)
+                  }}
+                  className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1 text-sm text-gray-900 dark:text-gray-100"
+                >
+                  <option value="">全部分類</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
           </div>
         </div>
 
@@ -335,6 +377,7 @@ export default function ProductsPage() {
               <table className="w-full">
                 <thead className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
                   <tr>
+                    <th className="px-3 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">圖片</th>
                     <th
                       className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none"
                       onClick={() => handleSort('item_code')}
@@ -403,6 +446,25 @@ export default function ProductsPage() {
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {products.map((product) => (
                     <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-3 py-4 text-center">
+                        {product.image_url ? (
+                          <div className="relative w-10 h-10 mx-auto overflow-hidden rounded">
+                            <Image
+                              src={product.image_url}
+                              alt={product.name}
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-10 h-10 mx-auto rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                        )}
+                      </td>
                       <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{product.item_code}</td>
                       <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{product.barcode || '-'}</td>
                       <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">{product.name}</td>

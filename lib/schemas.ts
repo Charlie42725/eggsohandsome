@@ -12,6 +12,7 @@ export const productSchema = z.object({
   stock: z.number().min(0, 'Stock cannot be negative').default(0),
   allow_negative: z.boolean().default(true),
   is_active: z.boolean().default(true),
+  category_id: z.string().uuid().optional().nullable(),
 })
 
 // Update schema excludes stock (managed via inventory operations only)
@@ -67,6 +68,8 @@ export const saleDraftSchema = z.object({
   note: z.string().optional(),
   discount_type: z.enum(['none', 'percent', 'amount']).default('none'),
   discount_value: z.number().min(0, 'Discount must be positive').default(0),
+  // 點數累積
+  point_program_id: z.string().uuid().optional().nullable(),
   // Multi-payment support
   payments: z.array(
     z.object({
@@ -224,6 +227,35 @@ export const saleCorrectionSchema = z.object({
 export const saleToStoreCreditSchema = z.object({
   amount: z.number().positive().optional(), // 不指定則全額轉換
   refund_inventory: z.boolean().default(true), // 是否回補庫存
+  note: z.string().optional(),
+})
+
+// Point system schemas
+export const pointProgramSchema = z.object({
+  name: z.string().min(1, '計劃名稱必填'),
+  spend_per_point: z.number().int().positive('消費金額必須為正數'),
+  cost_per_point: z.number().positive('每點成本必須為正數'),
+  is_active: z.boolean().default(true),
+})
+
+export const pointRedemptionTierSchema = z.object({
+  program_id: z.string().uuid('無效的計劃ID'),
+  points_required: z.number().int().positive('點數必須為正數'),
+  reward_value: z.number().positive('兌換價值必須為正數'),
+  is_active: z.boolean().default(true),
+})
+
+export const pointRedemptionSchema = z.object({
+  customer_id: z.string().uuid('無效的客戶ID'),
+  program_id: z.string().uuid('無效的計劃ID'),
+  tier_id: z.string().uuid('無效的兌換方案ID'),
+  note: z.string().optional(),
+})
+
+export const pointAdjustmentSchema = z.object({
+  customer_id: z.string().uuid('無效的客戶ID'),
+  program_id: z.string().uuid('無效的計劃ID'),
+  points: z.number().int().refine((val) => val !== 0, '點數不能為0'),
   note: z.string().optional(),
 })
 

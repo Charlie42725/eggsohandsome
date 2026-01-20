@@ -1,13 +1,27 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import type { Category } from '@/types'
 
 export default function NewProductPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [barcode, setBarcode] = useState('')
+  const [categories, setCategories] = useState<Category[]>([])
+  const [selectedCategoryId, setSelectedCategoryId] = useState('')
+
+  useEffect(() => {
+    fetch('/api/categories')
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) {
+          setCategories(data.data || [])
+        }
+      })
+      .catch(() => { })
+  }, [])
 
   const generateBarcode = () => {
     // 生成13位 EAN13 條碼格式
@@ -48,6 +62,7 @@ export default function NewProductPage() {
       cost: parseFloat(formData.get('cost') as string) || 0,
       stock: parseFloat(formData.get('stock') as string) || 0,
       allow_negative: formData.get('allow_negative') === 'on',
+      category_id: selectedCategoryId || null,
     }
 
     try {
@@ -132,6 +147,13 @@ export default function NewProductPage() {
             )}
           </div>
 
+          {/* Image Upload Note */}
+          <div className="mb-4 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              📷 商品圖片可在建立商品後於編輯頁面上傳
+            </p>
+          </div>
+
           <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -179,6 +201,27 @@ export default function NewProductPage() {
               <span className="text-sm text-gray-900 dark:text-gray-100">允許負庫存</span>
             </label>
           </div>
+
+          {/* Category Selector */}
+          {categories.length > 0 && (
+            <div className="mb-6">
+              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
+                商品分類
+              </label>
+              <select
+                value={selectedCategoryId}
+                onChange={(e) => setSelectedCategoryId(e.target.value)}
+                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+              >
+                <option value="">無分類</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <button

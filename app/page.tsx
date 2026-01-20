@@ -36,7 +36,7 @@ export default function Home() {
               transition={{ duration: 0.8, delay: 0.8 }}
               className="inline-block"
             >
-              失
+              蛋
             </motion.span>
             <motion.span
               initial={{ opacity: 0 }}
@@ -44,12 +44,20 @@ export default function Home() {
               transition={{ duration: 0.8, delay: 1.0 }}
               className="inline-block"
             >
-              控
+              要
+            </motion.span>
+            <motion.span
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.8, delay: 1.2 }}
+              className="inline-block"
+            >
+              酷
             </motion.span>
             <motion.span
               initial={{ opacity: 0, scale: 1.5 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 1, delay: 1.3, ease: "easeOut" }}
+              transition={{ duration: 1, delay: 1.5, ease: "easeOut" }}
               className="inline-block bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600"
             >
               ERP

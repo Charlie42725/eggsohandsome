@@ -1,4 +1,14 @@
 // Core types
+export type Category = {
+  id: string
+  name: string
+  color: string
+  sort_order: number
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
+}
+
 export type Product = {
   id: string
   item_code: string
@@ -13,6 +23,8 @@ export type Product = {
   is_active: boolean
   tags: string[]
   image_url?: string | null
+  category_id?: string | null
+  category?: Category | null
   created_at?: string
   updated_at?: string
 }
@@ -134,6 +146,64 @@ export type BalanceAdjustmentDraft = {
   customer_code: string
   amount: number
   type: 'recharge' | 'deduct' | 'adjustment'
+  note?: string
+}
+
+// Point system types
+export type PointProgram = {
+  id: string
+  name: string
+  spend_per_point: number   // 每多少元得1點
+  cost_per_point: number    // 每點預估成本
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
+  tiers?: PointRedemptionTier[]  // 兌換方案
+}
+
+export type PointRedemptionTier = {
+  id: string
+  program_id: string
+  points_required: number   // 需要點數
+  reward_value: number      // 兌換購物金金額
+  is_active: boolean
+  created_at?: string
+}
+
+export type CustomerPoints = {
+  id: string
+  customer_id: string
+  program_id: string
+  points: number            // 當前點數
+  total_earned: number      // 累計獲得
+  total_redeemed: number    // 累計兌換
+  estimated_cost: number    // 累計預估成本
+  updated_at?: string
+  program?: PointProgram    // 關聯的點數計劃
+}
+
+export type PointLogType = 'earn' | 'redeem' | 'expire' | 'adjust'
+
+export type PointLog = {
+  id: string
+  customer_id: string
+  program_id: string
+  sale_id?: string | null
+  change_type: PointLogType
+  points_change: number     // 點數變動
+  cost_amount: number       // 成本金額
+  sale_amount?: number | null   // 消費金額
+  reward_value?: number | null  // 兌換價值
+  tier_id?: string | null
+  note?: string | null
+  created_at: string
+  program?: PointProgram
+}
+
+export type PointRedemptionDraft = {
+  customer_id: string
+  program_id: string
+  tier_id: string           // 使用的兌換方案
   note?: string
 }
 

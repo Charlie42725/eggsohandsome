@@ -2,8 +2,8 @@ import { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: '失控ERP',
-    short_name: '失控ERP',
+    name: '蛋要酷ERP',
+    short_name: '蛋要酷ERP',
     description: '簡單好用的 ERP 系統',
     start_url: '/',
     display: 'standalone',
