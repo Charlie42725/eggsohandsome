@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { formatCurrency, formatDate, formatDateTime, formatPaymentMethod } from '@/lib/utils'
+import SalesImportModal from '@/components/SalesImportModal'
 
 // Portal Dropdown 組件
 function PortalDropdown({
@@ -153,6 +154,9 @@ export default function SalesPage() {
   const [convertingToStoreCredit, setConvertingToStoreCredit] = useState(false)
   const [convertingItemId, setConvertingItemId] = useState<string | null>(null)
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [selectedSaleIds, setSelectedSaleIds] = useState<Set<string>>(new Set())
+  const [batchDeleting, setBatchDeleting] = useState(false)
 
   const toggleCustomer = (customerKey: string) => {
     const newExpanded = new Set(expandedCustomers)
@@ -330,6 +334,98 @@ export default function SalesPage() {
     } finally {
       setDeleting(null)
     }
+  }
+
+  // 批量刪除
+  const handleBatchDelete = async () => {
+    if (selectedSaleIds.size === 0) return
+
+    const confirmed = confirm(`確定要刪除選取的 ${selectedSaleIds.size} 筆銷售記錄嗎？\n庫存將自動回補。`)
+    if (!confirmed) return
+
+    setBatchDeleting(true)
+    let successCount = 0
+    let failCount = 0
+    const errors: string[] = []
+
+    for (const id of selectedSaleIds) {
+      try {
+        const res = await fetch(`/api/sales/${id}`, {
+          method: 'DELETE',
+        })
+        const data = await res.json()
+        if (data.ok) {
+          successCount++
+        } else {
+          failCount++
+          errors.push(data.error || '未知錯誤')
+        }
+      } catch {
+        failCount++
+        errors.push('網路錯誤')
+      }
+    }
+
+    setBatchDeleting(false)
+    setSelectedSaleIds(new Set())
+
+    if (failCount === 0) {
+      alert(`成功刪除 ${successCount} 筆銷售記錄`)
+    } else {
+      alert(`成功 ${successCount} 筆，失敗 ${failCount} 筆\n${errors.slice(0, 3).join('\n')}`)
+    }
+
+    fetchSales()
+  }
+
+  // 全選/取消全選當前頁面的銷售
+  const toggleSelectAll = () => {
+    if (!groupByCustomer) {
+      // 非分組模式：使用當前頁面的銷售
+      const allSales = customerGroups[0]?.sales || []
+      const startIndex = (currentPage - 1) * itemsPerPage
+      const endIndex = startIndex + itemsPerPage
+      const currentPageSales = allSales.slice(startIndex, endIndex)
+      const currentPageSaleIds = currentPageSales.map((s: any) => s.id)
+      const allSelected = currentPageSaleIds.length > 0 && currentPageSaleIds.every((id: string) => selectedSaleIds.has(id))
+
+      if (allSelected) {
+        // 取消全選
+        const newSelected = new Set(selectedSaleIds)
+        currentPageSaleIds.forEach((id: string) => newSelected.delete(id))
+        setSelectedSaleIds(newSelected)
+      } else {
+        // 全選
+        const newSelected = new Set(selectedSaleIds)
+        currentPageSaleIds.forEach((id: string) => newSelected.add(id))
+        setSelectedSaleIds(newSelected)
+      }
+    } else {
+      // 分組模式下全選所有顯示的銷售
+      const allSaleIds = customerGroups.flatMap(g => g.sales.map((s: any) => s.id))
+      const allSelected = allSaleIds.length > 0 && allSaleIds.every((id: string) => selectedSaleIds.has(id))
+
+      if (allSelected) {
+        const newSelected = new Set(selectedSaleIds)
+        allSaleIds.forEach((id: string) => newSelected.delete(id))
+        setSelectedSaleIds(newSelected)
+      } else {
+        const newSelected = new Set(selectedSaleIds)
+        allSaleIds.forEach((id: string) => newSelected.add(id))
+        setSelectedSaleIds(newSelected)
+      }
+    }
+  }
+
+  // 切換單一銷售選取
+  const toggleSelectSale = (id: string) => {
+    const newSelected = new Set(selectedSaleIds)
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
+    } else {
+      newSelected.add(id)
+    }
+    setSelectedSaleIds(newSelected)
   }
 
   const handleDeliverItem = async (item: SaleItem) => {
@@ -639,6 +735,12 @@ export default function SalesPage() {
       <div className="mx-auto max-w-7xl">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">銷售記錄</h1>
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium flex items-center gap-2"
+          >
+            <span>📥</span> 匯入
+          </button>
         </div>
 
         {/* Search & Filters */}
@@ -729,6 +831,35 @@ export default function SalesPage() {
             </div>
           </form>
         </div>
+
+        {/* Batch Actions Bar */}
+        {selectedSaleIds.size > 0 && (
+          <div className="mb-4 flex items-center gap-4 rounded-lg bg-blue-50 dark:bg-blue-900/30 p-3 border border-blue-200 dark:border-blue-800">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                已選取 {selectedSaleIds.size} 筆
+              </span>
+            </div>
+            <button
+              onClick={() => setSelectedSaleIds(new Set())}
+              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              取消選取
+            </button>
+            <div className="flex-1" />
+            <button
+              onClick={handleBatchDelete}
+              disabled={batchDeleting}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg font-medium text-sm flex items-center gap-2"
+            >
+              {batchDeleting ? (
+                <>處理中...</>
+              ) : (
+                <>🗑️ 批量刪除 ({selectedSaleIds.size})</>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* 商品統計卡片 */}
         {productStats && (
@@ -843,6 +974,7 @@ export default function SalesPage() {
                         <table className="w-full">
                           <thead className="border-b">
                             <tr>
+                              <th className="pb-2 w-8"></th>
                               <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">銷售單號</th>
                               <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">付款方式</th>
                               <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">銷售日期</th>
@@ -856,6 +988,14 @@ export default function SalesPage() {
                             {group.sales.map((sale) => (
                               <React.Fragment key={sale.id}>
                                 <tr className="hover:bg-white dark:hover:bg-gray-800">
+                                  <td className="py-2 w-8">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedSaleIds.has(sale.id)}
+                                      onChange={() => toggleSelectSale(sale.id)}
+                                      className="h-4 w-4"
+                                    />
+                                  </td>
                                   <td className="py-2 text-sm text-gray-900 dark:text-gray-100">
                                     <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleSale(sale.id)}>
                                       <span className="text-blue-600">
@@ -1076,11 +1216,19 @@ export default function SalesPage() {
                     return paginatedSales.map((sale) => (
                       <div key={sale.id} className="p-4">
                         <div className="flex items-start justify-between gap-2 mb-2">
-                          <div>
-                            <p className="font-medium text-gray-900 dark:text-gray-100">{sale.sale_no}</p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {sale.customers?.customer_name || '散客'}
-                            </p>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedSaleIds.has(sale.id)}
+                              onChange={() => toggleSelectSale(sale.id)}
+                              className="h-4 w-4"
+                            />
+                            <div>
+                              <p className="font-medium text-gray-900 dark:text-gray-100">{sale.sale_no}</p>
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                {sale.customers?.customer_name || '散客'}
+                              </p>
+                            </div>
                           </div>
                           <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
                             {formatCurrency(sale.total)}
@@ -1108,6 +1256,20 @@ export default function SalesPage() {
                 <table className="hidden md:table w-full">
                   <thead className="border-b bg-gray-50 dark:bg-gray-900">
                     <tr>
+                      <th className="px-3 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          checked={(() => {
+                            const allSales = customerGroups[0]?.sales || []
+                            const startIndex = (currentPage - 1) * itemsPerPage
+                            const endIndex = startIndex + itemsPerPage
+                            const currentPageSales = allSales.slice(startIndex, endIndex)
+                            return currentPageSales.length > 0 && currentPageSales.every((s: any) => selectedSaleIds.has(s.id))
+                          })()}
+                          onChange={toggleSelectAll}
+                          className="h-4 w-4"
+                        />
+                      </th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">銷售單號</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">客戶</th>
                       <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">總金額</th>
@@ -1130,9 +1292,16 @@ export default function SalesPage() {
                         <React.Fragment key={sale.id}>
                           <tr
                             className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
-                            onClick={() => toggleSale(sale.id)}
                           >
-                            <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">
+                            <td className="px-3 py-4 w-10" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={selectedSaleIds.has(sale.id)}
+                                onChange={() => toggleSelectSale(sale.id)}
+                                className="h-4 w-4"
+                              />
+                            </td>
+                            <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100" onClick={() => toggleSale(sale.id)}>
                               <div className="flex items-center gap-2">
                                 <span className="text-gray-400 text-xs">
                                   {expandedSales.has(sale.id) ? '▾' : '▸'}
@@ -1586,6 +1755,15 @@ export default function SalesPage() {
           </div>
         </div>
       )}
+
+      {/* Import Modal */}
+      <SalesImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={() => {
+          fetchSales()
+        }}
+      />
     </div>
   )
 }
