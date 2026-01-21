@@ -26,7 +26,8 @@
       "Bash(xargs ls:*)",
       "Bash(git -C \"C:\\\\Users\\\\linei\\\\Desktop\\\\coding\\\\toyflow-erp\" log --oneline -15)",
       "Bash(npx supabase:*)",
-      "Bash(npm run lint)"
+      "Bash(npm run lint)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import Image from 'next/image'
 import { formatCurrency } from '@/lib/utils'
+import ProductImportModal from '@/components/ProductImportModal'
 import type { Product, Category } from '@/types'
 
 type SortField = 'item_code' | 'name' | 'price' | 'avg_cost' | 'stock' | 'updated_at'
@@ -33,6 +34,9 @@ export default function ProductsPage() {
   const [userRole, setUserRole] = useState<'admin' | 'staff' | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set())
+  const [batchDeleting, setBatchDeleting] = useState(false)
 
   // 獲取用戶角色
   useEffect(() => {
@@ -177,6 +181,58 @@ export default function ProductsPage() {
     }
   }
 
+  // 批量刪除
+  const handleBatchDelete = async () => {
+    if (selectedProducts.size === 0) return
+
+    if (!confirm(`確定要刪除選中的 ${selectedProducts.size} 個商品嗎？\n\n注意：此操作無法復原`)) {
+      return
+    }
+
+    setBatchDeleting(true)
+    let successCount = 0
+    let failCount = 0
+
+    for (const id of selectedProducts) {
+      try {
+        const res = await fetch(`/api/products/${id}`, { method: 'DELETE' })
+        const data = await res.json()
+        if (data.ok) {
+          successCount++
+        } else {
+          failCount++
+        }
+      } catch {
+        failCount++
+      }
+    }
+
+    setBatchDeleting(false)
+    setSelectedProducts(new Set())
+    alert(`批量刪除完成\n成功：${successCount} 個\n失敗：${failCount} 個`)
+    fetchProducts()
+  }
+
+  // 全選/取消全選
+  const toggleSelectAll = () => {
+    if (selectedProducts.size === products.length) {
+      setSelectedProducts(new Set())
+    } else {
+      setSelectedProducts(new Set(products.map(p => p.id)))
+    }
+  }
+
+  // 單選切換
+  const toggleSelectProduct = (id: string) => {
+    const newSelected = new Set(selectedProducts)
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
+    } else {
+      newSelected.add(id)
+    }
+    setSelectedProducts(newSelected)
+  }
+
   const handleSort = (field: SortField) => {
     if (sortBy === field) {
       // Toggle order if same field
@@ -207,6 +263,12 @@ export default function ProductsPage() {
             >
               打印條碼
             </Link>
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+            >
+              匯入
+            </button>
             <Link
               href="/products/new"
               className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
@@ -221,6 +283,28 @@ export default function ProductsPage() {
             </Link>
           </div>
         </div>
+
+        {/* 批量操作列 */}
+        {selectedProducts.size > 0 && (
+          <div className="mb-4 flex items-center gap-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 px-4 py-3 border border-blue-200 dark:border-blue-800">
+            <span className="text-sm text-blue-800 dark:text-blue-300">
+              已選擇 {selectedProducts.size} 個商品
+            </span>
+            <button
+              onClick={handleBatchDelete}
+              disabled={batchDeleting}
+              className="rounded bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:bg-gray-400"
+            >
+              {batchDeleting ? '刪除中...' : '批量刪除'}
+            </button>
+            <button
+              onClick={() => setSelectedProducts(new Set())}
+              className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+            >
+              取消選擇
+            </button>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="mb-6 rounded-lg bg-white dark:bg-gray-800 p-4 shadow">
@@ -374,9 +458,90 @@ export default function ProductsPage() {
             <div className="p-8 text-center text-gray-900 dark:text-gray-100">沒有商品</div>
           ) : (
             <>
-              <table className="w-full">
+              {/* Mobile Card Layout - visible on small screens only */}
+              <div className="md:hidden divide-y divide-gray-200 dark:divide-gray-700">
+                {products.map((product) => (
+                  <div key={product.id} className="p-4">
+                    <div className="flex gap-3">
+                      {/* Product Image */}
+                      <div className="shrink-0">
+                        {product.image_url ? (
+                          <div className="relative w-16 h-16 overflow-hidden rounded-lg">
+                            <Image
+                              src={product.image_url}
+                              alt={product.name}
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                            <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Product Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                              {product.name}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {product.item_code}
+                            </p>
+                          </div>
+                          <span className={`shrink-0 text-xs px-2 py-0.5 rounded ${product.is_active
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                            }`}>
+                            {product.is_active ? '上架' : '下架'}
+                          </span>
+                        </div>
+
+                        <div className="mt-2 flex items-center justify-between">
+                          <div className="flex items-center gap-3 text-sm">
+                            <span className="text-gray-900 dark:text-gray-100 font-medium">
+                              {formatCurrency(product.price)}
+                            </span>
+                            <span className={`${product.stock <= 3
+                              ? 'text-red-600 dark:text-red-400 font-semibold'
+                              : product.stock <= 9
+                                ? 'text-orange-600 dark:text-orange-400 font-semibold'
+                                : 'text-gray-600 dark:text-gray-400'
+                              }`}>
+                              庫存: {product.stock <= 3 && '⚠ '}{product.stock}
+                            </span>
+                          </div>
+                          <Link
+                            href={`/products/${product.id}/edit`}
+                            className="text-blue-600 dark:text-blue-400 text-sm font-medium"
+                          >
+                            編輯
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Table - hidden on mobile */}
+              <table className="hidden md:table w-full">
                 <thead className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
                   <tr>
+                    <th className="px-3 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">
+                      <input
+                        type="checkbox"
+                        checked={products.length > 0 && selectedProducts.size === products.length}
+                        onChange={toggleSelectAll}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                    </th>
                     <th className="px-3 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">圖片</th>
                     <th
                       className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none"
@@ -446,6 +611,14 @@ export default function ProductsPage() {
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {products.map((product) => (
                     <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-3 py-4 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedProducts.has(product.id)}
+                          onChange={() => toggleSelectProduct(product.id)}
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
+                      </td>
                       <td className="px-3 py-4 text-center">
                         {product.image_url ? (
                           <div className="relative w-10 h-10 mx-auto overflow-hidden rounded">
@@ -655,6 +828,19 @@ export default function ProductsPage() {
         </>,
         document.body
       )}
+
+      {/* Product Import Modal */}
+      <ProductImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={() => {
+          fetchProducts()
+          // 清除低庫存快取，讓下次會重新載入
+          localStorage.removeItem('products_low_stock_cache')
+          localStorage.removeItem('products_low_stock_cache_expiry')
+          fetchLowStockProducts()
+        }}
+      />
     </div>
   )
 }

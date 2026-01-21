@@ -1,8 +1,11 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import dynamic from 'next/dynamic'
 import { formatCurrency } from '@/lib/utils'
-import type { Product, SaleItem, PaymentMethod } from '@/types'
+import type { Product, SaleItem, Account } from '@/types'
+
+const MobilePOS = dynamic(() => import('@/components/MobilePOS'), { ssr: false })
 
 type CartItem = SaleItem & {
   product: Product
@@ -24,7 +27,8 @@ type Customer = {
 type SaleDraft = {
   id: string
   customer_code: string | null
-  payment_method: PaymentMethod
+  payment_method: string
+  account_id: string | null
   is_paid: boolean
   note: string | null
   discount_type: 'none' | 'percent' | 'amount'
@@ -39,16 +43,30 @@ type TodaySale = {
   sale_no: string
   customer_code: string | null
   total: number
-  payment_method: PaymentMethod
+  payment_method: string
+  account_id: string | null
   is_paid: boolean
   created_at: string
   customers?: { customer_name: string }
 }
 
 export default function POSPage() {
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(false)
+  const [isCheckingMobile, setIsCheckingMobile] = useState(true)
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024)
+    checkMobile()
+    setIsCheckingMobile(false)
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
   const [barcode, setBarcode] = useState('')
   const [cart, setCart] = useState<CartItem[]>([])
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
+  const [accounts, setAccounts] = useState<Account[]>([])
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)
   const [isPaid, setIsPaid] = useState(true)
   const [isDelivered, setIsDelivered] = useState(true) // 新增：已出貨狀態
   const [deliveryMethod, setDeliveryMethod] = useState('') // 新增：交貨方式
@@ -147,13 +165,55 @@ export default function POSPage() {
   const [closingNote, setClosingNote] = useState('')
   const [closingInProgress, setClosingInProgress] = useState(false)
 
+  // 點數計劃
+  const [pointPrograms, setPointPrograms] = useState<any[]>([])
+  const [selectedPointProgram, setSelectedPointProgram] = useState<string | null>(null)
+
   useEffect(() => {
     fetchCustomers()
     fetchProducts()
     fetchIchibanKujis()
     fetchDrafts()
     fetchClosingStats() // 先獲取結帳統計，包含 lastClosingTime
+    fetchPointPrograms() // 獲取點數計劃
+    fetchAccounts() // 獲取帳戶列表
   }, [])
+
+  const fetchPointPrograms = async () => {
+    try {
+      const res = await fetch('/api/point-programs')
+      const data = await res.json()
+      if (data.ok) {
+        const activePrograms = (data.data || []).filter((p: any) => p.is_active)
+        setPointPrograms(activePrograms)
+        // 自動選擇第一個啟用的點數計劃
+        if (activePrograms.length > 0 && !selectedPointProgram) {
+          setSelectedPointProgram(activePrograms[0].id)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch point programs:', err)
+    }
+  }
+
+  const fetchAccounts = async () => {
+    try {
+      const res = await fetch('/api/accounts?active_only=true')
+      const data = await res.json()
+      if (data.ok) {
+        setAccounts(data.data || [])
+        // 預設選擇第一個現金帳戶
+        const cashAccount = (data.data || []).find((a: Account) => a.account_type === 'cash')
+        if (cashAccount) {
+          setSelectedAccountId(cashAccount.id)
+        } else if (data.data?.length > 0) {
+          setSelectedAccountId(data.data[0].id)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch accounts:', err)
+    }
+  }
 
   // Save pinned products to localStorage whenever it changes
   useEffect(() => {
@@ -634,12 +694,6 @@ export default function POSPage() {
 
   const total = Math.max(0, subtotal - discountAmount)
 
-  // 计算购物金抵扣（预览）
-  const storeCreditUsed = selectedCustomer && selectedCustomer.store_credit > 0
-    ? Math.min(selectedCustomer.store_credit, total)
-    : 0
-  const finalTotal = total - storeCreditUsed
-
   // Get combo price info for display
   const getIchibanComboInfo = (kuji_id: string) => {
     const items = cart.filter(item => item.ichiban_kuji_id === kuji_id)
@@ -684,13 +738,18 @@ export default function POSPage() {
       // Use combo price adjusted cart for checkout
       const checkoutCart = applyComboPrice()
 
+      // 獲取選中帳戶的名稱作為 payment_method（向後兼容）
+      const selectedAccount = accounts.find(a => a.id === selectedAccountId)
+      const paymentMethodName = selectedAccount?.account_name || 'cash'
+
       const res = await fetch('/api/sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customer_code: selectedCustomer?.customer_code || undefined,
           source: salesMode,
-          payment_method: paymentMethod,
+          payment_method: paymentMethodName,
+          account_id: selectedAccountId,
           is_paid: isPaid,
           is_delivered: isDelivered, // 新增：是否已出貨
           delivery_method: !isDelivered ? deliveryMethod : undefined, // 未出貨時保存交貨方式
@@ -706,6 +765,8 @@ export default function POSPage() {
             ichiban_kuji_prize_id: item.ichiban_kuji_prize_id,
             ichiban_kuji_id: item.ichiban_kuji_id,
           })),
+          // 點數計劃（有選擇客戶時才傳送）
+          point_program_id: selectedCustomer && selectedPointProgram ? selectedPointProgram : undefined,
         }),
       })
 
@@ -715,7 +776,9 @@ export default function POSPage() {
         setCart([])
         setSelectedCustomer(null)
         setCustomerSearchQuery('')
-        setPaymentMethod('cash')
+        // 重置為預設帳戶（第一個現金帳戶）
+        const defaultCashAccount = accounts.find(a => a.account_type === 'cash')
+        setSelectedAccountId(defaultCashAccount?.id || accounts[0]?.id || null)
         setIsPaid(true)
         setIsDelivered(true) // 重置為已出貨
         setDeliveryMethod('') // 清空交貨方式
@@ -751,12 +814,15 @@ export default function POSPage() {
       // Use combo price adjusted cart for saving draft
       const draftCart = applyComboPrice()
 
+      const selectedAccount = accounts.find(a => a.id === selectedAccountId)
+
       const res = await fetch('/api/sale-drafts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customer_code: selectedCustomer?.customer_code || null,
-          payment_method: paymentMethod,
+          payment_method: selectedAccount?.account_name || 'cash',
+          account_id: selectedAccountId,
           is_paid: isPaid,
           note: note || null,
           discount_type: discountType,
@@ -777,7 +843,9 @@ export default function POSPage() {
         setCart([])
         setSelectedCustomer(null)
         setCustomerSearchQuery('')
-        setPaymentMethod('cash')
+        // 重置為預設帳戶
+        const defaultCashAccount = accounts.find(a => a.account_type === 'cash')
+        setSelectedAccountId(defaultCashAccount?.id || accounts[0]?.id || null)
         setIsPaid(true)
         setNote('')
         setDiscountType('none')
@@ -819,7 +887,14 @@ export default function POSPage() {
           : null
       )
       setCustomerSearchQuery('')
-      setPaymentMethod(draft.payment_method)
+      // 載入帳戶 ID 或依名稱找對應帳戶
+      if (draft.account_id) {
+        setSelectedAccountId(draft.account_id)
+      } else {
+        // 向後兼容：依 payment_method 名稱找帳戶
+        const matchingAccount = accounts.find(a => a.account_name === draft.payment_method)
+        setSelectedAccountId(matchingAccount?.id || accounts[0]?.id || null)
+      }
       setIsPaid(draft.is_paid)
       setNote(draft.note || '')
       setDiscountType(draft.discount_type)
@@ -950,6 +1025,15 @@ export default function POSPage() {
     c.customer_code.toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
     c.phone?.toLowerCase().includes(customerSearchQuery.toLowerCase())
   )
+
+  // Mobile version - render MobilePOS for screens < 1024px
+  if (isCheckingMobile) {
+    return null // Prevent hydration mismatch
+  }
+
+  if (isMobile) {
+    return <MobilePOS salesMode="live" />
+  }
 
   return (
     <>
@@ -1440,25 +1524,12 @@ export default function POSPage() {
                   <span className="text-xl font-bold">-{formatCurrency(discountAmount)}</span>
                 </div>
               )}
-              {storeCreditUsed > 0 && (
-                <div className="flex justify-between items-center mb-2 text-emerald-400">
-                  <span>購物金</span>
-                  <span className="text-xl font-bold">-{formatCurrency(storeCreditUsed)}</span>
-                </div>
-              )}
               <div className="border-t border-slate-600 pt-3 flex justify-between items-center">
-                <span className="text-lg text-slate-300">
-                  {storeCreditUsed > 0 ? '實付金額' : '總計'}
-                </span>
+                <span className="text-lg text-slate-300">總計</span>
                 <span className="text-4xl font-bold text-white">
-                  {formatCurrency(finalTotal)}
+                  {formatCurrency(total)}
                 </span>
               </div>
-              {storeCreditUsed > 0 && (
-                <div className="mt-2 text-sm text-slate-400">
-                  已使用購物金 {formatCurrency(storeCreditUsed)}，餘額將變為 {formatCurrency(selectedCustomer!.store_credit - storeCreditUsed)}
-                </div>
-              )}
             </div>
           </div>
 
@@ -1529,12 +1600,6 @@ export default function POSPage() {
                       >
                         <div className="flex items-center justify-between">
                           <div className="font-bold">{customer.customer_name}</div>
-                          <div className={`text-sm font-semibold ${customer.store_credit >= 0
-                            ? 'text-green-600 dark:text-green-400'
-                            : 'text-red-600 dark:text-red-400'
-                            }`}>
-                            ${customer.store_credit?.toFixed(2) || '0.00'}
-                          </div>
                         </div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">
                           {customer.customer_code} {customer.phone && `• ${customer.phone}`}
@@ -1557,136 +1622,49 @@ export default function POSPage() {
                   + 新增客戶
                 </button>
 
-                {/* 显示选中客户的购物金余额 */}
-                {selectedCustomer && (
+                {/* 显示选中客户的信用額度 */}
+                {selectedCustomer && selectedCustomer.credit_limit > 0 && (
                   <div className="mt-2 p-2.5 bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-300 dark:border-blue-700 rounded-lg">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">購物金餘額</span>
-                      <span className={`text-lg font-bold ${selectedCustomer.store_credit >= 0
-                        ? 'text-green-600 dark:text-green-400'
-                        : 'text-red-600 dark:text-red-400'
-                        }`}>
-                        ${selectedCustomer.store_credit?.toFixed(2) || '0.00'}
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">信用額度</span>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        ${selectedCustomer.credit_limit.toFixed(2)}
                       </span>
                     </div>
-                    {selectedCustomer.credit_limit > 0 && (
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="text-xs text-gray-600 dark:text-gray-400">信用額度</span>
-                        <span className="text-xs text-gray-600 dark:text-gray-400">
-                          ${selectedCustomer.credit_limit.toFixed(2)}
-                        </span>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
 
-              {/* Payment Method - Button Grid */}
+              {/* Payment Method - Dynamic from Accounts */}
               <div>
                 <label className="block font-medium mb-1.5 text-sm text-slate-300">付款方式</label>
                 <div className="grid grid-cols-2 gap-2">
+                  {accounts.map((account) => {
+                    const icon = account.account_type === 'cash' ? '💵' : account.account_type === 'bank' ? '🏦' : '💰'
+                    return (
+                      <button
+                        key={account.id}
+                        onClick={() => {
+                          setSelectedAccountId(account.id)
+                          // 現金帳戶預設已付款，其他帳戶預設未付款
+                          setIsPaid(account.account_type === 'cash')
+                        }}
+                        className={`py-2.5 px-3 rounded-lg text-sm transition-all ${selectedAccountId === account.id
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                          }`}
+                      >
+                        {icon} {account.account_name}
+                      </button>
+                    )
+                  })}
+                  {/* 待定選項 */}
                   <button
                     onClick={() => {
-                      setPaymentMethod('cash')
-                      setIsPaid(true)
-                    }}
-                    className={`py-2.5 px-3 rounded-lg text-sm transition-all ${paymentMethod === 'cash'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                      }`}
-                  >
-                    💵 現金
-                  </button>
-                  <button
-                    onClick={() => {
-                      setPaymentMethod('card')
+                      setSelectedAccountId(null)
                       setIsPaid(false)
                     }}
-                    className={`py-2.5 px-3 rounded-lg text-sm transition-all ${paymentMethod === 'card'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                      }`}
-                  >
-                    💳 刷卡
-                  </button>
-                  <button
-                    onClick={() => {
-                      setPaymentMethod('transfer_cathay')
-                      setIsPaid(false)
-                    }}
-                    className={`py-2.5 px-3 rounded-lg text-sm transition-all ${paymentMethod === 'transfer_cathay'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                      }`}
-                  >
-                    🏦 國泰
-                  </button>
-                  <button
-                    onClick={() => {
-                      setPaymentMethod('transfer_fubon')
-                      setIsPaid(false)
-                    }}
-                    className={`py-2.5 px-3 rounded-lg text-sm transition-all ${paymentMethod === 'transfer_fubon'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                      }`}
-                  >
-                    🏦 富邦
-                  </button>
-                  <button
-                    onClick={() => {
-                      setPaymentMethod('transfer_esun')
-                      setIsPaid(false)
-                    }}
-                    className={`py-2.5 px-3 rounded-lg text-sm transition-all ${paymentMethod === 'transfer_esun'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                      }`}
-                  >
-                    🏦 玉山
-                  </button>
-                  <button
-                    onClick={() => {
-                      setPaymentMethod('transfer_union')
-                      setIsPaid(false)
-                    }}
-                    className={`py-2.5 px-3 rounded-lg text-sm transition-all ${paymentMethod === 'transfer_union'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                      }`}
-                  >
-                    🏦 聯邦
-                  </button>
-                  <button
-                    onClick={() => {
-                      setPaymentMethod('transfer_linepay')
-                      setIsPaid(false)
-                    }}
-                    className={`py-2.5 px-3 rounded-lg text-sm transition-all ${paymentMethod === 'transfer_linepay'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                      }`}
-                  >
-                    💚 LINE
-                  </button>
-                  <button
-                    onClick={() => {
-                      setPaymentMethod('cod')
-                      setIsPaid(false)
-                    }}
-                    className={`py-2.5 px-3 rounded-lg text-sm transition-all ${paymentMethod === 'cod'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                      }`}
-                  >
-                    📦 貨到
-                  </button>
-                  <button
-                    onClick={() => {
-                      setPaymentMethod('pending')
-                      setIsPaid(false)
-                    }}
-                    className={`py-2.5 px-3 rounded-lg text-sm transition-all ${paymentMethod === 'pending'
+                    className={`py-2.5 px-3 rounded-lg text-sm transition-all ${selectedAccountId === null
                       ? 'bg-indigo-600 text-white'
                       : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                       }`}

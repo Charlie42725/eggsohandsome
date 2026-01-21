@@ -53,17 +53,9 @@ export const vendorSchema = z.object({
 export const saleDraftSchema = z.object({
   customer_code: z.string().optional(),
   source: z.enum(['pos', 'live', 'manual']).default('pos'),
-  payment_method: z.enum([
-    'cash',
-    'card',
-    'transfer_cathay',
-    'transfer_fubon',
-    'transfer_esun',
-    'transfer_union',
-    'transfer_linepay',
-    'cod',
-    'pending'
-  ]).default('cash'),
+  // 支援舊的 payment_method 或新的 account_id
+  payment_method: z.string().default('cash'), // 改為 string 以支援動態帳戶名稱
+  account_id: z.string().uuid().optional().nullable(), // 新增：直接指定帳戶 ID
   is_paid: z.boolean().default(false),
   note: z.string().optional(),
   discount_type: z.enum(['none', 'percent', 'amount']).default('none'),
@@ -73,16 +65,8 @@ export const saleDraftSchema = z.object({
   // Multi-payment support
   payments: z.array(
     z.object({
-      method: z.enum([
-        'cash',
-        'card',
-        'transfer_cathay',
-        'transfer_fubon',
-        'transfer_esun',
-        'transfer_union',
-        'transfer_linepay',
-        'cod',
-      ]),
+      method: z.string(), // 改為 string 以支援動態帳戶
+      account_id: z.string().uuid().optional(), // 新增：直接指定帳戶 ID
       amount: z.number().positive('Amount must be positive'),
     })
   ).optional(),
@@ -98,17 +82,8 @@ export const saleDraftSchema = z.object({
 })
 
 export const saleUpdateSchema = z.object({
-  payment_method: z.enum([
-    'cash',
-    'card',
-    'transfer_cathay',
-    'transfer_fubon',
-    'transfer_esun',
-    'transfer_union',
-    'transfer_linepay',
-    'cod',
-    'pending'
-  ])
+  payment_method: z.string().optional(),
+  account_id: z.string().uuid().optional().nullable(),
 })
 
 // Purchase schemas
@@ -130,19 +105,10 @@ export const settlementSchema = z.object({
   partner_type: z.enum(['customer', 'vendor']),
   partner_code: z.string().min(1, 'Partner code is required'),
   direction: z.enum(['receipt', 'payment']),
-  method: z.enum([
-    'cash',
-    'card',
-    'transfer_cathay',
-    'transfer_fubon',
-    'transfer_esun',
-    'transfer_union',
-    'transfer_linepay',
-    'cod'
-  ]).optional(),
+  method: z.string().optional(), // 改為 string 以支援動態帳戶
   amount: z.number().positive('Amount must be positive'),
   note: z.string().optional(),
-  account_id: z.string().uuid().optional(),  // 新增：關聯的帳戶 ID（選用，可從 method 自動解析）
+  account_id: z.string().uuid().optional().nullable(),  // 直接指定帳戶 ID
   allocations: z.array(
     z.object({
       partner_account_id: z.string().uuid(),

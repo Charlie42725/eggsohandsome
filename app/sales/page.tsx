@@ -1065,7 +1065,47 @@ export default function SalesPage() {
               )}
 
               <div className="overflow-x-auto">
-                <table className="w-full">
+                {/* Mobile Card Layout */}
+                <div className="md:hidden divide-y divide-gray-200 dark:divide-gray-700">
+                  {(() => {
+                    const allSales = customerGroups[0]?.sales || []
+                    const startIndex = (currentPage - 1) * itemsPerPage
+                    const endIndex = startIndex + itemsPerPage
+                    const paginatedSales = allSales.slice(startIndex, endIndex)
+
+                    return paginatedSales.map((sale) => (
+                      <div key={sale.id} className="p-4">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-gray-100">{sale.sale_no}</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {sale.customers?.customer_name || '散客'}
+                            </p>
+                          </div>
+                          <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                            {formatCurrency(sale.total)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-3">
+                            <span className={sale.is_paid ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}>
+                              {sale.is_paid ? '✓ 已收' : '○ 未收'}
+                            </span>
+                            <span className={sale.fulfillment_status === 'completed' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}>
+                              {sale.fulfillment_status === 'completed' ? '🚚 已出貨' : '• 未出貨'}
+                            </span>
+                          </div>
+                          <span className="text-gray-500 dark:text-gray-400 text-xs">
+                            {formatDateTime(sale.created_at)}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  })()}
+                </div>
+
+                {/* Desktop Table */}
+                <table className="hidden md:table w-full">
                   <thead className="border-b bg-gray-50 dark:bg-gray-900">
                     <tr>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">銷售單號</th>

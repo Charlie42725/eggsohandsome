@@ -1,0 +1,278 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { supabaseServer } from '@/lib/supabase/server'
+import { generateCode } from '@/lib/utils'
+import * as XLSX from 'xlsx'
+
+type ImportRow = {
+  rowNumber: number
+  name: string
+  barcode: string | null
+  price: number
+  cost: number
+  stock: number
+  category: string | null
+  error?: string
+  warning?: string
+}
+
+type ImportResult = {
+  success: number
+  failed: number
+  errors: { row: number; message: string }[]
+  warnings: { row: number; message: string }[]
+}
+
+// POST /api/products/import - 批量匯入商品
+export async function POST(request: NextRequest) {
+  try {
+    const formData = await request.formData()
+    const file = formData.get('file') as File
+
+    if (!file) {
+      return NextResponse.json(
+        { ok: false, error: '請選擇檔案' },
+        { status: 400 }
+      )
+    }
+
+    // 檢查檔案類型
+    const fileName = file.name.toLowerCase()
+    if (!fileName.endsWith('.xlsx') && !fileName.endsWith('.xls')) {
+      return NextResponse.json(
+        { ok: false, error: '請上傳 .xlsx 或 .xls 檔案' },
+        { status: 400 }
+      )
+    }
+
+    // 讀取 Excel 檔案
+    const buffer = await file.arrayBuffer()
+    const workbook = XLSX.read(buffer, { type: 'array' })
+    const sheetName = workbook.SheetNames[0]
+    const worksheet = workbook.Sheets[sheetName]
+    const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][]
+
+    if (rawData.length < 2) {
+      return NextResponse.json(
+        { ok: false, error: '檔案中沒有資料（需要標題列和至少一行資料）' },
+        { status: 400 }
+      )
+    }
+
+    // 解析標題列
+    const headers = rawData[0].map((h: any) => String(h || '').trim())
+    const columnMap: Record<string, number> = {}
+
+    headers.forEach((header, index) => {
+      const normalizedHeader = header.toLowerCase()
+      if (normalizedHeader.includes('商品名稱') || normalizedHeader === 'name' || normalizedHeader === '名稱') {
+        columnMap['name'] = index
+      } else if (normalizedHeader.includes('條碼') || normalizedHeader === 'barcode') {
+        columnMap['barcode'] = index
+      } else if (normalizedHeader.includes('售價') || normalizedHeader === 'price' || normalizedHeader === '價格') {
+        columnMap['price'] = index
+      } else if (normalizedHeader.includes('成本') || normalizedHeader === 'cost') {
+        columnMap['cost'] = index
+      } else if (normalizedHeader.includes('庫存') || normalizedHeader === 'stock' || normalizedHeader === '數量') {
+        columnMap['stock'] = index
+      } else if (normalizedHeader.includes('分類') || normalizedHeader === 'category') {
+        columnMap['category'] = index
+      }
+    })
+
+    if (columnMap['barcode'] === undefined) {
+      return NextResponse.json(
+        { ok: false, error: '找不到「條碼」欄位' },
+        { status: 400 }
+      )
+    }
+
+    // 獲取所有分類（用於名稱對應 ID）
+    const { data: categories } = await (supabaseServer
+      .from('categories') as any)
+      .select('id, name')
+
+    const categoryMap = new Map<string, string>()
+    if (categories) {
+      categories.forEach((cat: any) => {
+        categoryMap.set(cat.name.toLowerCase(), cat.id)
+      })
+    }
+
+    // 獲取所有現有條碼（用於檢查重複）
+    const { data: existingProducts } = await (supabaseServer
+      .from('products') as any)
+      .select('barcode')
+      .not('barcode', 'is', null)
+
+    const existingBarcodes = new Set<string>()
+    if (existingProducts) {
+      existingProducts.forEach((p: any) => {
+        if (p.barcode) existingBarcodes.add(p.barcode)
+      })
+    }
+
+    // 解析資料列
+    const rows: ImportRow[] = []
+    const newBarcodes = new Set<string>()
+
+    for (let i = 1; i < rawData.length; i++) {
+      const row = rawData[i]
+      if (!row || row.length === 0) continue
+
+      const name = columnMap['name'] !== undefined ? String(row[columnMap['name']] || '').trim() : ''
+      const barcode = columnMap['barcode'] !== undefined ? String(row[columnMap['barcode']] || '').trim() || null : null
+      const price = columnMap['price'] !== undefined ? parseFloat(row[columnMap['price']]) || 0 : 0
+      const cost = columnMap['cost'] !== undefined ? parseFloat(row[columnMap['cost']]) || 0 : 0
+      const stock = columnMap['stock'] !== undefined ? parseInt(row[columnMap['stock']]) || 0 : 0
+      const category = columnMap['category'] !== undefined ? String(row[columnMap['category']] || '').trim() || null : null
+
+      const importRow: ImportRow = {
+        rowNumber: i + 1,
+        name,
+        barcode,
+        price,
+        cost,
+        stock,
+        category,
+      }
+
+      // 驗證
+      if (!barcode) {
+        importRow.error = '條碼不能為空'
+      } else if (existingBarcodes.has(barcode)) {
+        importRow.error = `條碼 ${barcode} 已存在於資料庫`
+      } else if (newBarcodes.has(barcode)) {
+        importRow.error = `條碼 ${barcode} 在檔案中重複`
+      } else {
+        newBarcodes.add(barcode)
+      }
+
+      // 如果商品名稱為空，使用條碼作為名稱
+      if (!importRow.error && !importRow.name && barcode) {
+        importRow.name = barcode
+      }
+
+      if (category && !categoryMap.has(category.toLowerCase())) {
+        importRow.warning = `分類「${category}」不存在，將不設定分類`
+      }
+
+      rows.push(importRow)
+    }
+
+    // 只做預覽，不實際匯入
+    const preview = formData.get('preview') === 'true'
+    if (preview) {
+      return NextResponse.json({
+        ok: true,
+        preview: true,
+        data: rows,
+        summary: {
+          total: rows.length,
+          valid: rows.filter(r => !r.error).length,
+          invalid: rows.filter(r => r.error).length,
+          warnings: rows.filter(r => r.warning).length,
+        }
+      })
+    }
+
+    // 實際匯入
+    const result: ImportResult = {
+      success: 0,
+      failed: 0,
+      errors: [],
+      warnings: [],
+    }
+
+    // 獲取最大 item_code 編號
+    const { data: lastProduct } = await (supabaseServer
+      .from('products') as any)
+      .select('item_code')
+      .like('item_code', 'I%')
+      .order('item_code', { ascending: false })
+      .limit(1)
+
+    let maxNumber = 0
+    if (lastProduct && lastProduct.length > 0) {
+      const match = lastProduct[0].item_code.match(/^I(\d+)$/)
+      if (match) {
+        maxNumber = parseInt(match[1])
+      }
+    }
+
+    // 批量插入有效的商品
+    const validRows = rows.filter(r => !r.error)
+
+    for (const row of validRows) {
+      try {
+        maxNumber++
+        const itemCode = generateCode('I', maxNumber - 1) // generateCode 會加 1
+
+        const categoryId = row.category
+          ? categoryMap.get(row.category.toLowerCase()) || null
+          : null
+
+        const insertData: any = {
+          item_code: itemCode,
+          name: row.name,
+          barcode: row.barcode,
+          price: row.price,
+          cost: row.cost,
+          stock: row.stock,
+          avg_cost: row.stock > 0 ? row.cost : 0,
+          category_id: categoryId,
+          unit: '件',
+          is_active: true,
+        }
+
+        const { error } = await (supabaseServer
+          .from('products') as any)
+          .insert(insertData)
+
+        if (error) {
+          result.failed++
+          result.errors.push({
+            row: row.rowNumber,
+            message: error.message,
+          })
+          maxNumber-- // 回退編號
+        } else {
+          result.success++
+          if (row.warning) {
+            result.warnings.push({
+              row: row.rowNumber,
+              message: row.warning,
+            })
+          }
+        }
+      } catch (err: any) {
+        result.failed++
+        result.errors.push({
+          row: row.rowNumber,
+          message: err.message || '未知錯誤',
+        })
+        maxNumber--
+      }
+    }
+
+    // 加入原本就有錯誤的行
+    for (const row of rows.filter(r => r.error)) {
+      result.failed++
+      result.errors.push({
+        row: row.rowNumber,
+        message: row.error!,
+      })
+    }
+
+    return NextResponse.json({
+      ok: true,
+      preview: false,
+      result,
+    })
+  } catch (error: any) {
+    console.error('Failed to import products:', error)
+    return NextResponse.json(
+      { ok: false, error: error.message || '匯入失敗' },
+      { status: 500 }
+    )
+  }
+}

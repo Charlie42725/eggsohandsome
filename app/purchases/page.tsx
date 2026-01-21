@@ -59,6 +59,10 @@ export default function PurchasesPage() {
   const [selectedPurchases, setSelectedPurchases] = useState<Set<string>>(new Set())
   const [batchReceiving, setBatchReceiving] = useState(false)
 
+  // Date editing state
+  const [editingDateId, setEditingDateId] = useState<string | null>(null)
+  const [editingDate, setEditingDate] = useState('')
+
   useEffect(() => {
     // Fetch current user role
     fetch('/api/auth/me')
@@ -355,6 +359,52 @@ export default function PurchasesPage() {
     }
   }
 
+  // Date editing handlers
+  const startEditingDate = (purchase: Purchase) => {
+    setEditingDateId(purchase.id)
+    // Convert to YYYY-MM-DD format for input
+    const date = new Date(purchase.purchase_date)
+    const yyyy = date.getFullYear()
+    const mm = String(date.getMonth() + 1).padStart(2, '0')
+    const dd = String(date.getDate()).padStart(2, '0')
+    setEditingDate(`${yyyy}-${mm}-${dd}`)
+  }
+
+  const cancelEditingDate = () => {
+    setEditingDateId(null)
+    setEditingDate('')
+  }
+
+  const saveDate = async (purchaseId: string) => {
+    if (!editingDate) {
+      cancelEditingDate()
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/purchases/${purchaseId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ purchase_date: editingDate }),
+      })
+
+      const data = await res.json()
+
+      if (data.ok) {
+        // Update local state
+        setPurchases(prev => prev.map(p =>
+          p.id === purchaseId ? { ...p, purchase_date: editingDate } : p
+        ))
+      } else {
+        alert(`更新失敗：${data.error}`)
+      }
+    } catch (err) {
+      alert('更新失敗')
+    } finally {
+      cancelEditingDate()
+    }
+  }
+
   // Sort indicator component
   const SortIndicator = ({ field }: { field: SortField }) => {
     if (sortField !== field) return <span className="ml-1 text-gray-300 dark:text-gray-600">⇅</span>
@@ -546,8 +596,44 @@ export default function PurchasesPage() {
                             <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
                               {purchase.item_count || 0} 項 / {purchase.total_quantity || 0} 件
                             </td>
-                            <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">
-                              {formatDate(purchase.purchase_date)}
+                            <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100" onClick={(e) => e.stopPropagation()}>
+                              {editingDateId === purchase.id ? (
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="date"
+                                    value={editingDate}
+                                    onChange={(e) => setEditingDate(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') saveDate(purchase.id)
+                                      if (e.key === 'Escape') cancelEditingDate()
+                                    }}
+                                    className="rounded border border-gray-300 dark:border-gray-600 px-2 py-1 text-sm bg-white dark:bg-gray-700"
+                                    autoFocus
+                                  />
+                                  <button
+                                    onClick={() => saveDate(purchase.id)}
+                                    className="text-green-600 hover:text-green-700 dark:text-green-400 text-lg"
+                                    title="儲存"
+                                  >
+                                    ✓
+                                  </button>
+                                  <button
+                                    onClick={cancelEditingDate}
+                                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 text-lg"
+                                    title="取消"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => isAdmin && startEditingDate(purchase)}
+                                  className={`hover:underline ${isAdmin ? 'cursor-pointer hover:text-blue-600 dark:hover:text-blue-400' : 'cursor-default'}`}
+                                  title={isAdmin ? '點擊編輯日期' : ''}
+                                >
+                                  {formatDate(purchase.purchase_date)}
+                                </button>
+                              )}
                             </td>
                             <td className="px-6 py-4 text-center text-sm">
                               <span

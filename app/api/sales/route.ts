@@ -234,24 +234,41 @@ export async function POST(request: NextRequest) {
 
     const saleNo = generateCode('S', saleCount)
 
-    // Determine primary payment method and account
-    // If payments array provided, use largest amount; otherwise use single payment_method
-    let primaryPaymentMethod = draft.payment_method
-    if (draft.payments && draft.payments.length > 0) {
+    // Determine primary account
+    // Priority: 1) draft.account_id, 2) payments[].account_id, 3) lookup by payment_method
+    let primaryAccountId = draft.account_id || null
+
+    if (!primaryAccountId && draft.payments && draft.payments.length > 0) {
       // Find payment with largest amount
-      const largest = draft.payments.reduce((max, p) => p.amount > max.amount ? p : max, draft.payments[0])
-      primaryPaymentMethod = largest.method
+      const largest = draft.payments.reduce((max: any, p: any) => p.amount > max.amount ? p : max, draft.payments[0])
+      primaryAccountId = largest.account_id || null
     }
 
-    // Get account_id based on primary payment_method
-    const { data: account } = await (supabaseServer
-      .from('accounts') as any)
-      .select('id')
-      .eq('payment_method_code', primaryPaymentMethod)
-      .eq('is_active', true)
-      .single()
+    // Fallback: lookup account by payment_method (backward compatibility)
+    if (!primaryAccountId && draft.payment_method && draft.payment_method !== 'pending') {
+      const { data: account } = await (supabaseServer
+        .from('accounts') as any)
+        .select('id')
+        .eq('account_name', draft.payment_method)
+        .eq('is_active', true)
+        .single()
 
-    const accountId = account?.id || null
+      if (!account) {
+        // Try legacy payment_method_code lookup
+        const { data: legacyAccount } = await (supabaseServer
+          .from('accounts') as any)
+          .select('id')
+          .eq('payment_method_code', draft.payment_method)
+          .eq('is_active', true)
+          .single()
+
+        primaryAccountId = legacyAccount?.id || null
+      } else {
+        primaryAccountId = account.id
+      }
+    }
+
+    const accountId = primaryAccountId
 
     // 取得台灣時間 (UTC+8)
     const now = new Date()
@@ -408,64 +425,6 @@ export async function POST(request: NextRequest) {
 
     const total = Math.max(0, subtotal - discountAmount)
 
-    // 4.5. 自动使用购物金抵扣（如果有客户且购物金余额 > 0）
-    let storeCreditUsed = 0
-    let finalTotal = total
-
-    if (draft.customer_code) {
-      // 获取客户购物金余额
-      const { data: customer, error: customerError } = await (supabaseServer
-        .from('customers') as any)
-        .select('store_credit, credit_limit')
-        .eq('customer_code', draft.customer_code)
-        .single()
-
-      if (customer && customer.store_credit > 0) {
-        // 计算可使用的购物金（不超过订单总额）
-        storeCreditUsed = Math.min(customer.store_credit, total)
-        finalTotal = total - storeCreditUsed
-
-        // 更新客户购物金余额
-        const newBalance = customer.store_credit - storeCreditUsed
-        const { error: updateCustomerError } = await (supabaseServer
-          .from('customers') as any)
-          .update({ store_credit: newBalance })
-          .eq('customer_code', draft.customer_code)
-
-        if (updateCustomerError) {
-          // Rollback: delete items and sale
-          await (supabaseServer.from('sale_items') as any).delete().eq('sale_id', sale.id)
-          await (supabaseServer.from('sales') as any).delete().eq('id', sale.id)
-          return NextResponse.json(
-            { ok: false, error: '更新客户购物金失败' },
-            { status: 500 }
-          )
-        }
-
-        // 记录购物金使用日志（使用台灣時間）
-        const { error: logError } = await (supabaseServer
-          .from('customer_balance_logs') as any)
-          .insert({
-            customer_code: draft.customer_code,
-            amount: -storeCreditUsed,
-            balance_before: customer.store_credit,
-            balance_after: newBalance,
-            type: 'sale',
-            ref_type: 'sale',
-            ref_id: sale.id,
-            ref_no: saleNo,
-            note: `销售单 ${saleNo} 使用购物金`,
-            created_by: null, // TODO: 从会话获取当前用户
-            created_at: getTaiwanTime(),
-          })
-
-        if (logError) {
-          console.error('Failed to create balance log:', logError)
-          // 日志失败不影响销售流程，只记录错误
-        }
-      }
-    }
-
     // 5. Deduct ONLY ichiban kuji remaining (product stock is auto-deducted by DB trigger)
     for (const item of draft.items) {
       // 如果是從一番賞售出，扣除一番賞的 remaining
@@ -519,7 +478,7 @@ export async function POST(request: NextRequest) {
     const { data: confirmedSale, error: confirmError } = await (supabaseServer
       .from('sales') as any)
       .update({
-        total: finalTotal,  // 使用抵扣购物金后的最终金额
+        total: total,  // 使用抵扣购物金后的最终金额
         status: 'confirmed',
         fulfillment_status: is_delivered ? 'completed' : 'none',
         updated_at: taiwanTime.toISOString(), // 使用台灣時間
@@ -529,22 +488,6 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (confirmError) {
-      // Rollback: restore customer store credit if used
-      if (storeCreditUsed > 0 && draft.customer_code) {
-        const { data: customer } = await (supabaseServer
-          .from('customers') as any)
-          .select('store_credit')
-          .eq('customer_code', draft.customer_code)
-          .single()
-
-        if (customer) {
-          await (supabaseServer
-            .from('customers') as any)
-            .update({ store_credit: customer.store_credit + storeCreditUsed })
-            .eq('customer_code', draft.customer_code)
-        }
-      }
-
       // Rollback: restore ONLY ichiban kuji remaining
       for (const item of draft.items) {
         // 恢復一番賞庫存
@@ -577,22 +520,40 @@ export async function POST(request: NextRequest) {
       // Determine payments to process
       const paymentsToProcess = draft.payments && draft.payments.length > 0
         ? draft.payments
-        : [{ method: draft.payment_method, amount: finalTotal }]
+        : [{ method: draft.payment_method, account_id: accountId, amount: total }]
 
       // Process each payment
       for (const payment of paymentsToProcess) {
-        // Get account for this payment method
-        const { data: paymentAccount } = await (supabaseServer
-          .from('accounts') as any)
-          .select('id')
-          .eq('payment_method_code', payment.method)
-          .eq('is_active', true)
-          .single()
+        let paymentAccountId = payment.account_id || null
 
-        if (paymentAccount) {
+        // Fallback: lookup by method name if account_id not provided
+        if (!paymentAccountId && payment.method) {
+          const { data: paymentAccount } = await (supabaseServer
+            .from('accounts') as any)
+            .select('id')
+            .eq('account_name', payment.method)
+            .eq('is_active', true)
+            .single()
+
+          if (!paymentAccount) {
+            // Try legacy payment_method_code lookup
+            const { data: legacyAccount } = await (supabaseServer
+              .from('accounts') as any)
+              .select('id')
+              .eq('payment_method_code', payment.method)
+              .eq('is_active', true)
+              .single()
+
+            paymentAccountId = legacyAccount?.id || null
+          } else {
+            paymentAccountId = paymentAccount.id
+          }
+        }
+
+        if (paymentAccountId) {
           const accountUpdate = await updateAccountBalance({
             supabase: supabaseServer,
-            accountId: paymentAccount.id,
+            accountId: paymentAccountId,
             paymentMethod: payment.method,
             amount: payment.amount,
             direction: 'increase', // 銷售收款 = 現金流入
@@ -806,7 +767,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 11. 自動創建應收帳款（AR）記錄 - 如果客戶未付款且有應收金額
-    if (draft.customer_code && !draft.is_paid && finalTotal > 0) {
+    if (draft.customer_code && !draft.is_paid && total > 0) {
       // 計算每個商品的到期日（預設 7 天後）
       const dueDate = new Date(taiwanTime)
       dueDate.setDate(dueDate.getDate() + 7)
@@ -816,7 +777,7 @@ export async function POST(request: NextRequest) {
       const totalSubtotal = insertedSaleItems.reduce((sum: number, item: any) => sum + item.subtotal, 0)
 
       // 為每個銷售明細創建 AR 記錄（按比例分配扣除購物金後的金額）
-      let remainingAmount = finalTotal // 用於處理四捨五入誤差
+      let remainingAmount = total // 用於處理四捨五入誤差
       const arRecords = insertedSaleItems.map((saleItem: any, index: number) => {
         let itemAmount: number
         if (index === insertedSaleItems.length - 1) {
@@ -824,7 +785,7 @@ export async function POST(request: NextRequest) {
           itemAmount = remainingAmount
         } else {
           // 按比例分配
-          itemAmount = Math.round(finalTotal * (saleItem.subtotal / totalSubtotal))
+          itemAmount = Math.round(total * (saleItem.subtotal / totalSubtotal))
           remainingAmount -= itemAmount
         }
 
@@ -839,9 +800,7 @@ export async function POST(request: NextRequest) {
           received_paid: 0,
           due_date: dueDateStr,
           status: 'unpaid',
-          note: storeCreditUsed > 0
-            ? `銷售單 ${saleNo}（已使用購物金 $${storeCreditUsed}）`
-            : `銷售單 ${saleNo}`,
+          note: `銷售單 ${saleNo}`,
         }
       }).filter((ar: any) => ar.amount > 0) // 過濾掉金額為 0 的記錄
 

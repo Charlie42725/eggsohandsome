@@ -12,6 +12,7 @@ type RouteContext = {
 const purchaseUpdateSchema = z.object({
   vendor_code: z.string().optional(),
   note: z.string().optional().nullable(),
+  purchase_date: z.string().optional(),
 })
 
 // GET /api/purchases/:id - Get purchase details with items
@@ -123,6 +124,7 @@ export async function PUT(
     const updateData: any = {}
     if (updates.vendor_code) updateData.vendor_code = updates.vendor_code
     if (updates.note !== undefined) updateData.note = updates.note
+    if (updates.purchase_date) updateData.purchase_date = updates.purchase_date
 
     const { data: purchase, error: updateError } = await (supabaseServer
       .from('purchases') as any)

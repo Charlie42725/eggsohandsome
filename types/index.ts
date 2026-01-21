@@ -75,6 +75,17 @@ export type PaymentMethod =
   | 'cod'
   | 'pending'
 
+// Account type for dynamic payment methods
+export type Account = {
+  id: string
+  account_name: string
+  account_type: 'cash' | 'bank' | 'petty_cash'
+  balance: number
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
+}
+
 export type SaleDraft = {
   customer_code?: string
   source: 'pos' | 'live' | 'manual'

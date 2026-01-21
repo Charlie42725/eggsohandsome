@@ -46,7 +46,8 @@ export async function GET(request: NextRequest) {
     }
 
     if (keyword) {
-      query = query.or(`purchase_no.ilike.%${keyword}%,vendor_code.ilike.%${keyword}%`)
+      // Only filter by purchase_no in query, vendor_name filtering happens after fetch
+      query = query.ilike('purchase_no', `%${keyword}%`)
     }
 
     if (status) {
@@ -62,10 +63,20 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Filter by product if needed
+    // Filter by keyword (including vendor name) - must do after fetch since Supabase can't filter on joined tables
     let filteredData = data
+    if (keyword) {
+      const lowerKeyword = keyword.toLowerCase()
+      filteredData = data?.filter((purchase: any) =>
+        purchase.purchase_no?.toLowerCase().includes(lowerKeyword) ||
+        purchase.vendor_code?.toLowerCase().includes(lowerKeyword) ||
+        purchase.vendors?.vendor_name?.toLowerCase().includes(lowerKeyword)
+      )
+    }
+
+    // Filter by product if needed
     if (productKeyword) {
-      filteredData = data?.filter((purchase: any) => {
+      filteredData = filteredData?.filter((purchase: any) => {
         const items = purchase.purchase_items || []
         return items.some((item: any) =>
           item.products?.name?.toLowerCase().includes(productKeyword.toLowerCase()) ||
