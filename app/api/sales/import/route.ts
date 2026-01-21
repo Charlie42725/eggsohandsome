@@ -363,12 +363,41 @@ export async function POST(request: NextRequest) {
       warnings: [],
     }
 
-    // 獲取最大 sale_no 編號
-    const { count: saleCount } = await (supabaseServer
-      .from('sales') as any)
-      .select('*', { count: 'exact', head: true })
+    // 獲取最大 sale_no 編號（使用正確的方式避免重複）
+    const { data: allSales } = await supabaseServer
+      .from('sales')
+      .select('sale_no')
 
-    let saleNumber = saleCount || 0
+    let saleNumber = 0
+    if (allSales && allSales.length > 0) {
+      const maxNumber = allSales.reduce((max: number, sale: any) => {
+        const match = sale.sale_no.match(/\d+/)
+        if (match) {
+          const num = parseInt(match[0], 10)
+          return num > max ? num : max
+        }
+        return max
+      }, 0)
+      saleNumber = maxNumber
+    }
+
+    // 獲取最大 delivery_no 編號
+    const { data: allDeliveries } = await (supabaseServer
+      .from('deliveries') as any)
+      .select('delivery_no')
+
+    let deliveryNumber = 0
+    if (allDeliveries && allDeliveries.length > 0) {
+      const maxNumber = allDeliveries.reduce((max: number, delivery: any) => {
+        const match = delivery.delivery_no.match(/\d+/)
+        if (match) {
+          const num = parseInt(match[0], 10)
+          return num > max ? num : max
+        }
+        return max
+      }, 0)
+      deliveryNumber = maxNumber
+    }
 
     // 處理每筆訂單
     for (const order of groupedOrders) {
@@ -393,15 +422,19 @@ export async function POST(request: NextRequest) {
 
       try {
         saleNumber++
+        deliveryNumber++
         const saleNo = generateCode('S', saleNumber - 1)
+        const deliveryNo = generateCode('D', deliveryNumber - 1)
         const total = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
 
         // 解析銷售日期
+        let saleDate = new Date().toISOString().split('T')[0] // 預設當天
         let createdAt = getTaiwanTime()
         if (order.saleDate) {
           try {
             const parsedDate = new Date(order.saleDate)
             if (!isNaN(parsedDate.getTime())) {
+              saleDate = parsedDate.toISOString().split('T')[0]
               // 設定為當天的中午 12:00（避免時區問題）
               parsedDate.setHours(12, 0, 0, 0)
               createdAt = parsedDate.toISOString()
@@ -417,13 +450,14 @@ export async function POST(request: NextRequest) {
           .insert({
             sale_no: saleNo,
             customer_code: order.customerCode,
+            sale_date: saleDate,
             source: order.source,
             payment_method: order.paymentMethod,
             account_id: order.isPaid ? order.accountId : null,
             is_paid: order.isPaid,
-            is_delivered: true, // 匯入預設為已出貨
             total,
             status: 'confirmed',
+            fulfillment_status: 'completed', // 匯入預設為已完成出貨
             note: order.note,
             created_at: createdAt,
           })
@@ -437,23 +471,44 @@ export async function POST(request: NextRequest) {
             message: `建立銷售單失敗：${saleError.message}`,
           })
           saleNumber--
+          deliveryNumber--
           continue
         }
 
-        // 建立銷售明細
-        const saleItems = order.items.map(item => ({
-          sale_id: sale.id,
-          product_id: item.productId,
-          quantity: item.quantity,
-          price: item.price,
-          subtotal: item.price * item.quantity,
-          is_delivered: true,
-          delivered_quantity: item.quantity,
-        }))
+        // 建立銷售明細並獲取產品成本
+        const saleItemsData = await Promise.all(
+          order.items.map(async (item) => {
+            const { data: product } = await (supabaseServer
+              .from('products') as any)
+              .select('avg_cost, cost')
+              .eq('id', item.productId)
+              .single()
 
-        const { error: itemsError } = await (supabaseServer
+            return {
+              sale_id: sale.id,
+              product_id: item.productId,
+              quantity: item.quantity,
+              price: item.price,
+              cost: product?.avg_cost || product?.cost || 0,
+              snapshot_name: '', // 稍後更新
+            }
+          })
+        )
+
+        // 獲取商品名稱
+        for (const item of saleItemsData) {
+          const { data: product } = await (supabaseServer
+            .from('products') as any)
+            .select('name')
+            .eq('id', item.product_id)
+            .single()
+          item.snapshot_name = product?.name || ''
+        }
+
+        const { data: insertedSaleItems, error: itemsError } = await (supabaseServer
           .from('sale_items') as any)
-          .insert(saleItems)
+          .insert(saleItemsData)
+          .select()
 
         if (itemsError) {
           // 刪除已建立的銷售單
@@ -464,31 +519,35 @@ export async function POST(request: NextRequest) {
             message: `建立銷售明細失敗：${itemsError.message}`,
           })
           saleNumber--
+          deliveryNumber--
           continue
         }
 
         // 建立出貨單
-        const deliveryNo = generateCode('D', saleNumber - 1)
         const { data: delivery, error: deliveryError } = await (supabaseServer
           .from('deliveries') as any)
           .insert({
             delivery_no: deliveryNo,
             sale_id: sale.id,
             status: 'confirmed',
+            delivery_date: createdAt,
             note: '匯入時自動建立',
-            created_at: createdAt,
           })
           .select()
           .single()
 
-        if (!deliveryError && delivery) {
-          // 建立出貨明細並扣庫存
-          for (const item of order.items) {
-            // 建立出貨明細
+        if (!deliveryError && delivery && insertedSaleItems) {
+          // 建立出貨明細並扣庫存，關聯 sale_item_id
+          for (let i = 0; i < order.items.length; i++) {
+            const item = order.items[i]
+            const saleItem = insertedSaleItems[i]
+
+            // 建立出貨明細（包含 sale_item_id）
             await (supabaseServer
               .from('delivery_items') as any)
               .insert({
                 delivery_id: delivery.id,
+                sale_item_id: saleItem.id,
                 product_id: item.productId,
                 quantity: item.quantity,
               })
@@ -499,7 +558,7 @@ export async function POST(request: NextRequest) {
               .insert({
                 product_id: item.productId,
                 ref_type: 'delivery',
-                ref_id: delivery.id.toString(),
+                ref_id: delivery.id,
                 qty_change: -item.quantity,
                 memo: `銷售出貨 ${saleNo}`,
               })
@@ -542,20 +601,29 @@ export async function POST(request: NextRequest) {
         }
 
         // 如果未付款且有客戶，建立應收帳款
-        if (!order.isPaid && order.customerCode) {
-          await (supabaseServer
-            .from('partner_accounts') as any)
-            .insert({
-              partner_type: 'customer',
-              partner_code: order.customerCode,
-              direction: 'receivable',
-              amount: total,
-              balance: total,
-              ref_type: 'sale',
-              ref_id: sale.id,
-              note: `匯入銷售單 ${saleNo}`,
-              due_date: createdAt,
-            })
+        if (!order.isPaid && order.customerCode && insertedSaleItems) {
+          // 計算每個商品的到期日（預設 7 天後）
+          const dueDate = new Date()
+          dueDate.setDate(dueDate.getDate() + 7)
+          const dueDateStr = dueDate.toISOString().split('T')[0]
+
+          // 為每個銷售明細創建 AR 記錄
+          for (const saleItem of insertedSaleItems) {
+            await (supabaseServer
+              .from('partner_accounts') as any)
+              .insert({
+                partner_type: 'customer',
+                partner_code: order.customerCode,
+                direction: 'AR',
+                ref_type: 'sale',
+                ref_id: sale.id,
+                sale_item_id: saleItem.id,
+                amount: saleItem.subtotal || (saleItem.price * saleItem.quantity),
+                received_paid: 0,
+                due_date: dueDateStr,
+                status: 'unpaid',
+              })
+          }
         }
 
         result.success++
@@ -572,6 +640,7 @@ export async function POST(request: NextRequest) {
           message: err.message || '未知錯誤',
         })
         saleNumber--
+        deliveryNumber--
       }
     }
 
