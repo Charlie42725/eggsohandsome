@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
     let query = (supabaseServer.from('accounts') as any)
       .select('*')
-      .order('account_type', { ascending: true })
+      .order('sort_order', { ascending: true })
       .order('account_name', { ascending: true })
 
     if (activeOnly) {
@@ -67,6 +67,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 獲取目前最大的 sort_order
+    const { data: maxOrderResult } = await (supabaseServer.from('accounts') as any)
+      .select('sort_order')
+      .order('sort_order', { ascending: false })
+      .limit(1)
+      .single()
+
+    const nextSortOrder = (maxOrderResult?.sort_order ?? 0) + 1
+
     // 新增帳戶（使用台灣時間）
     const { data, error } = await (supabaseServer.from('accounts') as any)
       .insert({
@@ -75,6 +84,7 @@ export async function POST(request: NextRequest) {
         // Balance is always 0 on creation now. Adjustments must be made via transaction.
         balance: 0,
         is_active: account.is_active !== false,
+        sort_order: nextSortOrder,
         created_at: getTaiwanTime(),
       })
       .select()

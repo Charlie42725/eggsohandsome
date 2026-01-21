@@ -133,6 +133,10 @@ export default function POSPage() {
   const [showDrafts, setShowDrafts] = useState(false)
   const [showTodaySales, setShowTodaySales] = useState(false)
 
+  // 帳戶排序
+  const [showAccountReorder, setShowAccountReorder] = useState(false)
+  const [reorderAccounts, setReorderAccounts] = useState<Account[]>([])
+
   // Quick add customer
   const [showQuickAddCustomer, setShowQuickAddCustomer] = useState(false)
   const [newCustomerName, setNewCustomerName] = useState('')
@@ -1731,7 +1735,19 @@ export default function POSPage() {
 
               {/* Payment Method - Dynamic from Accounts */}
               <div>
-                <label className="block font-medium mb-1.5 text-sm text-slate-300">付款方式</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="font-medium text-sm text-slate-300">付款方式</label>
+                  <button
+                    onClick={() => {
+                      setReorderAccounts([...accounts])
+                      setShowAccountReorder(true)
+                    }}
+                    className="p-1 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
+                    title="調整排序"
+                  >
+                    ⚙️
+                  </button>
+                </div>
 
                 {/* 單一付款模式：從帳戶列表動態產生按鈕 */}
                 {!isMultiPayment && (
@@ -2447,6 +2463,99 @@ export default function POSPage() {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 帳戶排序彈窗 */}
+      {showAccountReorder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={() => setShowAccountReorder(false)}>
+          <div className="bg-slate-800 w-full max-w-md rounded-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
+              <h3 className="font-semibold text-white">調整付款方式順序</h3>
+              <button
+                onClick={() => setShowAccountReorder(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
+              {reorderAccounts.map((account, index) => {
+                const icon = account.account_type === 'cash' ? '💵' : account.account_type === 'bank' ? '🏦' : '💰'
+                return (
+                  <div
+                    key={account.id}
+                    className="flex items-center gap-2 bg-slate-700 rounded-lg p-3"
+                  >
+                    <div className="flex flex-col gap-1">
+                      <button
+                        onClick={() => {
+                          if (index > 0) {
+                            const newOrder = [...reorderAccounts]
+                            ;[newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]]
+                            setReorderAccounts(newOrder)
+                          }
+                        }}
+                        disabled={index === 0}
+                        className="text-xs px-2 py-0.5 bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed rounded text-slate-300"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (index < reorderAccounts.length - 1) {
+                            const newOrder = [...reorderAccounts]
+                            ;[newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]]
+                            setReorderAccounts(newOrder)
+                          }
+                        }}
+                        disabled={index === reorderAccounts.length - 1}
+                        className="text-xs px-2 py-0.5 bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed rounded text-slate-300"
+                      >
+                        ▼
+                      </button>
+                    </div>
+                    <span className="text-lg">{icon}</span>
+                    <span className="flex-1 text-white">{account.account_name}</span>
+                    <span className="text-slate-400 text-sm">#{index + 1}</span>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="px-4 py-3 border-t border-slate-700 flex gap-2">
+              <button
+                onClick={() => setShowAccountReorder(false)}
+                className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/api/accounts/reorder', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        accountIds: reorderAccounts.map(a => a.id)
+                      })
+                    })
+                    const data = await res.json()
+                    if (data.ok) {
+                      setAccounts(reorderAccounts)
+                      setShowAccountReorder(false)
+                    } else {
+                      alert('排序更新失敗: ' + data.error)
+                    }
+                  } catch (err) {
+                    alert('排序更新失敗')
+                  }
+                }}
+                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors font-medium"
+              >
+                儲存排序
+              </button>
             </div>
           </div>
         </div>
