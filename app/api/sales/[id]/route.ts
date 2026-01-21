@@ -285,44 +285,8 @@ export async function DELETE(
       }
     }
 
-    // 1.6. 如果是已付款的銷售，需要退款到帳戶
-    if (sale.is_paid && sale.account_id && sale.total > 0) {
-      // 獲取帳戶餘額
-      const { data: account } = await (supabaseServer
-        .from('accounts') as any)
-        .select('balance')
-        .eq('id', sale.account_id)
-        .single()
-
-      if (account) {
-        const newBalance = account.balance - sale.total
-
-        // 更新帳戶餘額
-        await (supabaseServer
-          .from('accounts') as any)
-          .update({
-            balance: newBalance,
-            updated_at: getTaiwanTime(),
-          })
-          .eq('id', sale.account_id)
-
-        // 記錄帳戶交易
-        await (supabaseServer
-          .from('account_transactions') as any)
-          .insert({
-            account_id: sale.account_id,
-            transaction_type: 'sale_delete',
-            amount: -sale.total,
-            balance_before: account.balance,
-            balance_after: newBalance,
-            ref_type: 'sale_delete',
-            ref_id: id,
-            note: `刪除銷售單 ${sale.sale_no}，退款至帳戶`,
-          })
-
-        console.log(`[Delete Sale ${id}] Refunded ${sale.total} to account ${sale.account_id}`)
-      }
-    }
+    // 1.6. 帳戶餘額的還原移到後面的 3.1 節統一處理（避免重複扣款）
+    // 這裡不再直接處理 account 餘額，改由 account_transactions 記錄來還原
 
     // 1.7. 如果是轉購物金的銷售，需要扣回購物金
     if (sale.status === 'store_credit' && sale.customer_code) {
