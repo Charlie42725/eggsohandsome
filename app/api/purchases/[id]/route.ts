@@ -263,74 +263,89 @@ export async function DELETE(
     const itemIds = itemsForAP?.map((item: any) => item.id) || []
 
     // 查詢 AP 記錄，找出關聯的 settlement_allocations
+    // 同時查詢 purchase_item_id 和 ref_id 來覆蓋所有情況
+    let apRecords: any[] = []
+
     if (itemIds.length > 0) {
-      const { data: apRecords } = await (supabaseServer
+      const { data: apByItem } = await (supabaseServer
         .from('partner_accounts') as any)
         .select('id')
         .in('purchase_item_id', itemIds)
 
-      if (apRecords && apRecords.length > 0) {
-        const apIds = apRecords.map((ap: any) => ap.id)
+      if (apByItem) apRecords = [...apRecords, ...apByItem]
+    }
 
-        // 查詢關聯的 settlement_allocations
-        const { data: allocations } = await (supabaseServer
-          .from('settlement_allocations') as any)
-          .select('settlement_id, amount')
-          .in('partner_account_id', apIds)
+    // 也查詢用 ref_id 關聯的 AP 記錄
+    const { data: apByRef } = await (supabaseServer
+      .from('partner_accounts') as any)
+      .select('id')
+      .eq('ref_type', 'purchase')
+      .eq('ref_id', id)
 
-        if (allocations && allocations.length > 0) {
-          // 找出所有關聯的 settlements
-          const settlementIds = [...new Set(allocations.map((a: any) => a.settlement_id))]
+    if (apByRef) apRecords = [...apRecords, ...apByRef]
 
-          for (const settlementId of settlementIds) {
-            // 查詢 settlement 資訊
-            const { data: settlement } = await (supabaseServer
-              .from('settlements') as any)
-              .select('amount, account_id')
-              .eq('id', settlementId)
+    // 去重
+    const apIds = [...new Set(apRecords.map((ap: any) => ap.id))]
+
+    if (apIds.length > 0) {
+      // 查詢關聯的 settlement_allocations
+      const { data: allocations } = await (supabaseServer
+        .from('settlement_allocations') as any)
+        .select('settlement_id, amount')
+        .in('partner_account_id', apIds)
+
+      if (allocations && allocations.length > 0) {
+        // 找出所有關聯的 settlements
+        const settlementIds = [...new Set(allocations.map((a: any) => a.settlement_id))]
+
+        for (const settlementId of settlementIds) {
+          // 查詢 settlement 資訊
+          const { data: settlement } = await (supabaseServer
+            .from('settlements') as any)
+            .select('amount, account_id')
+            .eq('id', settlementId)
+            .single()
+
+          if (settlement && settlement.account_id) {
+            // 刪除 account_transactions 記錄
+            await (supabaseServer
+              .from('account_transactions') as any)
+              .delete()
+              .eq('ref_type', 'settlement')
+              .eq('ref_id', settlementId)
+
+            // 回補帳戶餘額（刪除場景：直接還原，不創建反向記錄）
+            const { data: account } = await (supabaseServer
+              .from('accounts') as any)
+              .select('balance')
+              .eq('id', settlement.account_id)
               .single()
 
-            if (settlement && settlement.account_id) {
-              // 刪除 account_transactions 記錄
+            if (account) {
+              const newBalance = Number(account.balance) + settlement.amount
               await (supabaseServer
-                .from('account_transactions') as any)
-                .delete()
-                .eq('ref_type', 'settlement')
-                .eq('ref_id', settlementId)
-
-              // 回補帳戶餘額（刪除場景：直接還原，不創建反向記錄）
-              const { data: account } = await (supabaseServer
                 .from('accounts') as any)
-                .select('balance')
+                .update({
+                  balance: newBalance,
+                  updated_at: getTaiwanTime()
+                })
                 .eq('id', settlement.account_id)
-                .single()
 
-              if (account) {
-                const newBalance = Number(account.balance) + settlement.amount
-                await (supabaseServer
-                  .from('accounts') as any)
-                  .update({
-                    balance: newBalance,
-                    updated_at: getTaiwanTime()
-                  })
-                  .eq('id', settlement.account_id)
-
-                console.log(`[Delete Purchase ${id}] Restored account ${settlement.account_id}: +${settlement.amount}`)
-              }
+              console.log(`[Delete Purchase ${id}] Restored account ${settlement.account_id}: +${settlement.amount}`)
             }
-
-            // 刪除 settlement_allocations
-            await (supabaseServer
-              .from('settlement_allocations') as any)
-              .delete()
-              .eq('settlement_id', settlementId)
-
-            // 刪除 settlement
-            await (supabaseServer
-              .from('settlements') as any)
-              .delete()
-              .eq('id', settlementId)
           }
+
+          // 刪除 settlement_allocations
+          await (supabaseServer
+            .from('settlement_allocations') as any)
+            .delete()
+            .eq('settlement_id', settlementId)
+
+          // 刪除 settlement
+          await (supabaseServer
+            .from('settlements') as any)
+            .delete()
+            .eq('id', settlementId)
         }
       }
 
@@ -338,15 +353,8 @@ export async function DELETE(
       await (supabaseServer
         .from('partner_accounts') as any)
         .delete()
-        .in('purchase_item_id', itemIds)
+        .in('id', apIds)
     }
-
-    // 也刪除舊方法的 AP 記錄（向後兼容）
-    await (supabaseServer
-      .from('partner_accounts') as any)
-      .delete()
-      .eq('ref_type', 'purchase')
-      .eq('ref_id', id)
 
     // 3. Delete purchase items
     await (supabaseServer.from('purchase_items') as any).delete().eq('purchase_id', id)

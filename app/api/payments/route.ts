@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
         direction: draft.direction,
         method: draft.method || 'cash',
         amount: draft.amount,
+        account_id: draft.account_id || null,
         note: draft.note || null,
       })
       .select()
@@ -139,6 +140,75 @@ export async function POST(request: NextRequest) {
         { ok: false, error: allocationsError.message },
         { status: 500 }
       )
+    }
+
+    // 檢查並更新進貨單的 is_paid 狀態
+    for (const allocation of draft.allocations) {
+      // 查詢這個 AP 記錄對應的進貨單
+      const { data: partnerAccount } = await (supabaseServer
+        .from('partner_accounts') as any)
+        .select('purchase_item_id, ref_id, ref_type, balance')
+        .eq('id', allocation.partner_account_id)
+        .single()
+
+      if (partnerAccount) {
+        let purchaseId: string | null = null
+
+        // 嘗試從 purchase_item_id 找進貨單
+        if (partnerAccount.purchase_item_id) {
+          const { data: purchaseItem } = await (supabaseServer
+            .from('purchase_items') as any)
+            .select('purchase_id')
+            .eq('id', partnerAccount.purchase_item_id)
+            .single()
+
+          if (purchaseItem) {
+            purchaseId = purchaseItem.purchase_id
+          }
+        }
+        // 或從 ref_id 找進貨單
+        else if (partnerAccount.ref_type === 'purchase') {
+          purchaseId = partnerAccount.ref_id
+        }
+
+        if (purchaseId) {
+          // 檢查這張進貨單的所有 AP 是否都已付清
+          const { data: allAPs } = await (supabaseServer
+            .from('partner_accounts') as any)
+            .select('balance, status')
+            .or(`ref_id.eq.${purchaseId},purchase_item_id.in.(select id from purchase_items where purchase_id='${purchaseId}')`)
+            .eq('direction', 'AP')
+
+          // 也查詢透過 purchase_item_id 關聯的 AP
+          const { data: purchaseItems } = await (supabaseServer
+            .from('purchase_items') as any)
+            .select('id')
+            .eq('purchase_id', purchaseId)
+
+          const itemIds = purchaseItems?.map((i: any) => i.id) || []
+
+          let allPaid = true
+          if (itemIds.length > 0) {
+            const { data: itemAPs } = await (supabaseServer
+              .from('partner_accounts') as any)
+              .select('balance, status')
+              .in('purchase_item_id', itemIds)
+              .eq('direction', 'AP')
+
+            if (itemAPs && itemAPs.length > 0) {
+              allPaid = itemAPs.every((ap: any) => ap.status === 'paid' || ap.balance <= 0)
+            }
+          }
+
+          // 更新進貨單 is_paid 狀態
+          if (allPaid) {
+            await (supabaseServer
+              .from('purchases') as any)
+              .update({ is_paid: true })
+              .eq('id', purchaseId)
+          }
+        }
+      }
     }
 
     return NextResponse.json({ ok: true, data: settlement }, { status: 201 })

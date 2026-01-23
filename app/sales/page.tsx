@@ -157,6 +157,7 @@ export default function SalesPage() {
   const [showImportModal, setShowImportModal] = useState(false)
   const [selectedSaleIds, setSelectedSaleIds] = useState<Set<string>>(new Set())
   const [batchDeleting, setBatchDeleting] = useState(false)
+  const [isSelectMode, setIsSelectMode] = useState(false) // 選取模式開關
 
   const toggleCustomer = (customerKey: string) => {
     const newExpanded = new Set(expandedCustomers)
@@ -735,12 +736,28 @@ export default function SalesPage() {
       <div className="mx-auto max-w-7xl">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">銷售記錄</h1>
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium flex items-center gap-2"
-          >
-            <span>📥</span> 匯入
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setIsSelectMode(!isSelectMode)
+                if (isSelectMode) {
+                  setSelectedSaleIds(new Set()) // 退出選取模式時清空選取
+                }
+              }}
+              className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors ${isSelectMode
+                ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200'
+                }`}
+            >
+              {isSelectMode ? '✓ 選取中' : '☐ 選取'}
+            </button>
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium flex items-center gap-2"
+            >
+              <span>📥</span> 匯入
+            </button>
+          </div>
         </div>
 
         {/* Search & Filters */}
@@ -777,7 +794,7 @@ export default function SalesPage() {
                     type="checkbox"
                     checked={groupByCustomer}
                     onChange={(e) => setGroupByCustomer(e.target.checked)}
-                    className="h-4 w-4"
+                    className="h-4 w-4 rounded border-gray-500 bg-gray-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800 cursor-pointer"
                   />
                   <span className="text-sm text-gray-900 dark:text-gray-100">按客戶分組</span>
                 </label>
@@ -786,7 +803,7 @@ export default function SalesPage() {
                     type="checkbox"
                     checked={showUndeliveredOnly}
                     onChange={(e) => setShowUndeliveredOnly(e.target.checked)}
-                    className="h-4 w-4"
+                    className="h-4 w-4 rounded border-gray-500 bg-gray-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800 cursor-pointer"
                   />
                   <span className="text-sm text-gray-900 dark:text-gray-100">顯示未出貨</span>
                 </label>
@@ -974,7 +991,7 @@ export default function SalesPage() {
                         <table className="w-full">
                           <thead className="border-b">
                             <tr>
-                              <th className="pb-2 w-8"></th>
+                              <th className="pb-2 w-8">{isSelectMode && '☐'}</th>
                               <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">銷售單號</th>
                               <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">付款方式</th>
                               <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">銷售日期</th>
@@ -989,12 +1006,14 @@ export default function SalesPage() {
                               <React.Fragment key={sale.id}>
                                 <tr className="hover:bg-white dark:hover:bg-gray-800">
                                   <td className="py-2 w-8">
-                                    <input
-                                      type="checkbox"
-                                      checked={selectedSaleIds.has(sale.id)}
-                                      onChange={() => toggleSelectSale(sale.id)}
-                                      className="h-4 w-4"
-                                    />
+                                    {isSelectMode && (
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedSaleIds.has(sale.id)}
+                                        onChange={() => toggleSelectSale(sale.id)}
+                                        className="h-4 w-4 rounded border-gray-500 bg-gray-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800 cursor-pointer"
+                                      />
+                                    )}
                                   </td>
                                   <td className="py-2 text-sm text-gray-900 dark:text-gray-100">
                                     <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleSale(sale.id)}>
@@ -1217,12 +1236,14 @@ export default function SalesPage() {
                       <div key={sale.id} className="p-4">
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <div className="flex items-center gap-3">
-                            <input
-                              type="checkbox"
-                              checked={selectedSaleIds.has(sale.id)}
-                              onChange={() => toggleSelectSale(sale.id)}
-                              className="h-4 w-4"
-                            />
+                            {isSelectMode && (
+                              <input
+                                type="checkbox"
+                                checked={selectedSaleIds.has(sale.id)}
+                                onChange={() => toggleSelectSale(sale.id)}
+                                className="h-4 w-4 rounded border-gray-500 bg-gray-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800 cursor-pointer"
+                              />
+                            )}
                             <div>
                               <p className="font-medium text-gray-900 dark:text-gray-100">{sale.sale_no}</p>
                               <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -1257,18 +1278,20 @@ export default function SalesPage() {
                   <thead className="border-b bg-gray-50 dark:bg-gray-900">
                     <tr>
                       <th className="px-3 py-3 w-10">
-                        <input
-                          type="checkbox"
-                          checked={(() => {
-                            const allSales = customerGroups[0]?.sales || []
-                            const startIndex = (currentPage - 1) * itemsPerPage
-                            const endIndex = startIndex + itemsPerPage
-                            const currentPageSales = allSales.slice(startIndex, endIndex)
-                            return currentPageSales.length > 0 && currentPageSales.every((s: any) => selectedSaleIds.has(s.id))
-                          })()}
-                          onChange={toggleSelectAll}
-                          className="h-4 w-4"
-                        />
+                        {isSelectMode && (
+                          <input
+                            type="checkbox"
+                            checked={(() => {
+                              const allSales = customerGroups[0]?.sales || []
+                              const startIndex = (currentPage - 1) * itemsPerPage
+                              const endIndex = startIndex + itemsPerPage
+                              const currentPageSales = allSales.slice(startIndex, endIndex)
+                              return currentPageSales.length > 0 && currentPageSales.every((s: any) => selectedSaleIds.has(s.id))
+                            })()}
+                            onChange={toggleSelectAll}
+                            className="h-4 w-4 rounded border-gray-500 bg-gray-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800 cursor-pointer"
+                          />
+                        )}
                       </th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">銷售單號</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">客戶</th>
@@ -1294,12 +1317,14 @@ export default function SalesPage() {
                             className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
                           >
                             <td className="px-3 py-4 w-10" onClick={(e) => e.stopPropagation()}>
-                              <input
-                                type="checkbox"
-                                checked={selectedSaleIds.has(sale.id)}
-                                onChange={() => toggleSelectSale(sale.id)}
-                                className="h-4 w-4"
-                              />
+                              {isSelectMode && (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedSaleIds.has(sale.id)}
+                                  onChange={() => toggleSelectSale(sale.id)}
+                                  className="h-4 w-4 rounded border-gray-500 bg-gray-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800 cursor-pointer"
+                                />
+                              )}
                             </td>
                             <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100" onClick={() => toggleSale(sale.id)}>
                               <div className="flex items-center gap-2">

@@ -37,6 +37,7 @@ export default function ProductsPage() {
   const [showImportModal, setShowImportModal] = useState(false)
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set())
   const [batchDeleting, setBatchDeleting] = useState(false)
+  const [isSelectMode, setIsSelectMode] = useState(false) // 選取模式開關
 
   // 獲取用戶角色
   useEffect(() => {
@@ -257,6 +258,20 @@ export default function ProductsPage() {
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">商品庫</h1>
           <div className="flex gap-2">
+            <button
+              onClick={() => {
+                setIsSelectMode(!isSelectMode)
+                if (isSelectMode) {
+                  setSelectedProducts(new Set())
+                }
+              }}
+              className={`rounded px-4 py-2 font-medium transition-colors ${isSelectMode
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                  : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200'
+                }`}
+            >
+              {isSelectMode ? '✓ 選取中' : '☐ 選取'}
+            </button>
             <Link
               href="/barcode-print"
               className="rounded bg-purple-600 px-4 py-2 text-white hover:bg-purple-700"
@@ -535,12 +550,14 @@ export default function ProductsPage() {
                 <thead className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
                   <tr>
                     <th className="px-3 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">
-                      <input
-                        type="checkbox"
-                        checked={products.length > 0 && selectedProducts.size === products.length}
-                        onChange={toggleSelectAll}
-                        className="h-4 w-4 rounded border-gray-300"
-                      />
+                      {isSelectMode && (
+                        <input
+                          type="checkbox"
+                          checked={products.length > 0 && selectedProducts.size === products.length}
+                          onChange={toggleSelectAll}
+                          className="h-4 w-4 rounded border-gray-500 bg-gray-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800 cursor-pointer"
+                        />
+                      )}
                     </th>
                     <th className="px-3 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">圖片</th>
                     <th
@@ -612,12 +629,14 @@ export default function ProductsPage() {
                   {products.map((product) => (
                     <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                       <td className="px-3 py-4 text-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedProducts.has(product.id)}
-                          onChange={() => toggleSelectProduct(product.id)}
-                          className="h-4 w-4 rounded border-gray-300"
-                        />
+                        {isSelectMode && (
+                          <input
+                            type="checkbox"
+                            checked={selectedProducts.has(product.id)}
+                            onChange={() => toggleSelectProduct(product.id)}
+                            className="h-4 w-4 rounded border-gray-500 bg-gray-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800 cursor-pointer"
+                          />
+                        )}
                       </td>
                       <td className="px-3 py-4 text-center">
                         {product.image_url ? (
