@@ -29,7 +29,6 @@ export default function NewPurchasePage() {
   const [searching, setSearching] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [totalCostInput, setTotalCostInput] = useState<string>('')
 
   useEffect(() => {
     fetchVendors()
@@ -98,11 +97,24 @@ export default function NewPurchasePage() {
     console.log('Product added successfully') // Debug log
   }
 
-  const updateItem = (index: number, field: 'quantity' | 'cost', value: number) => {
+  const updateItem = (index: number, field: 'quantity' | 'cost' | 'subtotal', value: number) => {
     setItems(
-      items.map((item, i) =>
-        i === index ? { ...item, [field]: value } : item
-      )
+      items.map((item, i) => {
+        if (i !== index) return item
+
+        if (field === 'subtotal') {
+          // 輸入小計，自動計算單位成本
+          const newCost = item.quantity > 0 ? value / item.quantity : 0
+          return { ...item, cost: newCost }
+        } else if (field === 'quantity' && value > 0) {
+          // 數量變更時，保持小計不變，重算單位成本
+          const currentSubtotal = item.quantity * item.cost
+          const newCost = currentSubtotal / value
+          return { ...item, quantity: value, cost: newCost }
+        } else {
+          return { ...item, [field]: value }
+        }
+      })
     )
   }
 
@@ -111,42 +123,6 @@ export default function NewPurchasePage() {
   }
 
   const total = items.reduce((sum, item) => sum + item.quantity * item.cost, 0)
-
-  // 總成本分配功能
-  const distributeTotalCost = () => {
-    const inputValue = parseFloat(totalCostInput)
-    if (isNaN(inputValue) || inputValue <= 0) {
-      setError('請輸入有效的總成本金額')
-      setTimeout(() => setError(''), 3000)
-      return
-    }
-
-    if (items.length === 0) {
-      setError('請先新增商品')
-      setTimeout(() => setError(''), 3000)
-      return
-    }
-
-    // 計算總數量
-    const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0)
-    if (totalQuantity === 0) {
-      setError('商品總數量不能為 0')
-      setTimeout(() => setError(''), 3000)
-      return
-    }
-
-    // 精確計算單位成本（不四捨五入）
-    const unitCost = inputValue / totalQuantity
-
-    // 更新所有商品的成本
-    setItems(items.map(item => ({
-      ...item,
-      cost: unitCost
-    })))
-
-    setTotalCostInput('')
-    setError('')
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -296,8 +272,14 @@ export default function NewPurchasePage() {
                     <tr>
                       <th className="px-4 py-2 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">商品</th>
                       <th className="px-4 py-2 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">數量</th>
-                      <th className="px-4 py-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">成本</th>
-                      <th className="px-4 py-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">小計</th>
+                      <th className="px-4 py-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        <span>單位成本</span>
+                        <span className="block text-xs font-normal text-gray-500">自動計算</span>
+                      </th>
+                      <th className="px-4 py-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        <span>小計</span>
+                        <span className="block text-xs font-normal text-gray-500">可直接輸入</span>
+                      </th>
                       <th className="px-4 py-2 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">操作</th>
                     </tr>
                   </thead>
@@ -333,8 +315,17 @@ export default function NewPurchasePage() {
                             className="w-28 rounded border border-gray-300 bg-white px-2 py-1 text-right text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                           />
                         </td>
-                        <td className="px-4 py-3 text-right font-semibold text-gray-900 dark:text-gray-100">
-                          {formatCurrency(item.quantity * item.cost)}
+                        <td className="px-4 py-3 text-right">
+                          <input
+                            type="number"
+                            value={Math.round(item.quantity * item.cost * 100) / 100}
+                            onChange={(e) =>
+                              updateItem(index, 'subtotal', parseFloat(e.target.value) || 0)
+                            }
+                            min="0"
+                            step="0.01"
+                            className="w-28 rounded border border-gray-300 bg-white px-2 py-1 text-right font-semibold text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                          />
                         </td>
                         <td className="px-4 py-3 text-center">
                           <button
@@ -363,42 +354,6 @@ export default function NewPurchasePage() {
               </div>
             )}
           </div>
-
-          {/* 總成本分配 */}
-          {items.length > 0 && (
-            <div className="rounded-lg border-2 border-dashed border-blue-300 bg-blue-50 p-4 dark:border-blue-700 dark:bg-blue-900/20">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="flex-1">
-                  <label className="mb-1 block text-sm font-medium text-blue-800 dark:text-blue-300">
-                    輸入總成本，自動分配給各商品
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-blue-600 dark:text-blue-400 font-medium">$</span>
-                    <input
-                      type="number"
-                      value={totalCostInput}
-                      onChange={(e) => setTotalCostInput(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), distributeTotalCost())}
-                      placeholder="例如：3000"
-                      min="0"
-                      step="0.01"
-                      className="flex-1 rounded border border-blue-300 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-400 dark:border-blue-600 dark:bg-gray-700 dark:text-gray-100"
-                    />
-                    <button
-                      type="button"
-                      onClick={distributeTotalCost}
-                      className="rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
-                    >
-                      分配成本
-                    </button>
-                  </div>
-                  <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
-                    單位成本 = 總成本 ÷ 總數量（共 {items.reduce((sum, item) => sum + item.quantity, 0)} 件）
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Actions */}
           <div className="flex flex-col gap-3 sm:flex-row">

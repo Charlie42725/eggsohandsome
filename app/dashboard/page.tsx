@@ -217,7 +217,9 @@ export default function DashboardPage() {
         .reduce((sum: number, s: any) => {
           const saleCost = (s.sale_items || []).reduce(
             (itemSum: number, item: any) => {
-              const itemCost = (item.cost || 0) * item.quantity
+              // 優先用 sale_items.cost，若為 0 則 fallback 到商品的 avg_cost 或 cost
+              const unitCost = item.cost || item.products?.avg_cost || item.products?.cost || 0
+              const itemCost = unitCost * item.quantity
 
               // Collect cost breakdown
               const key = item.product_id
@@ -226,7 +228,7 @@ export default function DashboardPage() {
                 existing.quantity += item.quantity
               } else {
                 costBreakdownMap.set(key, {
-                  cost: item.cost || 0,
+                  cost: unitCost,
                   quantity: item.quantity,
                   name: item.snapshot_name || '未知商品'
                 })

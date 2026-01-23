@@ -42,6 +42,14 @@ type VendorGroup = {
   unpaid_count: number
 }
 
+type Account = {
+  id: string
+  account_name: string
+  account_type: string
+  balance: number
+  is_active: boolean
+}
+
 export default function APPageV2() {
   const [vendorGroups, setVendorGroups] = useState<VendorGroup[]>([])
   const [loading, setLoading] = useState(true)
@@ -49,7 +57,8 @@ export default function APPageV2() {
   const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set())
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paymentAmount, setPaymentAmount] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState('transfer_cathay')
+  const [selectedAccountId, setSelectedAccountId] = useState('')
+  const [accounts, setAccounts] = useState<Account[]>([])
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState('')
   const [keyword, setKeyword] = useState('')
@@ -101,8 +110,25 @@ export default function APPageV2() {
     }
   }
 
+  const fetchFinanceAccounts = async () => {
+    try {
+      const res = await fetch('/api/accounts?active_only=true')
+      const data = await res.json()
+      if (data.ok) {
+        setAccounts(data.data)
+        // 預設選第一個帳戶
+        if (data.data.length > 0 && !selectedAccountId) {
+          setSelectedAccountId(data.data[0].id)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch accounts:', err)
+    }
+  }
+
   useEffect(() => {
     fetchAccounts()
+    fetchFinanceAccounts()
   }, [])
 
   const handleSearch = (e: React.FormEvent) => {
@@ -215,7 +241,8 @@ export default function APPageV2() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           partner_code: currentVendor,
-          method: paymentMethod,
+          account_id: selectedAccountId,
+          method: 'transfer', // 保留 method 欄位供記錄
           amount,
           allocations
         })
@@ -230,6 +257,7 @@ export default function APPageV2() {
         setPaymentAmount('')
         setCurrentVendor(null)
         fetchAccounts()
+        fetchFinanceAccounts() // 刷新帳戶餘額顯示
       } else {
         setError(data.error || '付款失敗')
       }
@@ -428,15 +456,14 @@ export default function APPageV2() {
                                     {isOverdue && ' (逾期)'}
                                   </td>
                                   <td className="py-2 text-center">
-                                    <span className={`inline-block rounded px-2 py-1 text-xs ${
-                                      account.status === 'paid'
-                                        ? 'bg-green-100 text-green-800'
-                                        : account.status === 'partial'
+                                    <span className={`inline-block rounded px-2 py-1 text-xs ${account.status === 'paid'
+                                      ? 'bg-green-100 text-green-800'
+                                      : account.status === 'partial'
                                         ? 'bg-yellow-100 text-yellow-800'
                                         : 'bg-red-100 text-red-800'
-                                    }`}>
+                                      }`}>
                                       {account.status === 'paid' ? '已付清' :
-                                       account.status === 'partial' ? '部分付款' : '未付'}
+                                        account.status === 'partial' ? '部分付款' : '未付'}
                                     </span>
                                   </td>
                                   <td className="py-2 text-center">
@@ -514,24 +541,26 @@ export default function APPageV2() {
 
             <div className="mb-6">
               <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
-                付款方式
+                付款帳戶 *
               </label>
               <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
+                value={selectedAccountId}
+                onChange={(e) => setSelectedAccountId(e.target.value)}
                 className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
               >
-                <option value="cash">現金</option>
-                <option value="card">刷卡</option>
-                <optgroup label="轉帳">
-                  <option value="transfer_cathay">轉帳 - 國泰</option>
-                  <option value="transfer_fubon">轉帳 - 富邦</option>
-                  <option value="transfer_esun">轉帳 - 玉山</option>
-                  <option value="transfer_union">轉帳 - 聯邦</option>
-                  <option value="transfer_linepay">轉帳 - LINE Pay</option>
-                </optgroup>
-                <option value="cod">貨到付款</option>
+                {accounts.length === 0 ? (
+                  <option value="">載入中...</option>
+                ) : (
+                  accounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.account_name} (餘額: ${account.balance.toLocaleString()})
+                    </option>
+                  ))
+                )}
               </select>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                付款將從此帳戶扣除餘額
+              </p>
             </div>
 
             <div className="flex gap-2">

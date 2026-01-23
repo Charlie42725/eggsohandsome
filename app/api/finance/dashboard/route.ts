@@ -230,7 +230,15 @@ export async function GET(request: NextRequest) {
 
     const { data: weekSales } = await (supabaseServer
       .from('sales') as any)
-      .select('total, sale_date, sale_items(cost, quantity)')
+      .select(`
+        total,
+        sale_date,
+        sale_items(
+          cost,
+          quantity,
+          products(avg_cost, cost)
+        )
+      `)
       .gte('sale_date', sevenDaysAgoStr)
       .lte('sale_date', today + 'T23:59:59')
       .eq('status', 'confirmed')
@@ -252,7 +260,11 @@ export async function GET(request: NextRequest) {
       if (dailyStats[saleDate]) {
         dailyStats[saleDate].revenue += sale.total
         const saleCost = (sale.sale_items || []).reduce(
-          (sum: number, item: any) => sum + (item.cost || 0) * item.quantity,
+          (sum: number, item: any) => {
+            // 優先用 sale_items.cost，若為 0 則 fallback 到商品的 avg_cost 或 cost
+            const itemCost = item.cost || item.products?.avg_cost || item.products?.cost || 0
+            return sum + itemCost * item.quantity
+          },
           0
         )
         dailyStats[saleDate].cost += saleCost

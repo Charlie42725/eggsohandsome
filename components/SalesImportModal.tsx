@@ -167,10 +167,10 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
 
     // 建立範本資料
     const templateData = [
-      ['訂單編號', '客戶代碼', '客戶名稱', '銷售日期', '來源', '付款方式', '是否已付款', '商品條碼', '數量', '售價', '備註'],
-      ['ORD-001', 'C001', '', '2026-01-15', 'live', '現金', '是', '4710088012345', 2, 199, '直播訂單'],
-      ['ORD-001', 'C001', '', '2026-01-15', 'live', '現金', '是', '4710088012346', 1, 299, ''],
-      ['ORD-002', '', '王小明', '2026-01-16', 'pos', 'pending', '否', '4710088012345', 3, 199, ''],
+      ['訂單編號', '客戶', '銷售日期', '來源', '付款方式', '是否已付款', '商品（條碼/品號/名稱）', '數量', '售價', '備註'],
+      ['ORD-001', 'C001', '2026-01-15', 'live', '現金', '是', '4710088012345', 2, 199, '直播訂單'],
+      ['ORD-001', 'C001', '2026-01-15', 'live', '現金', '是', 'A001', 1, 299, '用品號匹配'],
+      ['ORD-002', '王小明', '2026-01-16', 'pos', 'pending', '否', '海賊王公仔', 3, 199, '新客戶會自動建立'],
     ]
 
     // 建立工作表
@@ -179,13 +179,12 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
     // 設定欄寬
     ws['!cols'] = [
       { wch: 12 }, // 訂單編號
-      { wch: 10 }, // 客戶代碼
-      { wch: 12 }, // 客戶名稱
+      { wch: 12 }, // 客戶
       { wch: 12 }, // 銷售日期
       { wch: 8 },  // 來源
       { wch: 10 }, // 付款方式
       { wch: 10 }, // 是否已付款
-      { wch: 15 }, // 商品條碼
+      { wch: 22 }, // 商品（條碼/品號/名稱）
       { wch: 6 },  // 數量
       { wch: 8 },  // 售價
       { wch: 15 }, // 備註
@@ -305,12 +304,12 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
                   </thead>
                   <tbody className="text-gray-700 dark:text-gray-300">
                     <tr><td className="py-1">訂單編號</td><td>必填</td><td>用於分組，相同編號會合併為一筆銷售</td></tr>
-                    <tr><td className="py-1">客戶代碼/名稱</td><td>選填</td><td>空白為散客</td></tr>
+                    <tr><td className="py-1">客戶</td><td>選填</td><td>代碼或名稱，空白為散客，<b>不存在會自動建立</b></td></tr>
                     <tr><td className="py-1">銷售日期</td><td>選填</td><td>格式 YYYY-MM-DD，預設當天</td></tr>
                     <tr><td className="py-1">來源</td><td>選填</td><td>pos/live/manual，預設 manual</td></tr>
                     <tr><td className="py-1">付款方式</td><td>選填</td><td>帳戶名稱，預設 pending（待收款）</td></tr>
                     <tr><td className="py-1">是否已付款</td><td>選填</td><td>是/否，預設 否</td></tr>
-                    <tr><td className="py-1">商品條碼</td><td>必填</td><td>商品條碼或貨號</td></tr>
+                    <tr><td className="py-1">商品</td><td>必填</td><td><b>條碼、品號、商品名稱</b>擇一填寫即可</td></tr>
                     <tr><td className="py-1">數量</td><td>必填</td><td>必須為正整數</td></tr>
                     <tr><td className="py-1">售價</td><td>選填</td><td>不填則使用商品定價</td></tr>
                     <tr><td className="py-1">備註</td><td>選填</td><td>訂單備註</td></tr>

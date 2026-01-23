@@ -28,6 +28,7 @@ type ImportRow = {
 type GroupedOrder = {
   orderNo: string
   customerCode: string | null
+  customerName: string | null
   saleDate: string | null
   source: string
   paymentMethod: string
@@ -95,10 +96,8 @@ export async function POST(request: NextRequest) {
       const h = header.toLowerCase()
       if (h.includes('訂單編號') || h === 'order_no' || h === 'orderno') {
         columnMap['orderNo'] = index
-      } else if (h.includes('客戶代碼') || h === 'customer_code') {
-        columnMap['customerCode'] = index
-      } else if (h.includes('客戶名稱') || h === 'customer_name') {
-        columnMap['customerName'] = index
+      } else if (h === '客戶' || h.includes('客戶代碼') || h.includes('客戶名稱') || h === 'customer' || h === 'customer_code' || h === 'customer_name') {
+        columnMap['customer'] = index
       } else if (h.includes('銷售日期') || h.includes('日期') || h === 'date' || h === 'sale_date') {
         columnMap['saleDate'] = index
       } else if (h.includes('來源') || h === 'source') {
@@ -107,7 +106,7 @@ export async function POST(request: NextRequest) {
         columnMap['paymentMethod'] = index
       } else if (h.includes('已付款') || h.includes('是否已付') || h === 'is_paid') {
         columnMap['isPaid'] = index
-      } else if (h.includes('商品條碼') || h.includes('條碼') || h === 'barcode') {
+      } else if (h.includes('商品') || h.includes('條碼') || h.includes('品號') || h === 'barcode' || h === 'product') {
         columnMap['barcode'] = index
       } else if (h.includes('數量') || h === 'quantity' || h === 'qty') {
         columnMap['quantity'] = index
@@ -152,19 +151,46 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // 獲取所有商品（用於條碼對應）
-    const { data: products } = await (supabaseServer
-      .from('products') as any)
-      .select('id, barcode, item_code, name, price')
-      .eq('is_active', true)
+    // 獲取所有商品（用於條碼對應）- 使用分頁突破 Supabase 1000 筆限制
+    let allProducts: any[] = []
+    let pageSize = 1000
+    let page = 0
+    let hasMore = true
+
+    while (hasMore) {
+      const { data: products } = await (supabaseServer
+        .from('products') as any)
+        .select('id, barcode, item_code, name, price')
+        .eq('is_active', true)
+        .range(page * pageSize, (page + 1) * pageSize - 1)
+
+      if (products && products.length > 0) {
+        allProducts = allProducts.concat(products)
+        page++
+        hasMore = products.length === pageSize
+      } else {
+        hasMore = false
+      }
+    }
+
+    const products = allProducts
 
     const barcodeToProduct = new Map<string, { id: string; name: string; price: number }>()
     const itemCodeToProduct = new Map<string, { id: string; name: string; price: number }>()
+    const nameToProduct = new Map<string, { id: string; name: string; price: number }>()
     if (products) {
+      console.log(`[Sales Import] Loaded ${products.length} active products`)
       products.forEach((p: any) => {
-        if (p.barcode) barcodeToProduct.set(p.barcode, { id: p.id, name: p.name, price: p.price })
-        if (p.item_code) itemCodeToProduct.set(p.item_code.toLowerCase(), { id: p.id, name: p.name, price: p.price })
+        // 統一轉為字串並 trim，確保比對不會因類型差異失敗
+        const barcodeStr = String(p.barcode || '').trim()
+        if (barcodeStr) {
+          barcodeToProduct.set(barcodeStr, { id: p.id, name: p.name, price: p.price })
+        }
+        if (p.item_code) itemCodeToProduct.set(String(p.item_code).toLowerCase().trim(), { id: p.id, name: p.name, price: p.price })
+        // 商品名稱對應（用於名稱匹配）
+        if (p.name) nameToProduct.set(String(p.name).toLowerCase().trim(), { id: p.id, name: p.name, price: p.price })
       })
+      console.log(`[Sales Import] Barcode map has ${barcodeToProduct.size} entries, Name map has ${nameToProduct.size} entries`)
     }
 
     // 獲取所有帳戶（用於付款方式對應）
@@ -192,8 +218,7 @@ export async function POST(request: NextRequest) {
       if (isEmptyRow) continue
 
       const orderNo = columnMap['orderNo'] !== undefined ? String(row[columnMap['orderNo']] || '').trim() : ''
-      const customerCode = columnMap['customerCode'] !== undefined ? String(row[columnMap['customerCode']] || '').trim() || null : null
-      const customerName = columnMap['customerName'] !== undefined ? String(row[columnMap['customerName']] || '').trim() || null : null
+      const customer = columnMap['customer'] !== undefined ? String(row[columnMap['customer']] || '').trim() || null : null
       const saleDate = columnMap['saleDate'] !== undefined ? String(row[columnMap['saleDate']] || '').trim() || null : null
       const sourceRaw = columnMap['source'] !== undefined ? String(row[columnMap['source']] || '').trim().toLowerCase() : 'manual'
       const paymentMethod = columnMap['paymentMethod'] !== undefined ? String(row[columnMap['paymentMethod']] || '').trim() : 'pending'
@@ -213,8 +238,8 @@ export async function POST(request: NextRequest) {
       const importRow: ImportRow = {
         rowNumber: i + 1,
         orderNo,
-        customerCode,
-        customerName,
+        customerCode: customer,
+        customerName: customer,
         saleDate,
         source,
         paymentMethod,
@@ -233,13 +258,19 @@ export async function POST(request: NextRequest) {
       } else if (quantity <= 0 || !Number.isInteger(quantity)) {
         importRow.error = '數量必須為正整數'
       } else {
-        // 查找商品
+        // 查找商品：依序嘗試 barcode → item_code → 商品名稱
         let product = barcodeToProduct.get(barcode)
         if (!product) {
           // 嘗試用 item_code 查找
           product = itemCodeToProduct.get(barcode.toLowerCase())
         }
         if (!product) {
+          // 嘗試用商品名稱查找
+          product = nameToProduct.get(barcode.toLowerCase())
+        }
+        if (!product) {
+          // 調試：顯示匹配失敗的詳情
+          console.log(`[Sales Import] Product not found for: "${barcode}" (length: ${barcode.length})`)
           importRow.error = `找不到商品：${barcode}`
         } else {
           importRow.productId = product.id
@@ -250,16 +281,23 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // 驗證客戶（如果有指定）
-        let resolvedCustomerCode = customerCode
-        if (!resolvedCustomerCode && customerName) {
-          // 嘗試用名稱找代碼
-          resolvedCustomerCode = customerNameToCode.get(customerName.toLowerCase()) || null
-        }
-        if (resolvedCustomerCode && !customerCodeSet.has(resolvedCustomerCode)) {
-          importRow.error = `找不到客戶：${resolvedCustomerCode || customerName}`
-        } else {
-          importRow.customerCode = resolvedCustomerCode
+        // 驗證客戶（如果有指定）- 找不到就之後自動建立
+        if (customer) {
+          // 先嘗試用代碼匹配
+          if (customerCodeSet.has(customer)) {
+            importRow.customerCode = customer
+          } else {
+            // 再嘗試用名稱匹配
+            const codeByName = customerNameToCode.get(customer.toLowerCase())
+            if (codeByName) {
+              importRow.customerCode = codeByName
+            } else {
+              // 都找不到，之後會自動建立
+              importRow.warning = `將自動建立客戶：${customer}`
+              importRow.customerCode = customer
+              importRow.customerName = customer
+            }
+          }
         }
 
         // 查找帳戶（如果有指定付款方式且非 pending）
@@ -289,6 +327,7 @@ export async function POST(request: NextRequest) {
         orderMap.set(row.orderNo, {
           orderNo: row.orderNo,
           customerCode: row.customerCode,
+          customerName: row.customerName || row.customerCode,
           saleDate: row.saleDate,
           source: row.source,
           paymentMethod: row.paymentMethod,
@@ -441,6 +480,24 @@ export async function POST(request: NextRequest) {
             }
           } catch {
             // 使用當前時間
+          }
+        }
+
+        // 自動建立不存在的客戶
+        if (order.customerCode && !customerCodeSet.has(order.customerCode)) {
+          const { error: createCustomerError } = await (supabaseServer
+            .from('customers') as any)
+            .insert({
+              customer_code: order.customerCode,
+              customer_name: order.customerName || order.customerCode,
+              phone: '',
+              address: '',
+              note: '匯入銷售時自動建立',
+            })
+
+          if (!createCustomerError) {
+            // 加入 set 避免重複建立
+            customerCodeSet.add(order.customerCode)
           }
         }
 

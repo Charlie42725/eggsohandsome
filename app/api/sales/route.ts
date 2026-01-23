@@ -35,7 +35,9 @@ export async function GET(request: NextRequest) {
           cost,
           products (
             item_code,
-            unit
+            unit,
+            avg_cost,
+            cost
           )
         )
       `)
