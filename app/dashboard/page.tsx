@@ -9,6 +9,7 @@ type DashboardStats = {
   todayOrders: number
   totalCost: number
   totalExpenses: number
+  totalDiscount: number
   grossProfit: number
   netProfit: number
   totalAR: number
@@ -82,6 +83,7 @@ export default function DashboardPage() {
     todayOrders: 0,
     totalCost: 0,
     totalExpenses: 0,
+    totalDiscount: 0,
     grossProfit: 0,
     netProfit: 0,
     totalAR: 0,
@@ -248,6 +250,22 @@ export default function DashboardPage() {
         total_cost: item.cost * item.quantity
       }))
 
+      // Calculate total discount
+      const totalDiscount = salesInRange
+        .filter((s: any) => s.status === 'confirmed')
+        .reduce((sum: number, s: any) => {
+          if (s.discount_type === 'amount') {
+            return sum + (s.discount_value || 0)
+          } else if (s.discount_type === 'percent') {
+            // 計算原價小計
+            const subtotal = (s.sale_items || []).reduce(
+              (itemSum: number, item: any) => itemSum + item.price * item.quantity, 0
+            )
+            return sum + (subtotal * (s.discount_value || 0) / 100)
+          }
+          return sum
+        }, 0)
+
       // Calculate total expenses
       const totalExpenses = expensesInRange.reduce(
         (sum: number, e: any) => sum + e.amount,
@@ -295,6 +313,7 @@ export default function DashboardPage() {
         todayOrders: salesInRange.length,
         totalCost,
         totalExpenses,
+        totalDiscount,
         grossProfit,
         netProfit,
         totalAR,
@@ -486,7 +505,7 @@ export default function DashboardPage() {
         </div>
 
         {/* KPI Cards - Row 1: Revenue & Profit */}
-        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
           <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow">
             <div className="text-sm font-medium text-gray-900 dark:text-gray-100">期間營收</div>
             <div className="mt-2 text-3xl font-bold text-green-600">
@@ -504,6 +523,16 @@ export default function DashboardPage() {
             </div>
             <div className="mt-1 text-sm text-gray-900 dark:text-gray-100">
               毛利率: {stats.todaySales > 0 ? ((stats.grossProfit / stats.todaySales) * 100).toFixed(1) : 0}%
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow">
+            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">期間折扣</div>
+            <div className="mt-2 text-3xl font-bold text-purple-600">
+              {formatCurrency(stats.totalDiscount)}
+            </div>
+            <div className="mt-1 text-sm text-gray-900 dark:text-gray-100">
+              優惠折讓
             </div>
           </div>
 
