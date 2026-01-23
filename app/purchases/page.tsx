@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import PurchaseImportModal from '@/components/PurchaseImportModal'
 
 type PurchaseItem = {
   id: string
@@ -62,6 +63,9 @@ export default function PurchasesPage() {
   // Date editing state
   const [editingDateId, setEditingDateId] = useState<string | null>(null)
   const [editingDate, setEditingDate] = useState('')
+
+  // Import modal state
+  const [showImportModal, setShowImportModal] = useState(false)
 
   useEffect(() => {
     // Fetch current user role
@@ -422,12 +426,20 @@ export default function PurchasesPage() {
             )}
           </div>
           {isAdmin ? (
-            <Link
-              href="/purchases/new"
-              className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-            >
-              + 新增進貨
-            </Link>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="rounded border border-blue-600 px-4 py-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+              >
+                匯入
+              </button>
+              <Link
+                href="/purchases/new"
+                className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+              >
+                + 新增進貨
+              </Link>
+            </div>
           ) : (
             <Link
               href="/purchases/staff"
@@ -908,6 +920,13 @@ export default function PurchasesPage() {
           </div>
         )}
       </div>
+
+      {/* Import Modal */}
+      <PurchaseImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={() => fetchPurchases()}
+      />
     </div>
   )
 }

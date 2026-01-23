@@ -1013,7 +1013,7 @@ export default function SalesPage() {
                                     {formatPaymentMethod(sale.payment_method)}
                                   </td>
                                   <td className="py-2 text-sm text-gray-900 dark:text-gray-100">
-                                    {formatDateTime(sale.created_at)}
+                                    {formatDateTime(sale.sale_date)}
                                   </td>
                                   <td className="py-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
                                     {formatCurrency(sale.total)}
@@ -1244,7 +1244,7 @@ export default function SalesPage() {
                             </span>
                           </div>
                           <span className="text-gray-500 dark:text-gray-400 text-xs">
-                            {formatDateTime(sale.created_at)}
+                            {formatDateTime(sale.sale_date)}
                           </span>
                         </div>
                       </div>
@@ -1329,7 +1329,7 @@ export default function SalesPage() {
                             <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">
                               {formatPaymentMethod(sale.payment_method)}
                             </td>
-                            <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{formatDateTime(sale.created_at)}</td>
+                            <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{formatDateTime(sale.sale_date)}</td>
                             <td className="px-6 py-4 text-center text-sm">
                               <span
                                 className={`inline-flex items-center gap-1 text-xs ${sale.status === 'store_credit'

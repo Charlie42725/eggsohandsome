@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
           )
         )
       `)
+      .order('sale_date', { ascending: false })
       .order('created_at', { ascending: false })
 
     if (dateFrom) {
