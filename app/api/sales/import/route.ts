@@ -402,23 +402,7 @@ export async function POST(request: NextRequest) {
       warnings: [],
     }
 
-    // 獲取最大 sale_no 編號（使用正確的方式避免重複）
-    const { data: allSales } = await supabaseServer
-      .from('sales')
-      .select('sale_no')
-
-    let saleNumber = 0
-    if (allSales && allSales.length > 0) {
-      const maxNumber = allSales.reduce((max: number, sale: any) => {
-        const match = sale.sale_no.match(/\d+/)
-        if (match) {
-          const num = parseInt(match[0], 10)
-          return num > max ? num : max
-        }
-        return max
-      }, 0)
-      saleNumber = maxNumber
-    }
+    // sale_no 由資料庫 sequence 自動生成
 
     // 獲取最大 delivery_no 編號
     const { data: allDeliveries } = await (supabaseServer
@@ -460,9 +444,8 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        saleNumber++
+        // sale_no 由資料庫自動生成
         deliveryNumber++
-        const saleNo = generateCode('S', saleNumber - 1)
         const deliveryNo = generateCode('D', deliveryNumber - 1)
         const total = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
 
@@ -495,17 +478,36 @@ export async function POST(request: NextRequest) {
               note: '匯入銷售時自動建立',
             })
 
-          if (!createCustomerError) {
-            // 加入 set 避免重複建立
+          if (createCustomerError) {
+            // 如果是重複 key 錯誤（可能是並發導致），重新檢查是否已存在
+            const { data: existingCustomer } = await (supabaseServer
+              .from('customers') as any)
+              .select('customer_code')
+              .eq('customer_code', order.customerCode)
+              .single()
+
+            if (existingCustomer) {
+              // 客戶已存在，加入 set
+              customerCodeSet.add(order.customerCode)
+            } else {
+              // 真的建立失敗，報錯並跳過此訂單
+              result.failed++
+              result.errors.push({
+                orderNo: order.orderNo,
+                message: `自動建立客戶「${order.customerCode}」失敗：${createCustomerError.message}`,
+              })
+              continue
+            }
+          } else {
+            // 建立成功，加入 set 避免重複建立
             customerCodeSet.add(order.customerCode)
           }
         }
 
-        // 建立銷售單
+        // 建立銷售單（sale_no 由資料庫自動生成）
         const { data: sale, error: saleError } = await (supabaseServer
           .from('sales') as any)
           .insert({
-            sale_no: saleNo,
             customer_code: order.customerCode,
             sale_date: saleDate,
             source: order.source,
@@ -527,7 +529,6 @@ export async function POST(request: NextRequest) {
             orderNo: order.orderNo,
             message: `建立銷售單失敗：${saleError.message}`,
           })
-          saleNumber--
           deliveryNumber--
           continue
         }
@@ -575,7 +576,6 @@ export async function POST(request: NextRequest) {
             orderNo: order.orderNo,
             message: `建立銷售明細失敗：${itemsError.message}`,
           })
-          saleNumber--
           deliveryNumber--
           continue
         }
@@ -617,7 +617,7 @@ export async function POST(request: NextRequest) {
                 ref_type: 'delivery',
                 ref_id: delivery.id,
                 qty_change: -item.quantity,
-                memo: `銷售出貨 ${saleNo}`,
+                memo: `銷售出貨 ${sale.sale_no}`,
               })
           }
         }
@@ -652,7 +652,7 @@ export async function POST(request: NextRequest) {
                 balance_after: newBalance,
                 ref_type: 'sale',
                 ref_id: sale.id,
-                note: `匯入銷售單 ${saleNo}`,
+                note: `匯入銷售單 ${sale.sale_no}`,
               })
           }
         }
@@ -696,7 +696,6 @@ export async function POST(request: NextRequest) {
           orderNo: order.orderNo,
           message: err.message || '未知錯誤',
         })
-        saleNumber--
         deliveryNumber--
       }
     }

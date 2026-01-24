@@ -167,14 +167,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // 3. Create sale (using similar logic to POST /api/sales)
-        // Generate sale_no
-        const { count } = await supabaseServer
-          .from('sales')
-          .select('*', { count: 'exact', head: true })
-
-        const saleNo = generateCode('S', count || 0)
-
+        // 3. Create sale (sale_no 由資料庫自動生成)
         // Get account_id based on payment_method
         const { data: account } = await (supabaseServer
           .from('accounts') as any)
@@ -210,11 +203,10 @@ export async function POST(request: NextRequest) {
           saleDate = taiwanTime.toISOString().split('T')[0]
         }
 
-        // Create sale (draft)
+        // Create sale (draft, sale_no 由資料庫自動生成)
         const { data: sale, error: saleError } = await (supabaseServer
           .from('sales') as any)
           .insert({
-            sale_no: saleNo,
             customer_code: customerCode,
             sale_date: saleDate,
             source: 'live',

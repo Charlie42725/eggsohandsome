@@ -216,26 +216,7 @@ export async function POST(request: NextRequest) {
     const draft = validation.data
     const pointProgramId = body.point_program_id || null
 
-    // Generate sale_no - 查找所有销售记录中的最大编号
-    const { data: allSales } = await supabaseServer
-      .from('sales')
-      .select('sale_no')
-
-    let saleCount = 0
-    if (allSales && allSales.length > 0) {
-      // 從所有 sale_no 中找出最大的數字
-      const maxNumber = allSales.reduce((max: number, sale: any) => {
-        const match = sale.sale_no.match(/\d+/)
-        if (match) {
-          const num = parseInt(match[0], 10)
-          return num > max ? num : max
-        }
-        return max
-      }, 0)
-      saleCount = maxNumber
-    }
-
-    const saleNo = generateCode('S', saleCount)
+    // sale_no 由資料庫 sequence 自動生成
 
     // Determine primary account
     // Priority: 1) draft.account_id, 2) payments[].account_id, 3) lookup by payment_method
@@ -288,7 +269,7 @@ export async function POST(request: NextRequest) {
     const { data: sale, error: saleError } = await (supabaseServer
       .from('sales') as any)
       .insert({
-        sale_no: saleNo,
+        // sale_no 由資料庫自動生成
         customer_code: draft.customer_code || null,
         sale_date: saleDate, // 設定台灣時間的日期
         source: draft.source,
@@ -562,14 +543,14 @@ export async function POST(request: NextRequest) {
             direction: 'increase', // 銷售收款 = 現金流入
             transactionType: 'sale',
             referenceId: sale.id,
-            referenceNo: saleNo,
+            referenceNo: sale.sale_no,
             note: draft.payments && draft.payments.length > 1
               ? `多元付款 - ${payment.method}: $${payment.amount}`
               : draft.note
           })
 
           if (!accountUpdate.success) {
-            console.error(`[Sales API] 銷售 ${saleNo} 更新帳戶 ${payment.method} 餘額失敗:`, accountUpdate.error)
+            console.error(`[Sales API] 銷售 ${sale.sale_no} 更新帳戶 ${payment.method} 餘額失敗:`, accountUpdate.error)
           }
         } else {
           console.warn(`[Sales API] 找不到付款方式 ${payment.method} 對應的帳戶`)
@@ -752,7 +733,7 @@ export async function POST(request: NextRequest) {
                 points_change: pointsEarned,
                 cost_amount: pointCostEstimated,
                 sale_amount: total,
-                note: `銷售單 ${saleNo} 累積 ${pointsEarned} 點（消費 $${total}）`,
+                note: `銷售單 ${sale.sale_no} 累積 ${pointsEarned} 點（消費 $${total}）`,
                 created_at: getTaiwanTime()
               })
 
@@ -803,7 +784,7 @@ export async function POST(request: NextRequest) {
           received_paid: 0,
           due_date: dueDateStr,
           status: 'unpaid',
-          note: `銷售單 ${saleNo}`,
+          note: `銷售單 ${sale.sale_no}`,
         }
       }).filter((ar: any) => ar.amount > 0) // 過濾掉金額為 0 的記錄
 
