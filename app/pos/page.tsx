@@ -1962,11 +1962,11 @@ export default function POSPage() {
                 <label className="flex-1 flex items-center gap-2 cursor-pointer rounded-lg px-3 py-2.5 bg-slate-700 hover:bg-slate-600">
                   <input
                     type="checkbox"
-                    checked={isDelivered}
-                    onChange={(e) => setIsDelivered(e.target.checked)}
+                    checked={!isDelivered}
+                    onChange={(e) => setIsDelivered(!e.target.checked)}
                     className="w-4 h-4 accent-indigo-500"
                   />
-                  <span className="text-sm text-white">已出貨</span>
+                  <span className="text-sm text-white">未出貨</span>
                 </label>
               </div>
             </div>
