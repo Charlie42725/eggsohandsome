@@ -459,12 +459,22 @@ export async function POST(request: NextRequest) {
     }
 
     // 6. Update sale to confirmed（不扣庫存，改由 delivery confirmed 扣庫存）
+    // 計算履約狀態：根據品項級別的出貨狀態決定
+    const deliveredItemCount = draft.items.filter((item: any) => item.is_delivered !== false).length
+    const totalItemCount = draft.items.length
+    let fulfillmentStatus = 'none'
+    if (deliveredItemCount === totalItemCount) {
+      fulfillmentStatus = 'completed'
+    } else if (deliveredItemCount > 0) {
+      fulfillmentStatus = 'partial'
+    }
+
     const { data: confirmedSale, error: confirmError } = await (supabaseServer
       .from('sales') as any)
       .update({
         total: total,  // 使用抵扣购物金后的最终金额
         status: 'confirmed',
-        fulfillment_status: is_delivered ? 'completed' : 'none',
+        fulfillment_status: fulfillmentStatus,
         updated_at: taiwanTime.toISOString(), // 使用台灣時間
       })
       .eq('id', sale.id)
@@ -558,7 +568,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 7. 創建出貨單（使用當前最大編號 + 1 避免重複）
+    // 7. 創建出貨單（支援品項級別的出貨狀態）
     const { data: allDeliveries } = await (supabaseServer
       .from('deliveries') as any)
       .select('delivery_no')
@@ -577,55 +587,74 @@ export async function POST(request: NextRequest) {
       deliveryCount = maxNumber
     }
 
-    const deliveryNo = generateCode('D', deliveryCount)
+    // 分離已出貨和未出貨的品項
+    const deliveredItems: any[] = []
+    const undeliveredItems: any[] = []
 
-    const { data: delivery, error: deliveryError } = await (supabaseServer
-      .from('deliveries') as any)
-      .insert({
-        delivery_no: deliveryNo,
-        sale_id: sale.id,
-        status: is_delivered ? 'confirmed' : 'draft',
-        delivery_date: is_delivered ? taiwanTime.toISOString() : null,
-        method: delivery_method || null,
-        note: delivery_note || null,
-      })
-      .select()
-      .single()
+    insertedSaleItems.forEach((saleItem: any, index: number) => {
+      const originalItem = draft.items[index]
+      const itemIsDelivered = originalItem.is_delivered !== false // 預設為已出貨
 
-    if (deliveryError) {
-      // Rollback
-      await (supabaseServer.from('sales') as any).delete().eq('id', sale.id)
-      return NextResponse.json(
-        { ok: false, error: deliveryError.message },
-        { status: 500 }
-      )
-    }
+      if (itemIsDelivered) {
+        deliveredItems.push({ saleItem, originalItem })
+      } else {
+        undeliveredItems.push({ saleItem, originalItem })
+      }
+    })
 
-    // 8. 創建出貨明細（关联到sale_items）
-    const deliveryItems = insertedSaleItems.map((saleItem: any, index: number) => ({
-      delivery_id: delivery.id,
-      sale_item_id: saleItem.id,
-      product_id: saleItem.product_id,
-      quantity: saleItem.quantity,
-    }))
+    let confirmedDelivery: any = null
+    let draftDelivery: any = null
 
-    const { error: deliveryItemsError } = await (supabaseServer
-      .from('delivery_items') as any)
-      .insert(deliveryItems)
+    // 8a. 為已出貨的品項創建 confirmed 出貨單
+    if (deliveredItems.length > 0) {
+      const deliveryNo = generateCode('D', deliveryCount)
+      deliveryCount++
 
-    if (deliveryItemsError) {
-      // Rollback
-      await (supabaseServer.from('deliveries') as any).delete().eq('id', delivery.id)
-      await (supabaseServer.from('sales') as any).delete().eq('id', sale.id)
-      return NextResponse.json(
-        { ok: false, error: deliveryItemsError.message },
-        { status: 500 }
-      )
-    }
+      const { data: delivery, error: deliveryError } = await (supabaseServer
+        .from('deliveries') as any)
+        .insert({
+          delivery_no: deliveryNo,
+          sale_id: sale.id,
+          status: 'confirmed',
+          delivery_date: taiwanTime.toISOString(),
+          method: delivery_method || null,
+          note: delivery_note || null,
+        })
+        .select()
+        .single()
 
-    // 9. 如果是已出貨，扣庫存（唯一入口）
-    if (is_delivered) {
-      // 🔒 冪等保護
+      if (deliveryError) {
+        await (supabaseServer.from('sales') as any).delete().eq('id', sale.id)
+        return NextResponse.json(
+          { ok: false, error: deliveryError.message },
+          { status: 500 }
+        )
+      }
+
+      confirmedDelivery = delivery
+
+      // 創建已出貨品項的出貨明細
+      const deliveryItemsData = deliveredItems.map(({ saleItem }) => ({
+        delivery_id: delivery.id,
+        sale_item_id: saleItem.id,
+        product_id: saleItem.product_id,
+        quantity: saleItem.quantity,
+      }))
+
+      const { error: deliveryItemsError } = await (supabaseServer
+        .from('delivery_items') as any)
+        .insert(deliveryItemsData)
+
+      if (deliveryItemsError) {
+        await (supabaseServer.from('deliveries') as any).delete().eq('id', delivery.id)
+        await (supabaseServer.from('sales') as any).delete().eq('id', sale.id)
+        return NextResponse.json(
+          { ok: false, error: deliveryItemsError.message },
+          { status: 500 }
+        )
+      }
+
+      // 9a. 為已出貨品項扣庫存
       const { data: existingLogs } = await (supabaseServer
         .from('inventory_logs') as any)
         .select('id')
@@ -634,31 +663,85 @@ export async function POST(request: NextRequest) {
         .limit(1)
 
       if (!existingLogs || existingLogs.length === 0) {
-        // 🐛 调试日志
-        console.log('=== 开始扣库存 ===')
-        console.log('draft.items:', JSON.stringify(draft.items, null, 2))
-        console.log('delivery.id:', delivery.id)
-
-        // 扣庫存：只寫入 inventory_logs，trigger 會自動更新 products.stock
-        for (const item of draft.items) {
-          console.log(`处理商品: ${item.product_id}, 数量: ${item.quantity}`)
-          // 只扣一般商品庫存（一番賞已在前面扣過）
-          if (!item.ichiban_kuji_prize_id) {
-            // 🔧 修复：移除手动更新 stock，让 trigger 自动处理
-            // 只寫入庫存日誌
+        console.log('=== 开始扣库存（已出貨品項）===')
+        for (const { saleItem, originalItem } of deliveredItems) {
+          console.log(`处理商品: ${saleItem.product_id}, 数量: ${saleItem.quantity}`)
+          if (!originalItem.ichiban_kuji_prize_id) {
             await (supabaseServer
               .from('inventory_logs') as any)
               .insert({
-                product_id: item.product_id,
+                product_id: saleItem.product_id,
                 ref_type: 'delivery',
                 ref_id: delivery.id,
-                qty_change: -item.quantity,
+                qty_change: -saleItem.quantity,
                 memo: `出貨扣庫存 - ${deliveryNo}`,
               })
           }
         }
       }
     }
+
+    // 8b. 為未出貨的品項創建 draft 出貨單
+    if (undeliveredItems.length > 0) {
+      const deliveryNo = generateCode('D', deliveryCount)
+
+      const { data: delivery, error: deliveryError } = await (supabaseServer
+        .from('deliveries') as any)
+        .insert({
+          delivery_no: deliveryNo,
+          sale_id: sale.id,
+          status: 'draft',
+          delivery_date: null,
+          method: delivery_method || null,
+          note: delivery_note || null,
+        })
+        .select()
+        .single()
+
+      if (deliveryError) {
+        if (confirmedDelivery) {
+          await (supabaseServer.from('delivery_items') as any).delete().eq('delivery_id', confirmedDelivery.id)
+          await (supabaseServer.from('deliveries') as any).delete().eq('id', confirmedDelivery.id)
+        }
+        await (supabaseServer.from('sales') as any).delete().eq('id', sale.id)
+        return NextResponse.json(
+          { ok: false, error: deliveryError.message },
+          { status: 500 }
+        )
+      }
+
+      draftDelivery = delivery
+
+      // 創建未出貨品項的出貨明細（不扣庫存）
+      const deliveryItemsData = undeliveredItems.map(({ saleItem }) => ({
+        delivery_id: delivery.id,
+        sale_item_id: saleItem.id,
+        product_id: saleItem.product_id,
+        quantity: saleItem.quantity,
+      }))
+
+      const { error: deliveryItemsError } = await (supabaseServer
+        .from('delivery_items') as any)
+        .insert(deliveryItemsData)
+
+      if (deliveryItemsError) {
+        await (supabaseServer.from('deliveries') as any).delete().eq('id', delivery.id)
+        if (confirmedDelivery) {
+          await (supabaseServer.from('delivery_items') as any).delete().eq('delivery_id', confirmedDelivery.id)
+          await (supabaseServer.from('deliveries') as any).delete().eq('id', confirmedDelivery.id)
+        }
+        await (supabaseServer.from('sales') as any).delete().eq('id', sale.id)
+        return NextResponse.json(
+          { ok: false, error: deliveryItemsError.message },
+          { status: 500 }
+        )
+      }
+
+      console.log(`=== 未出貨品項 ${undeliveredItems.length} 項，已建立待出貨單 ${deliveryNo} ===`)
+    }
+
+    // 用於後續的 delivery 變數（向後兼容）
+    const delivery = confirmedDelivery || draftDelivery
 
     // 10. 點數累積（如果有選擇點數計劃且有客戶）
     let pointsEarned = 0
