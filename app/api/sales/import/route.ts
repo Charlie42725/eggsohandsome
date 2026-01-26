@@ -25,6 +25,13 @@ type ImportRow = {
   accountId?: string | null
 }
 
+type MissingProduct = {
+  barcode: string
+  suggestedName: string
+  suggestedPrice: number | null
+  rowNumbers: number[]
+}
+
 type GroupedOrder = {
   orderNo: string
   customerCode: string | null
@@ -271,7 +278,10 @@ export async function POST(request: NextRequest) {
         if (!product) {
           // 調試：顯示匹配失敗的詳情
           console.log(`[Sales Import] Product not found for: "${barcode}" (length: ${barcode.length})`)
-          importRow.error = `找不到商品：${barcode}`
+          // 標記為找不到商品（但不設為 error，允許快速建立）
+          importRow.warning = `找不到商品：${barcode}（可快速建立）`
+          importRow.productId = undefined
+          importRow.productName = barcode // 用輸入值作為建議名稱
         } else {
           importRow.productId = product.id
           importRow.productName = product.name
@@ -317,6 +327,28 @@ export async function POST(request: NextRequest) {
       rows.push(importRow)
     }
 
+    // 收集找不到的商品
+    const missingProductMap = new Map<string, MissingProduct>()
+    for (const row of rows) {
+      if (!row.productId && !row.error && row.barcode) {
+        const key = row.barcode.toLowerCase()
+        if (!missingProductMap.has(key)) {
+          missingProductMap.set(key, {
+            barcode: row.barcode,
+            suggestedName: row.barcode,
+            suggestedPrice: row.price,
+            rowNumbers: [],
+          })
+        }
+        missingProductMap.get(key)!.rowNumbers.push(row.rowNumber)
+        // 如果有價格，更新建議價格
+        if (row.price !== null) {
+          missingProductMap.get(key)!.suggestedPrice = row.price
+        }
+      }
+    }
+    const missingProducts = Array.from(missingProductMap.values())
+
     // 按訂單編號分組
     const orderMap = new Map<string, GroupedOrder>()
 
@@ -352,9 +384,13 @@ export async function POST(request: NextRequest) {
           quantity: row.quantity,
           price: row.price || 0,
         })
+      } else if (row.barcode && !row.productId) {
+        // 找不到商品，標記為需要建立
+        order.warnings.push(`第 ${row.rowNumber} 行：找不到商品「${row.barcode}」`)
       }
 
-      if (row.warning) {
+      if (row.warning && row.productId) {
+        // 只有有 productId 的警告才顯示（例如自動建立客戶）
         order.warnings.push(`第 ${row.rowNumber} 行：${row.warning}`)
       }
     }
@@ -379,16 +415,23 @@ export async function POST(request: NextRequest) {
         rowNumbers: order.rowNumbers,
       }))
 
+      // 計算有效訂單數（沒有錯誤且有商品，或者可以通過建立缺失商品來補齊）
+      const ordersWithMissingProducts = groupedOrders.filter(o =>
+        o.errors.length === 0 && o.items.length === 0 && o.warnings.some(w => w.includes('找不到商品'))
+      ).length
+
       return NextResponse.json({
         ok: true,
         preview: true,
         data: previewData,
         rows: rows, // 原始行資料供明細查看
+        missingProducts, // 找不到的商品清單
         summary: {
           totalOrders: groupedOrders.length,
           validOrders: groupedOrders.filter(o => o.errors.length === 0 && o.items.length > 0).length,
-          invalidOrders: groupedOrders.filter(o => o.errors.length > 0 || o.items.length === 0).length,
-          totalItems: rows.filter(r => !r.error).length,
+          invalidOrders: groupedOrders.filter(o => o.errors.length > 0).length,
+          ordersWithMissingProducts, // 有缺失商品的訂單數
+          totalItems: rows.filter(r => !r.error && r.productId).length,
           warningOrders: groupedOrders.filter(o => o.warnings.length > 0).length,
         }
       })
@@ -401,6 +444,117 @@ export async function POST(request: NextRequest) {
       errors: [],
       warnings: [],
     }
+
+    // 處理要快速建立的商品
+    const productsToCreateJson = formData.get('productsToCreate') as string | null
+    if (productsToCreateJson) {
+      try {
+        const productsToCreate = JSON.parse(productsToCreateJson) as {
+          barcode: string
+          name: string
+          price: number
+        }[]
+
+        for (const newProduct of productsToCreate) {
+          // 建立商品
+          const { data: createdProduct, error: createError } = await (supabaseServer
+            .from('products') as any)
+            .insert({
+              barcode: newProduct.barcode,
+              name: newProduct.name,
+              price: newProduct.price,
+              cost: 0,
+              avg_cost: 0,
+              stock: 0,
+              is_active: true,
+            })
+            .select('id, barcode, name, price')
+            .single()
+
+          if (createError) {
+            console.error(`[Sales Import] Failed to create product ${newProduct.barcode}:`, createError)
+            result.warnings.push({
+              orderNo: 'N/A',
+              message: `建立商品「${newProduct.name}」失敗：${createError.message}`,
+            })
+          } else if (createdProduct) {
+            console.log(`[Sales Import] Created product: ${createdProduct.name} (${createdProduct.barcode})`)
+            // 加入到映射表中
+            const barcodeStr = String(createdProduct.barcode || '').trim()
+            if (barcodeStr) {
+              barcodeToProduct.set(barcodeStr, { id: createdProduct.id, name: createdProduct.name, price: createdProduct.price })
+            }
+            nameToProduct.set(String(createdProduct.name).toLowerCase().trim(), { id: createdProduct.id, name: createdProduct.name, price: createdProduct.price })
+          }
+        }
+
+        // 重新處理 rows，將缺失的商品 ID 補上
+        for (const row of rows) {
+          if (!row.productId && !row.error && row.barcode) {
+            let product = barcodeToProduct.get(row.barcode)
+            if (!product) {
+              product = nameToProduct.get(row.barcode.toLowerCase())
+            }
+            if (product) {
+              row.productId = product.id
+              row.productName = product.name
+              if (row.price === null) {
+                row.price = product.price
+              }
+              row.warning = undefined // 清除警告
+            }
+          }
+        }
+
+        // 重新分組
+        orderMap.clear()
+        for (const row of rows) {
+          if (!row.orderNo) continue
+
+          if (!orderMap.has(row.orderNo)) {
+            orderMap.set(row.orderNo, {
+              orderNo: row.orderNo,
+              customerCode: row.customerCode,
+              customerName: row.customerName || row.customerCode,
+              saleDate: row.saleDate,
+              source: row.source,
+              paymentMethod: row.paymentMethod,
+              isPaid: row.isPaid,
+              note: row.note,
+              accountId: row.accountId || null,
+              items: [],
+              errors: [],
+              warnings: [],
+              rowNumbers: [],
+            })
+          }
+
+          const order = orderMap.get(row.orderNo)!
+          order.rowNumbers.push(row.rowNumber)
+
+          if (row.error) {
+            order.errors.push(`第 ${row.rowNumber} 行：${row.error}`)
+          } else if (row.productId) {
+            order.items.push({
+              productId: row.productId,
+              quantity: row.quantity,
+              price: row.price || 0,
+            })
+          } else if (row.barcode && !row.productId) {
+            order.errors.push(`第 ${row.rowNumber} 行：找不到商品「${row.barcode}」且未選擇建立`)
+          }
+
+          if (row.warning) {
+            order.warnings.push(`第 ${row.rowNumber} 行：${row.warning}`)
+          }
+        }
+      } catch (e) {
+        console.error('[Sales Import] Failed to parse productsToCreate:', e)
+      }
+    }
+
+    // 重新取得 groupedOrders
+    const finalGroupedOrders = Array.from(orderMap.values())
 
     // sale_no 由資料庫 sequence 自動生成
 
@@ -423,7 +577,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 處理每筆訂單
-    for (const order of groupedOrders) {
+    for (const order of finalGroupedOrders) {
       // 跳過有錯誤或沒有商品的訂單
       if (order.errors.length > 0) {
         result.failed++

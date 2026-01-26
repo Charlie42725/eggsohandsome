@@ -18,10 +18,25 @@ type PreviewOrder = {
   rowNumbers: number[]
 }
 
+type MissingProduct = {
+  barcode: string
+  suggestedName: string
+  suggestedPrice: number | null
+  rowNumbers: number[]
+}
+
+type ProductToCreate = {
+  barcode: string
+  name: string
+  price: number
+  selected: boolean
+}
+
 type ImportSummary = {
   totalOrders: number
   validOrders: number
   invalidOrders: number
+  ordersWithMissingProducts?: number
   totalItems: number
   warningOrders: number
 }
@@ -47,6 +62,8 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [missingProducts, setMissingProducts] = useState<MissingProduct[]>([])
+  const [productsToCreate, setProductsToCreate] = useState<ProductToCreate[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const reset = () => {
@@ -55,6 +72,8 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
     setSummary(null)
     setImportResult(null)
     setError(null)
+    setMissingProducts([])
+    setProductsToCreate([])
   }
 
   const handleClose = () => {
@@ -112,6 +131,20 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
       } else {
         setPreviewData(data.data)
         setSummary(data.summary)
+        // 處理找不到的商品
+        if (data.missingProducts && data.missingProducts.length > 0) {
+          setMissingProducts(data.missingProducts)
+          // 初始化要建立的商品清單（預設全選）
+          setProductsToCreate(data.missingProducts.map((p: MissingProduct) => ({
+            barcode: p.barcode,
+            name: p.suggestedName,
+            price: p.suggestedPrice || 0,
+            selected: true,
+          })))
+        } else {
+          setMissingProducts([])
+          setProductsToCreate([])
+        }
       }
     } catch (err: any) {
       setError(err.message || '解析檔案失敗')
@@ -138,6 +171,16 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
       const formData = new FormData()
       formData.append('file', file)
       formData.append('preview', 'false')
+
+      // 附加要建立的商品
+      const selectedProducts = productsToCreate.filter(p => p.selected)
+      if (selectedProducts.length > 0) {
+        formData.append('productsToCreate', JSON.stringify(selectedProducts.map(p => ({
+          barcode: p.barcode,
+          name: p.name,
+          price: p.price,
+        }))))
+      }
 
       const res = await fetch('/api/sales/import', {
         method: 'POST',
@@ -322,6 +365,95 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
           {/* Preview Data */}
           {previewData && !importResult && (
             <>
+              {/* Missing Products - Quick Create */}
+              {missingProducts.length > 0 && (
+                <div className="mb-4 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700 rounded-lg">
+                  <h3 className="font-bold text-orange-800 dark:text-orange-300 mb-2 flex items-center gap-2">
+                    <span>⚠️</span> 找不到以下商品（{missingProducts.length} 項）
+                  </h3>
+                  <p className="text-sm text-orange-700 dark:text-orange-400 mb-3">
+                    勾選並填寫資料後，將在匯入時自動建立這些商品
+                  </p>
+                  <div className="space-y-2 max-h-48 overflow-auto">
+                    {productsToCreate.map((product, index) => (
+                      <div
+                        key={product.barcode}
+                        className={`flex items-center gap-3 p-2 rounded-lg ${
+                          product.selected ? 'bg-orange-100 dark:bg-orange-900/30' : 'bg-gray-100 dark:bg-gray-700/50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={product.selected}
+                          onChange={(e) => {
+                            const newProducts = [...productsToCreate]
+                            newProducts[index].selected = e.target.checked
+                            setProductsToCreate(newProducts)
+                          }}
+                          className="w-4 h-4 rounded border-gray-300"
+                        />
+                        <div className="flex-1 grid grid-cols-3 gap-2">
+                          <div>
+                            <label className="text-xs text-gray-500 dark:text-gray-400">條碼/識別碼</label>
+                            <div className="text-sm font-mono text-gray-800 dark:text-gray-200 truncate">
+                              {product.barcode}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-500 dark:text-gray-400">商品名稱</label>
+                            <input
+                              type="text"
+                              value={product.name}
+                              onChange={(e) => {
+                                const newProducts = [...productsToCreate]
+                                newProducts[index].name = e.target.value
+                                setProductsToCreate(newProducts)
+                              }}
+                              disabled={!product.selected}
+                              className="w-full text-sm px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+                              placeholder="輸入商品名稱"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-500 dark:text-gray-400">售價</label>
+                            <input
+                              type="number"
+                              value={product.price}
+                              onChange={(e) => {
+                                const newProducts = [...productsToCreate]
+                                newProducts[index].price = parseFloat(e.target.value) || 0
+                                setProductsToCreate(newProducts)
+                              }}
+                              disabled={!product.selected}
+                              className="w-full text-sm px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+                              placeholder="0"
+                              min="0"
+                            />
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                          {missingProducts.find(m => m.barcode === product.barcode)?.rowNumbers.length || 0} 筆
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={() => setProductsToCreate(productsToCreate.map(p => ({ ...p, selected: true })))}
+                      className="text-xs px-2 py-1 text-orange-600 dark:text-orange-400 hover:underline"
+                    >
+                      全選
+                    </button>
+                    <button
+                      onClick={() => setProductsToCreate(productsToCreate.map(p => ({ ...p, selected: false })))}
+                      className="text-xs px-2 py-1 text-orange-600 dark:text-orange-400 hover:underline"
+                    >
+                      全不選
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Summary */}
               {summary && (
                 <div className="mb-4 flex gap-4 flex-wrap">
@@ -343,6 +475,12 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
                     <div className="px-4 py-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
                       <span className="text-yellow-600 dark:text-yellow-400 text-sm">警告：</span>
                       <span className="font-bold text-yellow-700 dark:text-yellow-300 ml-1">{summary.warningOrders} 筆</span>
+                    </div>
+                  )}
+                  {missingProducts.length > 0 && (
+                    <div className="px-4 py-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                      <span className="text-orange-600 dark:text-orange-400 text-sm">待建立商品：</span>
+                      <span className="font-bold text-orange-700 dark:text-orange-300 ml-1">{missingProducts.length} 項</span>
                     </div>
                   )}
                   <div className="px-4 py-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
@@ -426,13 +564,29 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
                 >
                   重新選擇檔案
                 </button>
-                <button
-                  onClick={handleImport}
-                  disabled={loading || (summary?.validOrders || 0) === 0}
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? '匯入中...' : `確認匯入 (${summary?.validOrders || 0} 筆訂單)`}
-                </button>
+                {(() => {
+                  // 計算可匯入的訂單數
+                  const selectedProductBarcodes = new Set(
+                    productsToCreate.filter(p => p.selected).map(p => p.barcode.toLowerCase())
+                  )
+                  // 原本可匯入的 + 選擇建立商品後可匯入的
+                  const validCount = summary?.validOrders || 0
+                  const canImport = validCount > 0 || selectedProductBarcodes.size > 0
+
+                  return (
+                    <button
+                      onClick={handleImport}
+                      disabled={loading || !canImport}
+                      className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {loading ? '匯入中...' : (
+                        selectedProductBarcodes.size > 0
+                          ? `確認匯入（含建立 ${selectedProductBarcodes.size} 項商品）`
+                          : `確認匯入 (${validCount} 筆訂單)`
+                      )}
+                    </button>
+                  )
+                })()}
               </div>
             </>
           )}
