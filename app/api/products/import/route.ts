@@ -217,7 +217,7 @@ export async function POST(request: NextRequest) {
           price: row.price,
           cost: row.cost,
           stock: row.stock,
-          avg_cost: row.stock > 0 ? row.cost : 0,
+          avg_cost: row.cost,  // 直接使用成本，不管庫存是否為 0
           category_id: categoryId,
           unit: '件',
           is_active: true,
