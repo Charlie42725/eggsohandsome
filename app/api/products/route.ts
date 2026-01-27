@@ -61,9 +61,73 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // 查詢每個商品的成本統計（最近一次、最高、最低）
+    let productsWithCostStats: any[] = data || []
+    if (data && data.length > 0) {
+      const productIds = data.map((p: any) => p.id)
+
+      // 查詢成本統計（最高和最低）
+      const { data: costStats } = await (supabaseServer
+        .from('purchase_items') as any)
+        .select('product_id, cost')
+        .in('product_id', productIds)
+
+      // 查詢最近一次進貨成本（需要關聯 purchases 表取得日期）
+      const { data: recentCosts } = await (supabaseServer
+        .from('purchase_items') as any)
+        .select(`
+          product_id,
+          cost,
+          purchases!inner(purchase_date, created_at)
+        `)
+        .in('product_id', productIds)
+        .order('purchases(created_at)', { ascending: false })
+
+      // 計算每個商品的成本統計
+      const costStatsMap = new Map<string, { min: number; max: number; latest: number | null }>()
+
+      // 先計算 min/max
+      if (costStats) {
+        for (const item of costStats as any[]) {
+          const existing = costStatsMap.get(item.product_id)
+          if (existing) {
+            existing.min = Math.min(existing.min, item.cost)
+            existing.max = Math.max(existing.max, item.cost)
+          } else {
+            costStatsMap.set(item.product_id, { min: item.cost, max: item.cost, latest: null })
+          }
+        }
+      }
+
+      // 設定最近一次成本（recentCosts 已按日期降序排列，取每個商品的第一筆）
+      const seenProducts = new Set<string>()
+      if (recentCosts) {
+        for (const item of recentCosts as any[]) {
+          if (!seenProducts.has(item.product_id)) {
+            seenProducts.add(item.product_id)
+            const existing = costStatsMap.get(item.product_id)
+            if (existing) {
+              existing.latest = item.cost
+            }
+          }
+        }
+      }
+
+      // 合併到商品資料
+      productsWithCostStats = data.map((product: any) => {
+        const stats = costStatsMap.get(product.id)
+        return {
+          ...product,
+          cost_latest: stats?.latest ?? null,
+          cost_min: stats?.min ?? null,
+          cost_max: stats?.max ?? null,
+        }
+      })
+    }
+
     return NextResponse.json({
       ok: true,
-      data,
+      data: productsWithCostStats,
       pagination: {
         page,
         pageSize,

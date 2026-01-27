@@ -27,6 +27,10 @@ export type Product = {
   category?: Category | null
   created_at?: string
   updated_at?: string
+  // 進貨成本統計
+  cost_latest?: number | null  // 最近一次進貨成本
+  cost_min?: number | null     // 最低進貨成本
+  cost_max?: number | null     // 最高進貨成本
 }
 
 export type Customer = {

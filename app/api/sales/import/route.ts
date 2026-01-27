@@ -50,6 +50,9 @@ type GroupedOrder = {
   errors: string[]
   warnings: string[]
   rowNumbers: number[]
+  isDuplicate?: boolean
+  existingSaleNo?: string
+  existingSaleId?: string
 }
 
 type ImportResult = {
@@ -151,10 +154,19 @@ export async function POST(request: NextRequest) {
 
     const customerCodeSet = new Set<string>()
     const customerNameToCode = new Map<string, string>()
+    const customerNameSet = new Set<string>()
+    let maxCustomerNumber = 0
     if (customers) {
       customers.forEach((c: any) => {
         customerCodeSet.add(c.customer_code)
         customerNameToCode.set(c.customer_name.toLowerCase(), c.customer_code)
+        customerNameSet.add(c.customer_name.toLowerCase())
+        // 找出最大的客戶編號（用於自動生成）
+        const match = c.customer_code.match(/C(\d+)/)
+        if (match) {
+          const num = parseInt(match[1], 10)
+          if (num > maxCustomerNumber) maxCustomerNumber = num
+        }
       })
     }
 
@@ -261,7 +273,7 @@ export async function POST(request: NextRequest) {
       if (!orderNo) {
         importRow.error = '訂單編號不能為空'
       } else if (!barcode) {
-        importRow.error = '商品條碼不能為空'
+        importRow.error = '商品欄位不能為空'
       } else if (quantity <= 0 || !Number.isInteger(quantity)) {
         importRow.error = '數量必須為正整數'
       } else {
@@ -272,7 +284,7 @@ export async function POST(request: NextRequest) {
           product = itemCodeToProduct.get(barcode.toLowerCase())
         }
         if (!product) {
-          // 嘗試用商品名稱查找
+          // 嘗試用商品名稱查找（精確匹配）
           product = nameToProduct.get(barcode.toLowerCase())
         }
         if (!product) {
@@ -291,7 +303,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // 驗證客戶（如果有指定）- 找不到就之後自動建立
+        // 驗證客戶（如果有指定）- 找不到就之後自動建立（只需要名稱）
         if (customer) {
           // 先嘗試用代碼匹配
           if (customerCodeSet.has(customer)) {
@@ -302,9 +314,12 @@ export async function POST(request: NextRequest) {
             if (codeByName) {
               importRow.customerCode = codeByName
             } else {
-              // 都找不到，之後會自動建立
+              // 都找不到，之後會自動建立（用名稱作為識別）
               importRow.warning = `將自動建立客戶：${customer}`
-              importRow.customerCode = customer
+              // 自動生成客戶代碼
+              maxCustomerNumber++
+              const newCustomerCode = `C${String(maxCustomerNumber).padStart(3, '0')}`
+              importRow.customerCode = newCustomerCode
               importRow.customerName = customer
             }
           }
@@ -400,6 +415,47 @@ export async function POST(request: NextRequest) {
     // 只做預覽，不實際匯入
     const preview = formData.get('preview') === 'true'
     if (preview) {
+      // 查詢現有銷售單，用於檢測重複（基於日期、客戶、金額）
+      const { data: existingSales } = await (supabaseServer
+        .from('sales') as any)
+        .select('id, sale_no, sale_date, customer_code, total')
+
+      // 建立一個 map 用於快速查找重複
+      const existingSalesMap = new Map<string, { id: string; sale_no: string }>()
+      if (existingSales) {
+        for (const sale of existingSales) {
+          // 用日期+客戶+金額作為 key
+          const key = `${sale.sale_date || ''}_${sale.customer_code || ''}_${sale.total || 0}`
+          existingSalesMap.set(key, { id: sale.id, sale_no: sale.sale_no })
+        }
+      }
+
+      // 檢查每個訂單是否重複
+      for (const order of groupedOrders) {
+        if (order.errors.length === 0 && order.items.length > 0) {
+          const total = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+          // 解析日期
+          let saleDate = new Date().toISOString().split('T')[0]
+          if (order.saleDate) {
+            try {
+              const parsedDate = new Date(order.saleDate)
+              if (!isNaN(parsedDate.getTime())) {
+                saleDate = parsedDate.toISOString().split('T')[0]
+              }
+            } catch {
+              // 使用預設日期
+            }
+          }
+          const key = `${saleDate}_${order.customerCode || ''}_${total}`
+          const existingSale = existingSalesMap.get(key)
+          if (existingSale) {
+            order.isDuplicate = true
+            order.existingSaleNo = existingSale.sale_no
+            order.existingSaleId = existingSale.id
+          }
+        }
+      }
+
       const previewData = groupedOrders.map(order => ({
         orderNo: order.orderNo,
         customerCode: order.customerCode,
@@ -413,12 +469,19 @@ export async function POST(request: NextRequest) {
         errors: order.errors,
         warnings: order.warnings,
         rowNumbers: order.rowNumbers,
+        isDuplicate: order.isDuplicate,
+        existingSaleNo: order.existingSaleNo,
+        existingSaleId: order.existingSaleId,
       }))
 
       // 計算有效訂單數（沒有錯誤且有商品，或者可以通過建立缺失商品來補齊）
       const ordersWithMissingProducts = groupedOrders.filter(o =>
         o.errors.length === 0 && o.items.length === 0 && o.warnings.some(w => w.includes('找不到商品'))
       ).length
+
+      // 計算非重複的有效訂單數
+      const validNonDuplicateOrders = groupedOrders.filter(o => o.errors.length === 0 && o.items.length > 0 && !o.isDuplicate).length
+      const duplicateOrdersCount = groupedOrders.filter(o => o.isDuplicate).length
 
       return NextResponse.json({
         ok: true,
@@ -428,13 +491,29 @@ export async function POST(request: NextRequest) {
         missingProducts, // 找不到的商品清單
         summary: {
           totalOrders: groupedOrders.length,
-          validOrders: groupedOrders.filter(o => o.errors.length === 0 && o.items.length > 0).length,
+          validOrders: validNonDuplicateOrders,
+          duplicateOrders: duplicateOrdersCount,
           invalidOrders: groupedOrders.filter(o => o.errors.length > 0).length,
           ordersWithMissingProducts, // 有缺失商品的訂單數
           totalItems: rows.filter(r => !r.error && r.productId).length,
-          warningOrders: groupedOrders.filter(o => o.warnings.length > 0).length,
+          warningOrders: groupedOrders.filter(o => o.warnings.length > 0 && !o.isDuplicate).length,
         }
       })
+    }
+
+    // 處理重複資料的方式（每個訂單單獨設定）
+    type DuplicateActionItem = { orderNo: string; action: 'skip' | 'overwrite' }
+    let duplicateActionsMap = new Map<string, 'skip' | 'overwrite'>()
+    const duplicateActionsJson = formData.get('duplicateActions') as string | null
+    if (duplicateActionsJson) {
+      try {
+        const duplicateActions: DuplicateActionItem[] = JSON.parse(duplicateActionsJson)
+        duplicateActions.forEach(da => {
+          duplicateActionsMap.set(da.orderNo, da.action)
+        })
+      } catch {
+        // 忽略解析錯誤，使用預設值 skip
+      }
     }
 
     // 實際匯入
@@ -620,13 +699,114 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // 自動建立不存在的客戶
-        if (order.customerCode && !customerCodeSet.has(order.customerCode)) {
+        // 檢查重複訂單
+        const duplicateKey = `${saleDate}_${order.customerCode || ''}_${total}`
+        const { data: existingDuplicate } = await (supabaseServer
+          .from('sales') as any)
+          .select('id, sale_no')
+          .eq('sale_date', saleDate)
+          .eq('customer_code', order.customerCode || '')
+          .eq('total', total)
+          .single()
+
+        if (existingDuplicate) {
+          const orderAction = duplicateActionsMap.get(order.orderNo) || 'skip'
+          if (orderAction === 'skip') {
+            result.warnings.push({
+              orderNo: order.orderNo,
+              message: `與 ${existingDuplicate.sale_no} 重複，已略過`,
+            })
+            deliveryNumber--
+            continue
+          } else if (orderAction === 'overwrite') {
+            // 刪除舊的銷售單（包含關聯資料）
+            try {
+              // 先刪除 partner_accounts
+              await (supabaseServer
+                .from('partner_accounts') as any)
+                .delete()
+                .eq('ref_type', 'sale')
+                .eq('ref_id', existingDuplicate.id)
+
+              // 刪除 account_transactions
+              await (supabaseServer
+                .from('account_transactions') as any)
+                .delete()
+                .eq('ref_type', 'sale')
+                .eq('ref_id', existingDuplicate.id)
+
+              // 取得出貨單
+              const { data: existingDeliveries } = await (supabaseServer
+                .from('deliveries') as any)
+                .select('id')
+                .eq('sale_id', existingDuplicate.id)
+
+              if (existingDeliveries) {
+                for (const delivery of existingDeliveries) {
+                  // 刪除出貨明細
+                  await (supabaseServer
+                    .from('delivery_items') as any)
+                    .delete()
+                    .eq('delivery_id', delivery.id)
+
+                  // 刪除庫存日誌
+                  await (supabaseServer
+                    .from('inventory_logs') as any)
+                    .delete()
+                    .eq('ref_type', 'delivery')
+                    .eq('ref_id', delivery.id)
+                }
+
+                // 刪除出貨單
+                await (supabaseServer
+                  .from('deliveries') as any)
+                  .delete()
+                  .eq('sale_id', existingDuplicate.id)
+              }
+
+              // 刪除銷售明細
+              await (supabaseServer
+                .from('sale_items') as any)
+                .delete()
+                .eq('sale_id', existingDuplicate.id)
+
+              // 刪除銷售單
+              await (supabaseServer
+                .from('sales') as any)
+                .delete()
+                .eq('id', existingDuplicate.id)
+
+              result.warnings.push({
+                orderNo: order.orderNo,
+                message: `已覆蓋舊訂單 ${existingDuplicate.sale_no}`,
+              })
+            } catch (deleteErr: any) {
+              result.failed++
+              result.errors.push({
+                orderNo: order.orderNo,
+                message: `刪除舊訂單失敗：${deleteErr.message}`,
+              })
+              deliveryNumber--
+              continue
+            }
+          }
+        }
+
+        // 自動建立不存在的客戶（只需要客戶名稱）
+        if (order.customerName && !customerNameSet.has(order.customerName.toLowerCase())) {
+          // 檢查客戶代碼是否已存在，如果存在則重新生成
+          let customerCode = order.customerCode
+          while (customerCodeSet.has(customerCode!)) {
+            maxCustomerNumber++
+            customerCode = `C${String(maxCustomerNumber).padStart(3, '0')}`
+          }
+          order.customerCode = customerCode
+
           const { error: createCustomerError } = await (supabaseServer
             .from('customers') as any)
             .insert({
-              customer_code: order.customerCode,
-              customer_name: order.customerName || order.customerCode,
+              customer_code: customerCode,
+              customer_name: order.customerName,
               phone: '',
               address: '',
               note: '匯入銷售時自動建立',
@@ -637,24 +817,27 @@ export async function POST(request: NextRequest) {
             const { data: existingCustomer } = await (supabaseServer
               .from('customers') as any)
               .select('customer_code')
-              .eq('customer_code', order.customerCode)
+              .or(`customer_code.eq.${customerCode},customer_name.ilike.${order.customerName}`)
               .single()
 
             if (existingCustomer) {
-              // 客戶已存在，加入 set
-              customerCodeSet.add(order.customerCode)
+              // 客戶已存在，使用既有的代碼
+              order.customerCode = existingCustomer.customer_code
+              customerCodeSet.add(existingCustomer.customer_code)
+              customerNameSet.add(order.customerName.toLowerCase())
             } else {
               // 真的建立失敗，報錯並跳過此訂單
               result.failed++
               result.errors.push({
                 orderNo: order.orderNo,
-                message: `自動建立客戶「${order.customerCode}」失敗：${createCustomerError.message}`,
+                message: `自動建立客戶「${order.customerName}」失敗：${createCustomerError.message}`,
               })
               continue
             }
           } else {
             // 建立成功，加入 set 避免重複建立
-            customerCodeSet.add(order.customerCode)
+            customerCodeSet.add(customerCode!)
+            customerNameSet.add(order.customerName.toLowerCase())
           }
         }
 

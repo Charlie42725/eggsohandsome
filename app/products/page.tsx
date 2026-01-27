@@ -600,15 +600,27 @@ export default function ProductsPage() {
                       </div>
                     </th>
                     {userRole === 'admin' && (
-                      <th
-                        className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none"
-                        onClick={() => handleSort('avg_cost')}
-                      >
-                        <div className="flex items-center justify-end">
-                          成本
-                          <SortIcon field="avg_cost" />
-                        </div>
-                      </th>
+                      <>
+                        <th
+                          className="px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none"
+                          onClick={() => handleSort('avg_cost')}
+                        >
+                          <div className="flex items-center justify-end">
+                            平均成本
+                            <SortIcon field="avg_cost" />
+                          </div>
+                        </th>
+                        <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
+                          <div className="flex items-center justify-end whitespace-nowrap">
+                            最近成本
+                          </div>
+                        </th>
+                        <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
+                          <div className="flex items-center justify-end whitespace-nowrap">
+                            最低/最高
+                          </div>
+                        </th>
+                      </>
                     )}
                     <th
                       className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none"
@@ -675,9 +687,21 @@ export default function ProductsPage() {
                         {formatCurrency(product.price)}
                       </td>
                       {userRole === 'admin' && (
-                        <td className="px-6 py-4 text-right text-sm text-gray-900 dark:text-gray-100">
-                          {formatCurrency(product.avg_cost)}
-                        </td>
+                        <>
+                          <td className="px-4 py-4 text-right text-sm text-gray-900 dark:text-gray-100">
+                            {formatCurrency(product.avg_cost)}
+                          </td>
+                          <td className="px-4 py-4 text-right text-sm text-gray-900 dark:text-gray-100">
+                            {product.cost_latest != null ? formatCurrency(product.cost_latest) : '-'}
+                          </td>
+                          <td className="px-4 py-4 text-right text-sm text-gray-500 dark:text-gray-400">
+                            {product.cost_min != null && product.cost_max != null ? (
+                              <span className="whitespace-nowrap">
+                                {formatCurrency(product.cost_min)} / {formatCurrency(product.cost_max)}
+                              </span>
+                            ) : '-'}
+                          </td>
+                        </>
                       )}
                       <td className="px-6 py-4 text-right text-sm">
                         <span
