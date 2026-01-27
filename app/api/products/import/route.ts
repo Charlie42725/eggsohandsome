@@ -98,13 +98,15 @@ export async function POST(request: NextRequest) {
     // 獲取所有現有商品（用於檢查重複）
     const { data: existingProducts } = await (supabaseServer
       .from('products') as any)
-      .select('id, barcode')
-      .not('barcode', 'is', null)
+      .select('id, barcode, name')
 
     const existingBarcodeMap = new Map<string, string>()  // barcode -> product id
+    const existingNameMap = new Map<string, string>()     // name -> product id
+
     if (existingProducts) {
       existingProducts.forEach((p: any) => {
         if (p.barcode) existingBarcodeMap.set(p.barcode, p.id)
+        if (p.name) existingNameMap.set(p.name, p.id)
       })
     }
 
@@ -133,11 +135,10 @@ export async function POST(request: NextRequest) {
         category,
       }
 
-      // 驗證：條碼為選填，但如果有條碼則檢查是否重複
+      // 1. 檢查條碼是否重複
       if (barcode) {
         const existingProductId = existingBarcodeMap.get(barcode)
         if (existingProductId) {
-          // 條碼已存在，標記為重複（讓用戶選擇處理方式）
           importRow.isDuplicate = true
           importRow.existingProductId = existingProductId
           importRow.warning = `條碼 ${barcode} 已存在，可選擇覆蓋或略過`
@@ -145,6 +146,17 @@ export async function POST(request: NextRequest) {
           importRow.error = `條碼 ${barcode} 在檔案中重複`
         } else {
           newBarcodes.add(barcode)
+        }
+      }
+
+      // 2. 如果沒有條碼（或條碼沒重複），檢查名稱是否重複
+      if (!importRow.isDuplicate && !importRow.error && name) {
+        const existingProductId = existingNameMap.get(name)
+        if (existingProductId) {
+          // 如果找到同名商品，視為重複
+          importRow.isDuplicate = true
+          importRow.existingProductId = existingProductId
+          importRow.warning = `商品名稱「${name}」已存在，可選擇覆蓋或略過`
         }
       }
 
