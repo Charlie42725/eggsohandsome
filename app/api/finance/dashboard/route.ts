@@ -207,22 +207,6 @@ export async function GET(request: NextRequest) {
     apDueSoon.sort((a, b) => a.days_until_due - b.days_until_due)
     apOverdueList.sort((a, b) => b.days_overdue - a.days_overdue)
 
-    // ========== 新增：庫存總金額 ==========
-    const { data: products } = await supabaseServer
-      .from('products')
-      .select('stock, avg_cost')
-      .eq('is_active', true)
-
-    const inventoryValue = (products as any[])?.reduce(
-      (sum, p) => sum + (p.stock * (p.avg_cost || 0)),
-      0
-    ) || 0
-
-    const inventoryCount = (products as any[])?.reduce(
-      (sum, p) => sum + p.stock,
-      0
-    ) || 0
-
     // ========== 新增：近7天毛利率趨勢（優化：單次查詢）==========
     const sevenDaysAgo = new Date()
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
@@ -301,10 +285,7 @@ export async function GET(request: NextRequest) {
         apAging,
         apDueSoon: apDueSoon.slice(0, 10),
         apOverdueList: apOverdueList.slice(0, 10),
-        inventory: {
-          totalValue: inventoryValue,
-          totalQuantity: inventoryCount
-        },
+        // inventory: REMOVED for performance
         profitTrend,
       },
     })
