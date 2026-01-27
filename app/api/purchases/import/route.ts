@@ -36,6 +36,9 @@ type GroupedOrder = {
   errors: string[]
   warnings: string[]
   rowNumbers: number[]
+  isDuplicate?: boolean  // 可能重複標記
+  existingPurchaseId?: string  // 重複時的現有進貨單 ID
+  existingPurchaseNo?: string  // 重複時的現有進貨單號
 }
 
 type ImportResult = {
@@ -281,9 +284,41 @@ export async function POST(request: NextRequest) {
 
     const groupedOrders = Array.from(orderMap.values())
 
+    // 檢測可能重複的進貨單（相同日期 + 相同廠商 + 相同金額）
+    const { data: existingPurchases } = await (supabaseServer
+      .from('purchases') as any)
+      .select('id, purchase_no, vendor_code, purchase_date, total')
+
+    const existingPurchaseMap = new Map<string, { id: string; purchase_no: string }>()
+    if (existingPurchases) {
+      existingPurchases.forEach((p: any) => {
+        // 用「日期_廠商_金額」作為 key
+        const key = `${p.purchase_date}_${p.vendor_code}_${p.total}`
+        existingPurchaseMap.set(key, { id: p.id, purchase_no: p.purchase_no })
+      })
+    }
+
+    // 標記可能重複的訂單
+    for (const order of groupedOrders) {
+      if (order.errors.length > 0 || order.items.length === 0) continue
+
+      const total = order.items.reduce((sum, item) => sum + item.cost * item.quantity, 0)
+      const purchaseDate = order.purchaseDate || new Date().toISOString().split('T')[0]
+      const key = `${purchaseDate}_${order.vendorCode}_${total}`
+
+      const existing = existingPurchaseMap.get(key)
+      if (existing) {
+        order.isDuplicate = true
+        order.existingPurchaseId = existing.id
+        order.existingPurchaseNo = existing.purchase_no
+        order.warnings.push(`可能與現有進貨單 ${existing.purchase_no} 重複（相同日期、廠商、金額）`)
+      }
+    }
+
     // 只做預覽，不實際匯入
     const preview = formData.get('preview') === 'true'
     if (preview) {
+      const duplicateCount = groupedOrders.filter(o => o.isDuplicate).length
       const previewData = groupedOrders.map(order => ({
         orderNo: order.orderNo,
         vendorCode: order.vendorCode,
@@ -295,6 +330,8 @@ export async function POST(request: NextRequest) {
         errors: order.errors,
         warnings: order.warnings,
         rowNumbers: order.rowNumbers,
+        isDuplicate: order.isDuplicate,
+        existingPurchaseNo: order.existingPurchaseNo,
       }))
 
       return NextResponse.json({
@@ -304,12 +341,28 @@ export async function POST(request: NextRequest) {
         rows: rows, // 原始行資料供明細查看
         summary: {
           totalOrders: groupedOrders.length,
-          validOrders: groupedOrders.filter(o => o.errors.length === 0 && o.items.length > 0).length,
+          validOrders: groupedOrders.filter(o => o.errors.length === 0 && o.items.length > 0 && !o.isDuplicate).length,
           invalidOrders: groupedOrders.filter(o => o.errors.length > 0 || o.items.length === 0).length,
+          duplicateOrders: duplicateCount,
           totalItems: rows.filter(r => !r.error).length,
-          warningOrders: groupedOrders.filter(o => o.warnings.length > 0).length,
+          warningOrders: groupedOrders.filter(o => o.warnings.length > 0 && !o.isDuplicate).length,
         }
       })
+    }
+
+    // 處理重複資料的方式（每個訂單單獨設定）
+    type DuplicateActionItem = { orderNo: string; action: 'skip' | 'overwrite' }
+    let duplicateActionsMap = new Map<string, 'skip' | 'overwrite'>()
+    const duplicateActionsJson = formData.get('duplicateActions') as string | null
+    if (duplicateActionsJson) {
+      try {
+        const duplicateActions: DuplicateActionItem[] = JSON.parse(duplicateActionsJson)
+        duplicateActions.forEach(da => {
+          duplicateActionsMap.set(da.orderNo, da.action)
+        })
+      } catch {
+        // 忽略解析錯誤，使用預設值 skip
+      }
     }
 
     // 實際匯入
@@ -336,6 +389,22 @@ export async function POST(request: NextRequest) {
         return max
       }, 0)
       purchaseNumber = maxNumber
+    }
+
+    // 重新標記重複訂單（需要從 groupedOrders 重新獲取）
+    for (const order of groupedOrders) {
+      if (order.errors.length > 0 || order.items.length === 0) continue
+
+      const total = order.items.reduce((sum, item) => sum + item.cost * item.quantity, 0)
+      const purchaseDate = order.purchaseDate || new Date().toISOString().split('T')[0]
+      const key = `${purchaseDate}_${order.vendorCode}_${total}`
+
+      const existing = existingPurchaseMap.get(key)
+      if (existing) {
+        order.isDuplicate = true
+        order.existingPurchaseId = existing.id
+        order.existingPurchaseNo = existing.purchase_no
+      }
     }
 
     // 處理每筆訂單
@@ -367,6 +436,49 @@ export async function POST(request: NextRequest) {
           message: '進貨單必須指定廠商',
         })
         continue
+      }
+
+      // 處理重複訂單
+      if (order.isDuplicate && order.existingPurchaseId) {
+        const orderAction = duplicateActionsMap.get(order.orderNo) || 'skip'
+        if (orderAction === 'skip') {
+          result.warnings.push({
+            orderNo: order.orderNo,
+            message: `與 ${order.existingPurchaseNo} 重複，已略過`,
+          })
+          continue
+        } else if (orderAction === 'overwrite') {
+          // 刪除舊的進貨單（包含關聯資料）
+          try {
+            // 先刪除 partner_accounts
+            await (supabaseServer.from('partner_accounts') as any)
+              .delete()
+              .eq('ref_id', order.existingPurchaseId)
+              .eq('ref_type', 'purchase')
+
+            // 再刪除 purchase_items
+            await (supabaseServer.from('purchase_items') as any)
+              .delete()
+              .eq('purchase_id', order.existingPurchaseId)
+
+            // 最後刪除 purchase
+            await (supabaseServer.from('purchases') as any)
+              .delete()
+              .eq('id', order.existingPurchaseId)
+
+            result.warnings.push({
+              orderNo: order.orderNo,
+              message: `已刪除舊進貨單 ${order.existingPurchaseNo} 並重新匯入`,
+            })
+          } catch (err: any) {
+            result.failed++
+            result.errors.push({
+              orderNo: order.orderNo,
+              message: `刪除舊進貨單失敗：${err.message}`,
+            })
+            continue
+          }
+        }
       }
 
       try {

@@ -13,6 +13,8 @@ type ImportRow = {
   category: string | null
   error?: string
   warning?: string
+  isDuplicate?: boolean  // 條碼重複標記
+  existingProductId?: string  // 重複時的現有商品 ID
 }
 
 type ImportResult = {
@@ -93,16 +95,16 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // 獲取所有現有條碼（用於檢查重複）
+    // 獲取所有現有商品（用於檢查重複）
     const { data: existingProducts } = await (supabaseServer
       .from('products') as any)
-      .select('barcode')
+      .select('id, barcode')
       .not('barcode', 'is', null)
 
-    const existingBarcodes = new Set<string>()
+    const existingBarcodeMap = new Map<string, string>()  // barcode -> product id
     if (existingProducts) {
       existingProducts.forEach((p: any) => {
-        if (p.barcode) existingBarcodes.add(p.barcode)
+        if (p.barcode) existingBarcodeMap.set(p.barcode, p.id)
       })
     }
 
@@ -133,8 +135,12 @@ export async function POST(request: NextRequest) {
 
       // 驗證：條碼為選填，但如果有條碼則檢查是否重複
       if (barcode) {
-        if (existingBarcodes.has(barcode)) {
-          importRow.error = `條碼 ${barcode} 已存在於資料庫`
+        const existingProductId = existingBarcodeMap.get(barcode)
+        if (existingProductId) {
+          // 條碼已存在，標記為重複（讓用戶選擇處理方式）
+          importRow.isDuplicate = true
+          importRow.existingProductId = existingProductId
+          importRow.warning = `條碼 ${barcode} 已存在，可選擇覆蓋或略過`
         } else if (newBarcodes.has(barcode)) {
           importRow.error = `條碼 ${barcode} 在檔案中重複`
         } else {
@@ -161,17 +167,34 @@ export async function POST(request: NextRequest) {
     // 只做預覽，不實際匯入
     const preview = formData.get('preview') === 'true'
     if (preview) {
+      const duplicateCount = rows.filter(r => r.isDuplicate).length
       return NextResponse.json({
         ok: true,
         preview: true,
         data: rows,
         summary: {
           total: rows.length,
-          valid: rows.filter(r => !r.error).length,
+          valid: rows.filter(r => !r.error && !r.isDuplicate).length,
           invalid: rows.filter(r => r.error).length,
-          warnings: rows.filter(r => r.warning).length,
+          duplicates: duplicateCount,
+          warnings: rows.filter(r => r.warning && !r.isDuplicate).length,
         }
       })
+    }
+
+    // 處理重複資料的方式（每個品項單獨設定）
+    type DuplicateActionItem = { rowNumber: number; barcode: string; action: 'skip' | 'overwrite' }
+    let duplicateActionsMap = new Map<number, 'skip' | 'overwrite'>()
+    const duplicateActionsJson = formData.get('duplicateActions') as string | null
+    if (duplicateActionsJson) {
+      try {
+        const duplicateActions: DuplicateActionItem[] = JSON.parse(duplicateActionsJson)
+        duplicateActions.forEach(da => {
+          duplicateActionsMap.set(da.rowNumber, da.action)
+        })
+      } catch {
+        // 忽略解析錯誤，使用預設值 skip
+      }
     }
 
     // 實際匯入
@@ -198,11 +221,59 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 批量插入有效的商品
+    // 處理有效的商品（不含錯誤的）
     const validRows = rows.filter(r => !r.error)
 
     for (const row of validRows) {
       try {
+        // 處理重複的商品
+        if (row.isDuplicate && row.existingProductId) {
+          const rowAction = duplicateActionsMap.get(row.rowNumber) || 'skip'
+          if (rowAction === 'skip') {
+            // 略過重複的商品
+            result.warnings.push({
+              row: row.rowNumber,
+              message: `條碼 ${row.barcode} 已存在，已略過`,
+            })
+            continue
+          } else if (rowAction === 'overwrite') {
+            // 覆蓋現有商品
+            const categoryId = row.category
+              ? categoryMap.get(row.category.toLowerCase()) || null
+              : null
+
+            const updateData: any = {
+              name: row.name,
+              price: row.price,
+              cost: row.cost,
+              stock: row.stock,
+              avg_cost: row.cost,
+              category_id: categoryId,
+            }
+
+            const { error } = await (supabaseServer
+              .from('products') as any)
+              .update(updateData)
+              .eq('id', row.existingProductId)
+
+            if (error) {
+              result.failed++
+              result.errors.push({
+                row: row.rowNumber,
+                message: `覆蓋失敗：${error.message}`,
+              })
+            } else {
+              result.success++
+              result.warnings.push({
+                row: row.rowNumber,
+                message: `條碼 ${row.barcode} 已覆蓋更新`,
+              })
+            }
+            continue
+          }
+        }
+
+        // 新增商品
         maxNumber++
         const itemCode = generateCode('I', maxNumber - 1) // generateCode 會加 1
 

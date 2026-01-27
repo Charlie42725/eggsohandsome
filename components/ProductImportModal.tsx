@@ -13,12 +13,15 @@ type ImportRow = {
   category: string | null
   error?: string
   warning?: string
+  isDuplicate?: boolean
+  existingProductId?: string
 }
 
 type ImportSummary = {
   total: number
   valid: number
   invalid: number
+  duplicates: number
   warnings: number
 }
 
@@ -27,6 +30,13 @@ type ImportResult = {
   failed: number
   errors: { row: number; message: string }[]
   warnings: { row: number; message: string }[]
+}
+
+// 每個重複品項的處理方式
+type DuplicateAction = {
+  rowNumber: number
+  barcode: string
+  action: 'skip' | 'overwrite'
 }
 
 interface ProductImportModalProps {
@@ -43,6 +53,7 @@ export default function ProductImportModal({ isOpen, onClose, onSuccess }: Produ
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [duplicateActions, setDuplicateActions] = useState<DuplicateAction[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const reset = () => {
@@ -51,6 +62,7 @@ export default function ProductImportModal({ isOpen, onClose, onSuccess }: Produ
     setSummary(null)
     setImportResult(null)
     setError(null)
+    setDuplicateActions([])
   }
 
   const handleClose = () => {
@@ -108,6 +120,13 @@ export default function ProductImportModal({ isOpen, onClose, onSuccess }: Produ
       } else {
         setPreviewData(data.data)
         setSummary(data.summary)
+        // 初始化每個重複品項的處理方式（預設為略過）
+        const duplicates = (data.data as ImportRow[]).filter(r => r.isDuplicate)
+        setDuplicateActions(duplicates.map(r => ({
+          rowNumber: r.rowNumber,
+          barcode: r.barcode || '',
+          action: 'skip' as const,
+        })))
       }
     } catch (err: any) {
       setError(err.message || '解析檔案失敗')
@@ -124,6 +143,18 @@ export default function ProductImportModal({ isOpen, onClose, onSuccess }: Produ
     }
   }
 
+  // 更新單一品項的處理方式
+  const updateDuplicateAction = (rowNumber: number, action: 'skip' | 'overwrite') => {
+    setDuplicateActions(prev =>
+      prev.map(da => da.rowNumber === rowNumber ? { ...da, action } : da)
+    )
+  }
+
+  // 批量設定所有重複品項的處理方式
+  const setAllDuplicateActions = (action: 'skip' | 'overwrite') => {
+    setDuplicateActions(prev => prev.map(da => ({ ...da, action })))
+  }
+
   const handleImport = async () => {
     if (!file) return
 
@@ -134,6 +165,8 @@ export default function ProductImportModal({ isOpen, onClose, onSuccess }: Produ
       const formData = new FormData()
       formData.append('file', file)
       formData.append('preview', 'false')
+      // 傳送每個品項的處理方式
+      formData.append('duplicateActions', JSON.stringify(duplicateActions))
 
       const res = await fetch('/api/products/import', {
         method: 'POST',
@@ -189,7 +222,16 @@ export default function ProductImportModal({ isOpen, onClose, onSuccess }: Produ
     XLSX.writeFile(wb, 'product-import-template.xlsx')
   }
 
+  // 取得某行的處理方式
+  const getRowAction = (rowNumber: number): 'skip' | 'overwrite' | null => {
+    const action = duplicateActions.find(da => da.rowNumber === rowNumber)
+    return action?.action || null
+  }
+
   if (!isOpen) return null
+
+  const overwriteCount = duplicateActions.filter(da => da.action === 'overwrite').length
+  const skipCount = duplicateActions.filter(da => da.action === 'skip').length
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -222,6 +264,19 @@ export default function ProductImportModal({ isOpen, onClose, onSuccess }: Produ
                 <p>成功：{importResult.success} 筆</p>
                 <p>失敗：{importResult.failed} 筆</p>
               </div>
+              {importResult.warnings.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-sm font-medium text-orange-600 dark:text-orange-400 mb-1">處理詳情：</p>
+                  <ul className="text-sm text-orange-600 dark:text-orange-400 list-disc list-inside max-h-32 overflow-auto">
+                    {importResult.warnings.slice(0, 10).map((warn, i) => (
+                      <li key={i}>第 {warn.row} 行：{warn.message}</li>
+                    ))}
+                    {importResult.warnings.length > 10 && (
+                      <li>...還有 {importResult.warnings.length - 10} 條</li>
+                    )}
+                  </ul>
+                </div>
+              )}
               {importResult.errors.length > 0 && (
                 <div className="mt-3">
                   <p className="text-sm font-medium text-red-600 dark:text-red-400 mb-1">錯誤詳情：</p>
@@ -309,6 +364,40 @@ export default function ProductImportModal({ isOpen, onClose, onSuccess }: Produ
           {/* Preview Data */}
           {previewData && !importResult && (
             <>
+              {/* Duplicate Action Quick Selection */}
+              {summary && summary.duplicates > 0 && (
+                <div className="mb-4 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700 rounded-lg">
+                  <h3 className="font-bold text-orange-800 dark:text-orange-300 mb-2">
+                    發現 {summary.duplicates} 筆重複條碼
+                  </h3>
+                  <p className="text-sm text-orange-700 dark:text-orange-400 mb-3">
+                    可在下方表格中為每個重複品項單獨選擇處理方式，或使用快速操作：
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setAllDuplicateActions('skip')}
+                      className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                        skipCount === duplicateActions.length
+                          ? 'bg-orange-200 dark:bg-orange-800 border-orange-400 dark:border-orange-600'
+                          : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:bg-orange-100 dark:hover:bg-orange-900/30'
+                      }`}
+                    >
+                      全部略過
+                    </button>
+                    <button
+                      onClick={() => setAllDuplicateActions('overwrite')}
+                      className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                        overwriteCount === duplicateActions.length
+                          ? 'bg-orange-200 dark:bg-orange-800 border-orange-400 dark:border-orange-600'
+                          : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:bg-orange-100 dark:hover:bg-orange-900/30'
+                      }`}
+                    >
+                      全部覆蓋
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Summary */}
               {summary && (
                 <div className="mb-4 flex gap-4 flex-wrap">
@@ -317,19 +406,21 @@ export default function ProductImportModal({ isOpen, onClose, onSuccess }: Produ
                     <span className="font-bold text-gray-900 dark:text-white ml-1">{summary.total} 筆</span>
                   </div>
                   <div className="px-4 py-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                    <span className="text-green-600 dark:text-green-400 text-sm">可匯入：</span>
+                    <span className="text-green-600 dark:text-green-400 text-sm">新增：</span>
                     <span className="font-bold text-green-700 dark:text-green-300 ml-1">{summary.valid} 筆</span>
                   </div>
+                  {summary.duplicates > 0 && (
+                    <div className="px-4 py-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                      <span className="text-orange-600 dark:text-orange-400 text-sm">重複：</span>
+                      <span className="font-bold text-orange-700 dark:text-orange-300 ml-1">
+                        {summary.duplicates} 筆（{overwriteCount} 覆蓋 / {skipCount} 略過）
+                      </span>
+                    </div>
+                  )}
                   {summary.invalid > 0 && (
                     <div className="px-4 py-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
                       <span className="text-red-600 dark:text-red-400 text-sm">錯誤：</span>
                       <span className="font-bold text-red-700 dark:text-red-300 ml-1">{summary.invalid} 筆</span>
-                    </div>
-                  )}
-                  {summary.warnings > 0 && (
-                    <div className="px-4 py-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
-                      <span className="text-yellow-600 dark:text-yellow-400 text-sm">警告：</span>
-                      <span className="font-bold text-yellow-700 dark:text-yellow-300 ml-1">{summary.warnings} 筆</span>
                     </div>
                   )}
                 </div>
@@ -348,39 +439,53 @@ export default function ProductImportModal({ isOpen, onClose, onSuccess }: Produ
                         <th className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">成本</th>
                         <th className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">庫存</th>
                         <th className="px-3 py-2 text-left text-gray-700 dark:text-gray-300">分類</th>
-                        <th className="px-3 py-2 text-left text-gray-700 dark:text-gray-300">狀態</th>
+                        <th className="px-3 py-2 text-left text-gray-700 dark:text-gray-300">狀態/處理</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                      {previewData.map((row) => (
-                        <tr
-                          key={row.rowNumber}
-                          className={`${
-                            row.error
-                              ? 'bg-red-50 dark:bg-red-900/20'
-                              : row.warning
-                              ? 'bg-yellow-50 dark:bg-yellow-900/20'
-                              : 'bg-white dark:bg-gray-800'
-                          }`}
-                        >
-                          <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{row.rowNumber}</td>
-                          <td className="px-3 py-2 text-gray-900 dark:text-white font-medium">{row.barcode || '-'}</td>
-                          <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{row.name || '-'}</td>
-                          <td className="px-3 py-2 text-right text-gray-900 dark:text-white">{formatCurrency(row.price)}</td>
-                          <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-400">{formatCurrency(row.cost)}</td>
-                          <td className="px-3 py-2 text-right text-gray-900 dark:text-white">{row.stock}</td>
-                          <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{row.category || '-'}</td>
-                          <td className="px-3 py-2">
-                            {row.error ? (
-                              <span className="text-red-600 dark:text-red-400 text-xs">{row.error}</span>
-                            ) : row.warning ? (
-                              <span className="text-yellow-600 dark:text-yellow-400 text-xs">{row.warning}</span>
-                            ) : (
-                              <span className="text-green-600 dark:text-green-400 text-xs">✓ 可匯入</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                      {previewData.map((row) => {
+                        const rowAction = getRowAction(row.rowNumber)
+                        return (
+                          <tr
+                            key={row.rowNumber}
+                            className={`${
+                              row.error
+                                ? 'bg-red-50 dark:bg-red-900/20'
+                                : row.isDuplicate
+                                ? 'bg-orange-50 dark:bg-orange-900/20'
+                                : row.warning
+                                ? 'bg-yellow-50 dark:bg-yellow-900/20'
+                                : 'bg-white dark:bg-gray-800'
+                            }`}
+                          >
+                            <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{row.rowNumber}</td>
+                            <td className="px-3 py-2 text-gray-900 dark:text-white font-medium">{row.barcode || '-'}</td>
+                            <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{row.name || '-'}</td>
+                            <td className="px-3 py-2 text-right text-gray-900 dark:text-white">{formatCurrency(row.price)}</td>
+                            <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-400">{formatCurrency(row.cost)}</td>
+                            <td className="px-3 py-2 text-right text-gray-900 dark:text-white">{row.stock}</td>
+                            <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{row.category || '-'}</td>
+                            <td className="px-3 py-2">
+                              {row.error ? (
+                                <span className="text-red-600 dark:text-red-400 text-xs">{row.error}</span>
+                              ) : row.isDuplicate ? (
+                                <select
+                                  value={rowAction || 'skip'}
+                                  onChange={(e) => updateDuplicateAction(row.rowNumber, e.target.value as 'skip' | 'overwrite')}
+                                  className="text-xs px-2 py-1 rounded border border-orange-300 dark:border-orange-600 bg-white dark:bg-gray-700 text-orange-700 dark:text-orange-300"
+                                >
+                                  <option value="skip">略過（保留原有）</option>
+                                  <option value="overwrite">覆蓋（更新）</option>
+                                </select>
+                              ) : row.warning ? (
+                                <span className="text-yellow-600 dark:text-yellow-400 text-xs">{row.warning}</span>
+                              ) : (
+                                <span className="text-green-600 dark:text-green-400 text-xs">✓ 可匯入</span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -394,13 +499,23 @@ export default function ProductImportModal({ isOpen, onClose, onSuccess }: Produ
                 >
                   重新選擇檔案
                 </button>
-                <button
-                  onClick={handleImport}
-                  disabled={loading || (summary?.valid || 0) === 0}
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? '匯入中...' : `確認匯入 (${summary?.valid || 0} 筆)`}
-                </button>
+                {(() => {
+                  const newCount = summary?.valid || 0
+                  const totalToProcess = newCount + overwriteCount
+                  const actionText = overwriteCount > 0
+                    ? `確認匯入（${newCount} 新增 + ${overwriteCount} 覆蓋）`
+                    : `確認匯入 (${newCount} 筆)`
+
+                  return (
+                    <button
+                      onClick={handleImport}
+                      disabled={loading || totalToProcess === 0}
+                      className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {loading ? '匯入中...' : actionText}
+                    </button>
+                  )
+                })()}
               </div>
             </>
           )}
