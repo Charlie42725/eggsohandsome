@@ -18,6 +18,9 @@ export async function GET(request: NextRequest) {
     const source = searchParams.get('source')
     const keyword = searchParams.get('keyword')
     const productKeyword = searchParams.get('product_keyword')
+    const page = parseInt(searchParams.get('page') || '1')
+    const pageSize = parseInt(searchParams.get('pageSize') || '1000') // Default to large number if not specified
+    const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : null
 
     let query = (supabaseServer
       .from('sales') as any)
@@ -85,6 +88,17 @@ export async function GET(request: NextRequest) {
       } else {
         query = query.ilike('sale_no', `%${keyword}%`)
       }
+    }
+
+    // Apply pagination
+    if (limit) {
+      query = query.limit(limit)
+    } else {
+      const from = (page - 1) * pageSize
+      const to = from + pageSize - 1
+      // Only apply pagination if it's not a request for ALL data (e.g. export) which usually doesn't send page params
+      // defaulting to 1000 items to prevent accidental full table scans
+      query = query.range(from, to)
     }
 
     const { data, error } = await query

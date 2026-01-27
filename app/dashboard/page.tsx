@@ -469,11 +469,11 @@ export default function DashboardPage() {
         depreciation,
       })
 
-      // Fetch recent sales
-      const recentSalesRes = await fetch('/api/sales')
+      // Fetch recent sales (limit to 10 for performance)
+      const recentSalesRes = await fetch('/api/sales?limit=10')
       const recentSalesData = await recentSalesRes.json()
       setRecentSales(
-        recentSalesData.ok ? recentSalesData.data.slice(0, 10) : []
+        recentSalesData.ok ? recentSalesData.data : []
       )
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err)
