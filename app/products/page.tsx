@@ -38,6 +38,7 @@ export default function ProductsPage() {
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set())
   const [batchDeleting, setBatchDeleting] = useState(false)
   const [isSelectMode, setIsSelectMode] = useState(false) // 選取模式開關
+  const [noBarcodeFilter, setNoBarcodeFilter] = useState(false) // 無條碼篩選
 
   // 獲取用戶角色
   useEffect(() => {
@@ -67,6 +68,7 @@ export default function ProductsPage() {
       const params = new URLSearchParams()
       if (keyword) params.set('keyword', keyword)
       if (activeFilter !== null) params.set('active', String(activeFilter))
+      if (noBarcodeFilter) params.set('noBarcode', 'true')
       if (categoryFilter) params.set('categoryId', categoryFilter)
       params.set('page', String(currentPage))
       params.set('sortBy', sortBy)
@@ -125,7 +127,7 @@ export default function ProductsPage() {
   useEffect(() => {
     setPage(1)
     fetchProducts(1)
-  }, [activeFilter, sortBy, sortOrder, categoryFilter])
+  }, [activeFilter, noBarcodeFilter, sortBy, sortOrder, categoryFilter])
 
   useEffect(() => {
     fetchLowStockProducts()
@@ -266,8 +268,8 @@ export default function ProductsPage() {
                 }
               }}
               className={`rounded px-4 py-2 font-medium transition-colors ${isSelectMode
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                  : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200'
+                ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200'
                 }`}
             >
               {isSelectMode ? '✓ 選取中' : '☐ 選取'}
@@ -366,6 +368,15 @@ export default function ProductsPage() {
                 }`}
             >
               下架
+            </button>
+            <button
+              onClick={() => setNoBarcodeFilter(!noBarcodeFilter)}
+              className={`rounded px-4 py-1 font-medium ${noBarcodeFilter
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+            >
+              無條碼
             </button>
 
             {/* Category Filter */}

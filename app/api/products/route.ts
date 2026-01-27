@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
     const active = searchParams.get('active')
     const categoryId = searchParams.get('categoryId')
     const all = searchParams.get('all') === 'true' // New parameter to get all products
+    const noBarcode = searchParams.get('noBarcode') === 'true' // Filter products without barcode
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = 50
     const sortBy = searchParams.get('sortBy') || 'updated_at'
@@ -24,6 +25,11 @@ export async function GET(request: NextRequest) {
     // Filter by active status
     if (active !== null) {
       query = query.eq('is_active', active === 'true')
+    }
+
+    // Filter by no barcode
+    if (noBarcode) {
+      query = query.is('barcode', null)
     }
 
     // Filter by category
