@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
         columnMap['barcode'] = index
       } else if (normalizedHeader.includes('售價') || normalizedHeader === 'price' || normalizedHeader === '價格') {
         columnMap['price'] = index
-      } else if (normalizedHeader.includes('成本') || normalizedHeader === 'cost') {
+      } else if (normalizedHeader.includes('成本') || normalizedHeader.includes('進價') || normalizedHeader.includes('進貨價') || normalizedHeader.includes('採購價') || normalizedHeader.includes('庫成本') || normalizedHeader === 'cost') {
         columnMap['cost'] = index
       } else if (normalizedHeader.includes('庫存') || normalizedHeader === 'stock' || normalizedHeader === '數量') {
         columnMap['stock'] = index
@@ -79,12 +79,7 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    if (columnMap['barcode'] === undefined) {
-      return NextResponse.json(
-        { ok: false, error: '找不到「條碼」欄位' },
-        { status: 400 }
-      )
-    }
+    // 條碼欄位為選填，不再強制要求
 
     // 獲取所有分類（用於名稱對應 ID）
     const { data: categories } = await (supabaseServer
@@ -136,20 +131,24 @@ export async function POST(request: NextRequest) {
         category,
       }
 
-      // 驗證
-      if (!barcode) {
-        importRow.error = '條碼不能為空'
-      } else if (existingBarcodes.has(barcode)) {
-        importRow.error = `條碼 ${barcode} 已存在於資料庫`
-      } else if (newBarcodes.has(barcode)) {
-        importRow.error = `條碼 ${barcode} 在檔案中重複`
-      } else {
-        newBarcodes.add(barcode)
+      // 驗證：條碼為選填，但如果有條碼則檢查是否重複
+      if (barcode) {
+        if (existingBarcodes.has(barcode)) {
+          importRow.error = `條碼 ${barcode} 已存在於資料庫`
+        } else if (newBarcodes.has(barcode)) {
+          importRow.error = `條碼 ${barcode} 在檔案中重複`
+        } else {
+          newBarcodes.add(barcode)
+        }
       }
 
-      // 如果商品名稱為空，使用條碼作為名稱
-      if (!importRow.error && !importRow.name && barcode) {
-        importRow.name = barcode
+      // 如果商品名稱為空，使用條碼作為名稱；如果兩者皆空則報錯
+      if (!importRow.error && !importRow.name) {
+        if (barcode) {
+          importRow.name = barcode
+        } else {
+          importRow.error = '商品名稱不能為空（條碼為空時必須填寫商品名稱）'
+        }
       }
 
       if (category && !categoryMap.has(category.toLowerCase())) {

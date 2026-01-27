@@ -294,8 +294,8 @@ export default function ProductImportModal({ isOpen, onClose, onSuccess }: Produ
                     </tr>
                   </thead>
                   <tbody className="text-gray-700 dark:text-gray-300">
-                    <tr><td className="py-1">條碼</td><td>✅</td><td>商品條碼（不可重複）</td></tr>
-                    <tr><td className="py-1">商品名稱</td><td>❌</td><td>商品的名稱（空白則用條碼）</td></tr>
+                    <tr><td className="py-1">條碼</td><td>❌</td><td>商品條碼（不可重複，可為空）</td></tr>
+                    <tr><td className="py-1">商品名稱</td><td>⚠️</td><td>商品名稱（條碼為空時必填）</td></tr>
                     <tr><td className="py-1">售價</td><td>❌</td><td>預設 0</td></tr>
                     <tr><td className="py-1">成本</td><td>❌</td><td>預設 0</td></tr>
                     <tr><td className="py-1">庫存</td><td>❌</td><td>預設 0</td></tr>
