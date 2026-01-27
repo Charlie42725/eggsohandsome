@@ -77,6 +77,16 @@ type BusinessDayClosing = {
   created_at: string
 }
 
+// 比較數據類型
+type ComparisonData = {
+  label: string
+  revenue: number
+  orders: number
+  cost: number
+  grossProfit: number
+  grossMargin: number
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({
     todaySales: 0,
@@ -96,15 +106,143 @@ export default function DashboardPage() {
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0])
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
   const [sourceFilter, setSourceFilter] = useState<'all' | 'pos' | 'live'>('all')
+  const [quickDateRange, setQuickDateRange] = useState<'today' | 'week' | 'month' | 'custom'>('today')
+  const [comparisonData, setComparisonData] = useState<ComparisonData[]>([])
+  const [showComparison, setShowComparison] = useState(false)
 
   // 新增：報表模式（按日期 vs 按營業日）
   const [reportMode, setReportMode] = useState<'by_date' | 'by_business_day'>('by_date')
   const [businessDayClosings, setBusinessDayClosings] = useState<BusinessDayClosing[]>([])
   const [selectedClosingId, setSelectedClosingId] = useState<string>('')
 
+  // 快速日期選擇輔助函數
+  const getDateRange = (range: 'today' | 'week' | 'month') => {
+    const today = new Date()
+    let from: Date, to: Date
+
+    switch (range) {
+      case 'today':
+        from = today
+        to = today
+        break
+      case 'week':
+        // 當周（從周一開始）
+        const dayOfWeek = today.getDay()
+        const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+        from = new Date(today)
+        from.setDate(today.getDate() + diffToMonday)
+        to = today
+        break
+      case 'month':
+        // 當月
+        from = new Date(today.getFullYear(), today.getMonth(), 1)
+        to = today
+        break
+    }
+
+    return {
+      from: from.toISOString().split('T')[0],
+      to: to.toISOString().split('T')[0]
+    }
+  }
+
+  const handleQuickDateSelect = (range: 'today' | 'week' | 'month') => {
+    setQuickDateRange(range)
+    const { from, to } = getDateRange(range)
+    setDateFrom(from)
+    setDateTo(to)
+  }
+
+  // 獲取比較期間的數據
+  const fetchComparisonData = async () => {
+    const comparisons: ComparisonData[] = []
+    const sourceParam = sourceFilter !== 'all' ? `&source=${sourceFilter}` : ''
+
+    // 計算比較期間
+    const currentFrom = new Date(dateFrom)
+    const currentTo = new Date(dateTo)
+
+    // 上個月同期
+    const lastMonthFrom = new Date(currentFrom)
+    lastMonthFrom.setMonth(lastMonthFrom.getMonth() - 1)
+    const lastMonthTo = new Date(currentTo)
+    lastMonthTo.setMonth(lastMonthTo.getMonth() - 1)
+
+    // 去年同期
+    const lastYearFrom = new Date(currentFrom)
+    lastYearFrom.setFullYear(lastYearFrom.getFullYear() - 1)
+    const lastYearTo = new Date(currentTo)
+    lastYearTo.setFullYear(lastYearTo.getFullYear() - 1)
+
+    // 獲取上個月數據
+    try {
+      const lastMonthRes = await fetch(
+        `/api/sales?date_from=${lastMonthFrom.toISOString().split('T')[0]}&date_to=${lastMonthTo.toISOString().split('T')[0]}${sourceParam}`
+      )
+      const lastMonthData = await lastMonthRes.json()
+      if (lastMonthData.ok) {
+        const sales = lastMonthData.data || []
+        const confirmedSales = sales.filter((s: any) => s.status === 'confirmed')
+        const revenue = confirmedSales.reduce((sum: number, s: any) => sum + s.total, 0)
+        const cost = confirmedSales.reduce((sum: number, s: any) => {
+          return sum + (s.sale_items || []).reduce(
+            (itemSum: number, item: any) => itemSum + (item.cost || item.products?.avg_cost || 0) * item.quantity, 0
+          )
+        }, 0)
+        const grossProfit = revenue - cost
+
+        comparisons.push({
+          label: '上個月同期',
+          revenue,
+          orders: confirmedSales.length,
+          cost,
+          grossProfit,
+          grossMargin: revenue > 0 ? (grossProfit / revenue) * 100 : 0
+        })
+      }
+    } catch (err) {
+      console.error('Failed to fetch last month data:', err)
+    }
+
+    // 獲取去年同期數據
+    try {
+      const lastYearRes = await fetch(
+        `/api/sales?date_from=${lastYearFrom.toISOString().split('T')[0]}&date_to=${lastYearTo.toISOString().split('T')[0]}${sourceParam}`
+      )
+      const lastYearData = await lastYearRes.json()
+      if (lastYearData.ok) {
+        const sales = lastYearData.data || []
+        const confirmedSales = sales.filter((s: any) => s.status === 'confirmed')
+        const revenue = confirmedSales.reduce((sum: number, s: any) => sum + s.total, 0)
+        const cost = confirmedSales.reduce((sum: number, s: any) => {
+          return sum + (s.sale_items || []).reduce(
+            (itemSum: number, item: any) => itemSum + (item.cost || item.products?.avg_cost || 0) * item.quantity, 0
+          )
+        }, 0)
+        const grossProfit = revenue - cost
+
+        comparisons.push({
+          label: '去年同期',
+          revenue,
+          orders: confirmedSales.length,
+          cost,
+          grossProfit,
+          grossMargin: revenue > 0 ? (grossProfit / revenue) * 100 : 0
+        })
+      }
+    } catch (err) {
+      console.error('Failed to fetch last year data:', err)
+    }
+
+    setComparisonData(comparisons)
+  }
+
   useEffect(() => {
     fetchDashboardData()
-  }, [dateFrom, dateTo, sourceFilter, reportMode, selectedClosingId])
+    if (showComparison && reportMode === 'by_date') {
+      fetchComparisonData()
+    }
+  }, [dateFrom, dateTo, sourceFilter, reportMode, selectedClosingId, showComparison])
 
   useEffect(() => {
     // 當切換到營業日模式時，獲取日結記錄列表
@@ -384,61 +522,125 @@ export default function DashboardPage() {
         {/* Date Filter */}
         <div className="mb-6 rounded-lg bg-white dark:bg-gray-800 p-4 shadow">
           {reportMode === 'by_date' ? (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="space-y-4">
+              {/* 快速日期選擇 */}
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
-                  起始日期
+                <label className="mb-2 block text-sm font-medium text-gray-900 dark:text-gray-100">
+                  快速選擇
                 </label>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="w-full rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
-                  結束日期
-                </label>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="w-full rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
-                  銷售通路
-                </label>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={() => setSourceFilter('all')}
-                    className={`flex-1 rounded px-3 py-2 text-sm font-medium transition-colors ${sourceFilter === 'all'
+                    onClick={() => handleQuickDateSelect('today')}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${quickDateRange === 'today'
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                       }`}
                   >
-                    全部
+                    📆 當日
                   </button>
                   <button
-                    onClick={() => setSourceFilter('pos')}
-                    className={`flex-1 rounded px-3 py-2 text-sm font-medium transition-colors ${sourceFilter === 'pos'
+                    onClick={() => handleQuickDateSelect('week')}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${quickDateRange === 'week'
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                       }`}
                   >
-                    🏪 店裡
+                    📅 當周
                   </button>
                   <button
-                    onClick={() => setSourceFilter('live')}
-                    className={`flex-1 rounded px-3 py-2 text-sm font-medium transition-colors ${sourceFilter === 'live'
-                      ? 'bg-pink-600 text-white'
+                    onClick={() => handleQuickDateSelect('month')}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${quickDateRange === 'month'
+                      ? 'bg-blue-600 text-white'
                       : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                       }`}
                   >
-                    📱 直播
+                    🗓️ 當月
                   </button>
+                  <button
+                    onClick={() => setQuickDateRange('custom')}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${quickDateRange === 'custom'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
+                      }`}
+                  >
+                    🔧 自訂
+                  </button>
+                  <div className="flex-1" />
+                  <button
+                    onClick={() => setShowComparison(!showComparison)}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${showComparison
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
+                      }`}
+                  >
+                    📊 同期比較
+                  </button>
+                </div>
+              </div>
+
+              {/* 自訂日期範圍 */}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
+                    起始日期
+                  </label>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => {
+                      setDateFrom(e.target.value)
+                      setQuickDateRange('custom')
+                    }}
+                    className="w-full rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
+                    結束日期
+                  </label>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => {
+                      setDateTo(e.target.value)
+                      setQuickDateRange('custom')
+                    }}
+                    className="w-full rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
+                    銷售通路
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setSourceFilter('all')}
+                      className={`flex-1 rounded px-3 py-2 text-sm font-medium transition-colors ${sourceFilter === 'all'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
+                        }`}
+                    >
+                      全部
+                    </button>
+                    <button
+                      onClick={() => setSourceFilter('pos')}
+                      className={`flex-1 rounded px-3 py-2 text-sm font-medium transition-colors ${sourceFilter === 'pos'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
+                        }`}
+                    >
+                      🏪 店裡
+                    </button>
+                    <button
+                      onClick={() => setSourceFilter('live')}
+                      className={`flex-1 rounded px-3 py-2 text-sm font-medium transition-colors ${sourceFilter === 'live'
+                        ? 'bg-pink-600 text-white'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
+                        }`}
+                    >
+                      📱 直播
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -556,6 +758,62 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* Comparison Section */}
+        {showComparison && reportMode === 'by_date' && comparisonData.length > 0 && (
+          <div className="mb-6 rounded-lg bg-white dark:bg-gray-800 p-4 shadow">
+            <h3 className="mb-4 text-lg font-bold text-gray-900 dark:text-gray-100">📊 同期比較分析</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-gray-700">
+                    <th className="py-2 text-left font-medium text-gray-900 dark:text-gray-100">期間</th>
+                    <th className="py-2 text-right font-medium text-gray-900 dark:text-gray-100">營收</th>
+                    <th className="py-2 text-right font-medium text-gray-900 dark:text-gray-100">vs 本期</th>
+                    <th className="py-2 text-right font-medium text-gray-900 dark:text-gray-100">訂單數</th>
+                    <th className="py-2 text-right font-medium text-gray-900 dark:text-gray-100">毛利</th>
+                    <th className="py-2 text-right font-medium text-gray-900 dark:text-gray-100">毛利率</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* 本期 */}
+                  <tr className="border-b border-gray-100 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20">
+                    <td className="py-3 font-medium text-blue-700 dark:text-blue-300">本期</td>
+                    <td className="py-3 text-right font-bold text-gray-900 dark:text-gray-100">{formatCurrency(stats.todaySales)}</td>
+                    <td className="py-3 text-right text-gray-500">-</td>
+                    <td className="py-3 text-right text-gray-900 dark:text-gray-100">{stats.todayOrders}</td>
+                    <td className="py-3 text-right text-gray-900 dark:text-gray-100">{formatCurrency(stats.grossProfit)}</td>
+                    <td className="py-3 text-right text-gray-900 dark:text-gray-100">
+                      {stats.todaySales > 0 ? ((stats.grossProfit / stats.todaySales) * 100).toFixed(1) : 0}%
+                    </td>
+                  </tr>
+                  {/* 比較期間 */}
+                  {comparisonData.map((data) => {
+                    const revenueDiff = stats.todaySales - data.revenue
+                    const revenueDiffPercent = data.revenue > 0 ? ((revenueDiff / data.revenue) * 100) : 0
+                    const isPositive = revenueDiff >= 0
+
+                    return (
+                      <tr key={data.label} className="border-b border-gray-100 dark:border-gray-700">
+                        <td className="py-3 font-medium text-gray-700 dark:text-gray-300">{data.label}</td>
+                        <td className="py-3 text-right text-gray-900 dark:text-gray-100">{formatCurrency(data.revenue)}</td>
+                        <td className={`py-3 text-right font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                          {isPositive ? '+' : ''}{formatCurrency(revenueDiff)}
+                          <span className="text-xs ml-1">
+                            ({isPositive ? '+' : ''}{revenueDiffPercent.toFixed(1)}%)
+                          </span>
+                        </td>
+                        <td className="py-3 text-right text-gray-900 dark:text-gray-100">{data.orders}</td>
+                        <td className="py-3 text-right text-gray-900 dark:text-gray-100">{formatCurrency(data.grossProfit)}</td>
+                        <td className="py-3 text-right text-gray-900 dark:text-gray-100">{data.grossMargin.toFixed(1)}%</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* KPI Cards - Row 2: AR/AP/庫存 */}
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
