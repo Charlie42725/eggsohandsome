@@ -85,6 +85,8 @@ export const saleDraftSchema = z.object({
 export const saleUpdateSchema = z.object({
   payment_method: z.string().optional(),
   account_id: z.string().uuid().optional().nullable(),
+  discount_type: z.enum(['none', 'percent', 'amount']).optional(),
+  discount_value: z.number().min(0, 'Discount must be positive').optional(),
 })
 
 // Purchase schemas

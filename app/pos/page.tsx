@@ -177,6 +177,10 @@ export default function POSPage() {
   const [isMultiPayment, setIsMultiPayment] = useState(false)
   const [multiPayments, setMultiPayments] = useState<MultiPayment[]>([])
 
+  // 部分收款
+  const [isPartialPayment, setIsPartialPayment] = useState(false)
+  const [partialPaymentAmount, setPartialPaymentAmount] = useState<string>('')
+
   // 結帳成功 Toast
   const [successToast, setSuccessToast] = useState<{
     show: boolean
@@ -772,6 +776,18 @@ export default function POSPage() {
       }
     }
 
+    // 部分收款需要選擇客戶（用於產生應收帳款）
+    if (isPartialPayment && !selectedCustomer) {
+      const shouldAddCustomer = confirm('部分收款需要選擇客戶（用於產生應收帳款）\n\n要建立新客戶嗎？')
+      if (shouldAddCustomer) {
+        setShowQuickAddCustomer(true)
+        return
+      } else {
+        setError('部分收款需要選擇客戶')
+        return
+      }
+    }
+
     setLoading(true)
     setError('')
 
@@ -786,6 +802,10 @@ export default function POSPage() {
       // 檢查是否所有品項都已出貨（用於訂單級別的 is_delivered）
       const allItemsDelivered = checkoutCart.every((item) => item.isDelivered !== false)
 
+      // 計算部分收款金額
+      const partialAmount = isPartialPayment ? parseFloat(partialPaymentAmount) || 0 : 0
+      const hasPartialPayment = isPartialPayment && partialAmount > 0 && partialAmount < total
+
       const res = await fetch('/api/sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -794,7 +814,7 @@ export default function POSPage() {
           source: salesMode,
           payment_method: paymentMethodName,
           account_id: selectedAccountId,
-          is_paid: isPaid,
+          is_paid: isPaid && !hasPartialPayment, // 部分收款時標記為未完全付款
           is_delivered: allItemsDelivered, // 根據品項級別的出貨狀態決定
           delivery_method: !allItemsDelivered ? deliveryMethod : undefined, // 有未出貨時保存交貨方式
           expected_delivery_date: !allItemsDelivered ? expectedDeliveryDate : undefined, // 有未出貨時保存預計出貨日
@@ -802,8 +822,14 @@ export default function POSPage() {
           note: note || undefined,
           discount_type: discountType,
           discount_value: discountValue,
+          // 部分收款
+          partial_payment: hasPartialPayment ? {
+            amount: partialAmount,
+            account_id: selectedAccountId,
+            method: paymentMethodName,
+          } : undefined,
           // 多元付款：傳送 payments 陣列
-          payments: isMultiPayment && isPaid
+          payments: isMultiPayment && isPaid && !hasPartialPayment
             ? multiPayments
               .filter(p => parseFloat(p.amount) > 0)
               .map(p => {
@@ -849,6 +875,9 @@ export default function POSPage() {
         // 重置多元付款
         setIsMultiPayment(false)
         setMultiPayments([])
+        // 重置部分收款
+        setIsPartialPayment(false)
+        setPartialPaymentAmount('')
         fetchTodaySales() // Refresh today's sales
         fetchIchibanKujis() // Refresh ichiban kuji inventory
         fetchCustomers() // Refresh customers to update store credit
@@ -1118,7 +1147,7 @@ export default function POSPage() {
           }`}>
           <div className="flex items-center gap-4">
             <h1 className="text-xl font-bold text-white">
-              🏪 收銀系統
+              收銀系統
             </h1>
           </div>
           <div className="flex items-center gap-2">
@@ -1206,7 +1235,7 @@ export default function POSPage() {
                         }
                       }, 100)
                     }}
-                    placeholder="🔍 掃描或搜尋商品..."
+                    placeholder="掃描或搜尋商品..."
                     className="w-full rounded-lg px-3 py-2.5 text-sm text-white bg-slate-700 border border-slate-600 focus:border-indigo-500 focus:outline-none placeholder-slate-400"
                   />
                 </div>
@@ -1337,7 +1366,7 @@ export default function POSPage() {
                             (kuji.barcode && kuji.barcode.toLowerCase().includes(searchLower))
                         }).length === 0 && (
                             <div className="col-span-3 text-center text-gray-500 dark:text-gray-400 py-10">
-                              <div className="text-4xl mb-2">🎁</div>
+                              <div className="text-4xl mb-2"></div>
                               <div>{searchQuery ? '找不到相關的一番賞' : '目前沒有一番賞'}</div>
                             </div>
                           )}
@@ -1420,7 +1449,7 @@ export default function POSPage() {
             <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2">
               {cart.length === 0 ? (
                 <div className="text-center text-slate-500 mt-20">
-                  <div className="text-4xl mb-2">🛒</div>
+                  <div className="text-4xl mb-2"></div>
                   <div className="text-slate-400">請點選商品</div>
                 </div>
               ) : (
@@ -1585,7 +1614,7 @@ export default function POSPage() {
                     return (
                       <div key={kuji_id} className="mb-3 p-2 bg-emerald-900/30 border border-emerald-600 rounded-lg">
                         <div className="text-sm font-medium text-emerald-400">
-                          🎉 {info.kuji?.name} 組合優惠
+                          {info.kuji?.name} 組合優惠
                         </div>
                         <div className="text-xs text-emerald-500">
                           {info.applicableCombo.draws} 抽 {formatCurrency(info.applicableCombo.price)} (已購 {info.totalCount} 抽)
@@ -1776,7 +1805,7 @@ export default function POSPage() {
                     className="p-1 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
                     title="調整排序"
                   >
-                    ⚙️
+                    設定
                   </button>
                 </div>
 
@@ -1784,7 +1813,7 @@ export default function POSPage() {
                 {!isMultiPayment && (
                   <div className="grid grid-cols-2 gap-2">
                     {accounts.map((account) => {
-                      const icon = account.account_type === 'cash' ? '💵' : account.account_type === 'bank' ? '🏦' : '💰'
+                      const icon = ''
                       return (
                         <button
                           key={account.id}
@@ -1798,7 +1827,7 @@ export default function POSPage() {
                             : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                             }`}
                         >
-                          {icon} {account.account_name}
+                          {account.account_name}
                         </button>
                       )
                     })}
@@ -1813,7 +1842,7 @@ export default function POSPage() {
                         : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                         }`}
                     >
-                      ❓ 待定
+                      待定
                     </button>
                   </div>
                 )}
@@ -1828,7 +1857,7 @@ export default function POSPage() {
                       }}
                       className="w-full py-2 rounded-lg text-sm font-medium transition-all bg-slate-700 text-slate-300 hover:bg-slate-600 border border-slate-600"
                     >
-                      ➕ 切換多元付款
+                      切換多元付款
                     </button>
                   </div>
                 )}
@@ -1837,7 +1866,7 @@ export default function POSPage() {
                 {isMultiPayment && isPaid && (
                   <div className="space-y-2 p-3 bg-slate-700/50 rounded-lg border border-orange-500">
                     <div className="flex items-center justify-between mb-2">
-                      <div className="text-sm font-medium text-orange-400">🔀 多元付款模式</div>
+                      <div className="text-sm font-medium text-orange-400">多元付款模式</div>
                       <button
                         onClick={() => {
                           setIsMultiPayment(false)
@@ -1860,10 +1889,10 @@ export default function POSPage() {
                           className="flex-1 rounded px-2 py-1.5 text-sm bg-slate-600 text-white border border-slate-500 focus:border-indigo-500 focus:outline-none"
                         >
                           {accounts.map((account) => {
-                            const icon = account.account_type === 'cash' ? '💵' : account.account_type === 'bank' ? '🏦' : '💰'
+                            const icon = ''
                             return (
                               <option key={account.id} value={account.id}>
-                                {icon} {account.account_name}
+                                {account.account_name}
                               </option>
                             )
                           })}
@@ -1985,20 +2014,83 @@ export default function POSPage() {
                   <input
                     type="checkbox"
                     checked={isPaid}
-                    onChange={(e) => setIsPaid(e.target.checked)}
+                    onChange={(e) => {
+                      setIsPaid(e.target.checked)
+                      // 取消勾選已收款時，重置部分收款
+                      if (!e.target.checked) {
+                        setIsPartialPayment(false)
+                        setPartialPaymentAmount('')
+                      }
+                    }}
                     className="w-4 h-4 accent-indigo-500"
                   />
                   <span className="text-sm text-white">已收款</span>
                 </label>
+                {/* 部分收款 - 僅在已收款時顯示 */}
+                {isPaid && (
+                  <label className="flex items-center gap-2 cursor-pointer rounded-lg px-3 py-2.5 bg-slate-700 hover:bg-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={isPartialPayment}
+                      onChange={(e) => {
+                        setIsPartialPayment(e.target.checked)
+                        if (!e.target.checked) {
+                          setPartialPaymentAmount('')
+                        }
+                      }}
+                      className="w-4 h-4 accent-yellow-500"
+                    />
+                    <span className="text-sm text-yellow-400">部分收款</span>
+                  </label>
+                )}
                 {/* 未出貨品項數量提示 */}
                 {cart.some(item => item.isDelivered === false) && (
-                  <div className="flex-1 flex items-center gap-2 rounded-lg px-3 py-2.5 bg-orange-600/30 border border-orange-500">
+                  <div className="flex items-center gap-2 rounded-lg px-3 py-2.5 bg-orange-600/30 border border-orange-500">
                     <span className="text-sm text-orange-400">
-                      🚚 {cart.filter(item => item.isDelivered === false).length} 項未出貨
+                      {cart.filter(item => item.isDelivered === false).length} 項未出貨
                     </span>
                   </div>
                 )}
               </div>
+
+              {/* Partial Payment Input - 部分收款金額輸入 */}
+              {isPaid && isPartialPayment && (
+                <div className="space-y-2 border-2 border-yellow-400 dark:border-yellow-600 rounded-lg p-3 bg-yellow-50 dark:bg-yellow-900/20">
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">已收金額</label>
+                    <input
+                      type="number"
+                      value={partialPaymentAmount}
+                      onChange={(e) => setPartialPaymentAmount(e.target.value)}
+                      min="0"
+                      max={total}
+                      step="1"
+                      placeholder="0"
+                      className="flex-1 border-2 border-gray-400 dark:border-gray-600 rounded-lg px-3 py-2 text-base text-black dark:text-gray-100 bg-white dark:bg-gray-700 focus:border-yellow-500 dark:focus:border-yellow-500 focus:outline-none"
+                    />
+                  </div>
+                  {(!partialPaymentAmount || parseFloat(partialPaymentAmount) <= 0) && (
+                    <div className="text-sm text-red-500">
+                      ⚠️ 請輸入已收金額
+                    </div>
+                  )}
+                  {parseFloat(partialPaymentAmount) > 0 && parseFloat(partialPaymentAmount) < total && (
+                    <div className="text-sm text-yellow-700 dark:text-yellow-400">
+                      💰 未收款：{formatCurrency(total - parseFloat(partialPaymentAmount))} → 將產生應收帳款
+                    </div>
+                  )}
+                  {parseFloat(partialPaymentAmount) >= total && (
+                    <div className="text-sm text-green-600 dark:text-green-400">
+                      ✅ 已收齊全額，無需產生應收帳款
+                    </div>
+                  )}
+                  {parseFloat(partialPaymentAmount) > 0 && parseFloat(partialPaymentAmount) < total && !selectedCustomer && (
+                    <div className="text-sm text-red-500">
+                      ⚠️ 部分收款需要選擇客戶（用於產生應收帳款）
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Delivery Details - Only when there are undelivered items */}
@@ -2054,6 +2146,12 @@ export default function POSPage() {
                   ⚠️ 付款金額不符，請調整分配金額
                 </div>
               )}
+              {/* 部分收款金額無效提示 */}
+              {isPaid && isPartialPayment && cart.length > 0 && (!partialPaymentAmount || parseFloat(partialPaymentAmount) <= 0) && (
+                <div className="mb-2 text-center text-red-400 text-sm">
+                  ⚠️ 請輸入部分收款金額
+                </div>
+              )}
               <button
                 onClick={handleCheckout}
                 disabled={
@@ -2062,7 +2160,9 @@ export default function POSPage() {
                   // 現金帳戶且有輸入金額但不足時禁用
                   (!isMultiPayment && isCashAccount && !!receivedAmount && parseFloat(receivedAmount) > 0 && parseFloat(receivedAmount) < total) ||
                   // 多元付款金額不符時禁用
-                  (isMultiPayment && isPaid && multiPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) !== total)
+                  (isMultiPayment && isPaid && multiPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) !== total) ||
+                  // 部分收款金額無效時禁用
+                  (isPaid && isPartialPayment && (!partialPaymentAmount || parseFloat(partialPaymentAmount) <= 0))
                 }
                 className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-600 text-white font-bold text-xl py-4 rounded-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed"
               >
@@ -2092,7 +2192,7 @@ export default function POSPage() {
               <div className="p-4 overflow-y-auto custom-scrollbar max-h-[calc(80vh-80px)]">
                 {drafts.length === 0 ? (
                   <div className="text-center text-gray-500 dark:text-gray-400 py-10">
-                    <div className="text-4xl mb-2">📋</div>
+                    <div className="text-4xl mb-2"></div>
                     <div>目前沒有暫存訂單</div>
                   </div>
                 ) : (
@@ -2161,7 +2261,7 @@ export default function POSPage() {
               <div className="p-4 overflow-y-auto custom-scrollbar max-h-[calc(80vh-80px)]">
                 {todaySales.length === 0 ? (
                   <div className="text-center text-gray-500 dark:text-gray-400 py-10">
-                    <div className="text-4xl mb-2">📊</div>
+                    <div className="text-4xl mb-2"></div>
                     <div>今天還沒有交易記錄</div>
                   </div>
                 ) : (
@@ -2373,7 +2473,7 @@ export default function POSPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-4 border-2 border-emerald-200 dark:border-emerald-700">
                     <div className="text-sm font-medium text-emerald-800 dark:text-emerald-400 mb-1">
-                      ✅ 已收款
+                      已收款
                     </div>
                     <div className="text-xl font-bold text-emerald-600 dark:text-emerald-300">
                       {formatCurrency(closingStats.paid_sales || 0)}
@@ -2384,7 +2484,7 @@ export default function POSPage() {
                   </div>
                   <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4 border-2 border-orange-200 dark:border-orange-700">
                     <div className="text-sm font-medium text-orange-800 dark:text-orange-400 mb-1">
-                      ⏳ 未收款
+                      未收款
                     </div>
                     <div className="text-xl font-bold text-orange-600 dark:text-orange-300">
                       {formatCurrency(closingStats.unpaid_sales || 0)}
@@ -2397,7 +2497,7 @@ export default function POSPage() {
 
                 {/* 已收款明細 */}
                 <div className="border-t dark:border-gray-700 pt-4">
-                  <h3 className="font-semibold text-lg mb-3 text-gray-900 dark:text-gray-100">✅ 已收款明細</h3>
+                  <h3 className="font-semibold text-lg mb-3 text-gray-900 dark:text-gray-100">已收款明細</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex justify-between items-center bg-emerald-50 dark:bg-emerald-900/20 rounded px-4 py-2 border border-emerald-200 dark:border-emerald-700">
                       <span className="text-emerald-700 dark:text-emerald-300">現金</span>
@@ -2470,7 +2570,7 @@ export default function POSPage() {
         >
           <div className="bg-emerald-600 text-white rounded-xl shadow-2xl p-5 min-w-[280px] cursor-pointer hover:bg-emerald-700 transition-colors">
             <div className="flex items-center gap-3 mb-3">
-              <div className="text-2xl">✓</div>
+              <div className="text-2xl"></div>
               <div>
                 <div className="font-bold text-lg">結帳成功</div>
                 <div className="text-sm text-emerald-200">{successToast.saleNo}</div>
@@ -2513,7 +2613,7 @@ export default function POSPage() {
             </div>
             <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
               {reorderAccounts.map((account, index) => {
-                const icon = account.account_type === 'cash' ? '💵' : account.account_type === 'bank' ? '🏦' : '💰'
+                const icon = ''
                 return (
                   <div
                     key={account.id}
@@ -2524,7 +2624,7 @@ export default function POSPage() {
                         onClick={() => {
                           if (index > 0) {
                             const newOrder = [...reorderAccounts]
-                            ;[newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]]
+                              ;[newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]]
                             setReorderAccounts(newOrder)
                           }
                         }}
@@ -2537,7 +2637,7 @@ export default function POSPage() {
                         onClick={() => {
                           if (index < reorderAccounts.length - 1) {
                             const newOrder = [...reorderAccounts]
-                            ;[newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]]
+                              ;[newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]]
                             setReorderAccounts(newOrder)
                           }
                         }}
@@ -2547,7 +2647,7 @@ export default function POSPage() {
                         ▼
                       </button>
                     </div>
-                    <span className="text-lg">{icon}</span>
+                    <span className="text-lg"></span>
                     <span className="flex-1 text-white">{account.account_name}</span>
                     <span className="text-slate-400 text-sm">#{index + 1}</span>
                   </div>

@@ -141,6 +141,43 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 檢查並更新銷售單的 is_paid 狀態
+    for (const allocation of draft.allocations) {
+      // 查詢這個 AR 記錄對應的銷售單
+      const { data: partnerAccount } = await (supabaseServer
+        .from('partner_accounts') as any)
+        .select('sale_item_id, ref_id, ref_type, balance')
+        .eq('id', allocation.partner_account_id)
+        .single()
+
+      if (partnerAccount && partnerAccount.ref_type === 'sale') {
+        const saleId = partnerAccount.ref_id
+
+        // 檢查這張銷售單的所有 AR 是否都已付清
+        const { data: allARs } = await (supabaseServer
+          .from('partner_accounts') as any)
+          .select('balance, status')
+          .eq('ref_id', saleId)
+          .eq('ref_type', 'sale')
+          .eq('direction', 'AR')
+
+        if (allARs && allARs.length > 0) {
+          // 檢查所有 AR 是否都已付清（balance <= 0 或 status === 'paid'）
+          const allPaid = allARs.every((ar: any) => ar.status === 'paid' || ar.balance <= 0)
+
+          if (allPaid) {
+            // 更新銷售單 is_paid 狀態
+            await (supabaseServer
+              .from('sales') as any)
+              .update({ is_paid: true })
+              .eq('id', saleId)
+
+            console.log(`[Receipts API] 銷售單 ${saleId} 所有 AR 已付清，更新 is_paid = true`)
+          }
+        }
+      }
+    }
+
     return NextResponse.json({ ok: true, data: settlement }, { status: 201 })
   } catch (error) {
     return NextResponse.json(

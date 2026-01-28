@@ -100,6 +100,8 @@ type Sale = {
   customers?: {
     customer_name: string
   } | null
+  discount_type?: 'none' | 'percent' | 'amount'
+  discount_value?: number
 }
 
 type CustomerGroup = {
@@ -158,6 +160,12 @@ export default function SalesPage() {
   const [selectedSaleIds, setSelectedSaleIds] = useState<Set<string>>(new Set())
   const [batchDeleting, setBatchDeleting] = useState(false)
   const [isSelectMode, setIsSelectMode] = useState(false) // 選取模式開關
+
+  // 折扣編輯相關狀態
+  const [showDiscountModal, setShowDiscountModal] = useState(false)
+  const [editDiscountType, setEditDiscountType] = useState<'none' | 'percent' | 'amount'>('none')
+  const [editDiscountValue, setEditDiscountValue] = useState<string>('0')
+  const [updatingDiscount, setUpdatingDiscount] = useState(false)
 
   const toggleCustomer = (customerKey: string) => {
     const newExpanded = new Set(expandedCustomers)
@@ -573,6 +581,70 @@ export default function SalesPage() {
     setSelectedSale(sale)
     setStoreCreditAmount(sale.total.toString())
     setShowStoreCreditModal(true)
+  }
+
+  // 開啟折扣編輯 Modal
+  const openDiscountModal = (sale: Sale) => {
+    setSelectedSale(sale)
+    setEditDiscountType(sale.discount_type || 'none')
+    setEditDiscountValue((sale.discount_value || 0).toString())
+    setShowDiscountModal(true)
+  }
+
+  // 執行折扣更新
+  const handleDiscountUpdate = async () => {
+    if (!selectedSale) return
+
+    const newDiscountValue = parseFloat(editDiscountValue) || 0
+
+    // 檢查是否有變更
+    if (editDiscountType === selectedSale.discount_type && newDiscountValue === (selectedSale.discount_value || 0)) {
+      alert('沒有任何變更')
+      return
+    }
+
+    // 計算新的總額預覽
+    const subtotal = selectedSale.sale_items?.reduce((sum, item) => sum + (item.quantity * item.price), 0) || 0
+    let newDiscountAmount = 0
+    if (editDiscountType === 'percent') {
+      newDiscountAmount = (subtotal * newDiscountValue) / 100
+    } else if (editDiscountType === 'amount') {
+      newDiscountAmount = newDiscountValue
+    }
+    const newTotal = Math.max(0, subtotal - newDiscountAmount)
+    const oldTotal = selectedSale.total
+
+    if (!confirm(`確定要更新折扣嗎？\n\n原總額：${formatCurrency(oldTotal)}\n新總額：${formatCurrency(newTotal)}\n差額：${formatCurrency(newTotal - oldTotal)}\n\n${selectedSale.is_paid ? '（已付款，將調整帳戶餘額）' : selectedSale.customer_code ? '（未付款，將調整應收帳款）' : ''}`)) {
+      return
+    }
+
+    setUpdatingDiscount(true)
+    try {
+      const res = await fetch(`/api/sales/${selectedSale.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          discount_type: editDiscountType,
+          discount_value: newDiscountValue,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (data.ok) {
+        const adjustment = data.adjustment
+        alert(`折扣更新成功！\n\n原總額：${formatCurrency(adjustment?.old_total || oldTotal)}\n新總額：${formatCurrency(adjustment?.new_total || newTotal)}\n調整金額：${formatCurrency(adjustment?.adjustment_amount || 0)}`)
+        setShowDiscountModal(false)
+        setSelectedSale(null)
+        fetchSales()
+      } else {
+        alert(`更新失敗：${data.error}`)
+      }
+    } catch (err) {
+      alert('更新失敗')
+    } finally {
+      setUpdatingDiscount(false)
+    }
   }
 
   // 執行銷貨更正
@@ -1093,6 +1165,16 @@ export default function SalesPage() {
                                       >
                                         ✏️ 更正
                                       </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setOpenDropdownId(null)
+                                          openDiscountModal(sale)
+                                        }}
+                                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                      >
+                                        🏷️ 折扣
+                                      </button>
                                       {sale.customer_code && (
                                         <button
                                           onClick={(e) => {
@@ -1409,6 +1491,15 @@ export default function SalesPage() {
                                   className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-t-lg"
                                 >
                                   ✏️ 更正
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setOpenDropdownId(null)
+                                    openDiscountModal(sale)
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                >
+                                  🏷️ 折扣
                                 </button>
                                 {sale.customer_code && (
                                   <button
@@ -1774,6 +1865,164 @@ export default function SalesPage() {
                   className="px-4 py-2 rounded bg-amber-600 text-white hover:bg-amber-700 disabled:bg-gray-400"
                 >
                   {convertingToStoreCredit ? '處理中...' : '確認轉換'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 折扣編輯 Modal */}
+      {showDiscountModal && selectedSale && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                  🏷️ 編輯折扣 - {selectedSale.sale_no}
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowDiscountModal(false)
+                    setSelectedSale(null)
+                  }}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <div className="text-sm text-blue-800 dark:text-blue-200">
+                  <strong>目前總額：</strong> {formatCurrency(selectedSale.total)}
+                </div>
+                <div className="text-sm text-blue-800 dark:text-blue-200 mt-1">
+                  <strong>目前折扣：</strong> {selectedSale.discount_type === 'none' ? '無折扣' : selectedSale.discount_type === 'percent' ? `${selectedSale.discount_value}%` : formatCurrency(selectedSale.discount_value || 0)}
+                </div>
+                {selectedSale.is_paid && (
+                  <div className="text-xs text-blue-600 dark:text-blue-300 mt-2">
+                    此單已付款，調整折扣將連動調整帳戶餘額
+                  </div>
+                )}
+                {!selectedSale.is_paid && selectedSale.customer_code && (
+                  <div className="text-xs text-blue-600 dark:text-blue-300 mt-2">
+                    此單未付款，調整折扣將連動調整應收帳款
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+                    折扣類型
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setEditDiscountType('none')}
+                      className={`flex-1 py-2 px-3 rounded text-sm font-medium transition-colors ${editDiscountType === 'none'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                        }`}
+                    >
+                      無折扣
+                    </button>
+                    <button
+                      onClick={() => setEditDiscountType('percent')}
+                      className={`flex-1 py-2 px-3 rounded text-sm font-medium transition-colors ${editDiscountType === 'percent'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                        }`}
+                    >
+                      百分比 %
+                    </button>
+                    <button
+                      onClick={() => setEditDiscountType('amount')}
+                      className={`flex-1 py-2 px-3 rounded text-sm font-medium transition-colors ${editDiscountType === 'amount'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                        }`}
+                    >
+                      固定金額
+                    </button>
+                  </div>
+                </div>
+
+                {editDiscountType !== 'none' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+                      折扣{editDiscountType === 'percent' ? '百分比' : '金額'}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step={editDiscountType === 'percent' ? '1' : '0.01'}
+                        min="0"
+                        max={editDiscountType === 'percent' ? '100' : undefined}
+                        value={editDiscountValue}
+                        onChange={(e) => setEditDiscountValue(e.target.value)}
+                        className="w-full px-4 py-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                      />
+                      {editDiscountType === 'percent' && (
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 預覽 */}
+                {(() => {
+                  const subtotal = selectedSale.sale_items?.reduce((sum, item) => sum + (item.quantity * item.price), 0) || 0
+                  const discountValue = parseFloat(editDiscountValue) || 0
+                  let discountAmount = 0
+                  if (editDiscountType === 'percent') {
+                    discountAmount = (subtotal * discountValue) / 100
+                  } else if (editDiscountType === 'amount') {
+                    discountAmount = discountValue
+                  }
+                  const newTotal = Math.max(0, subtotal - discountAmount)
+                  const difference = newTotal - selectedSale.total
+
+                  return (
+                    <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                      <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-1">
+                        <span>商品小計</span>
+                        <span>{formatCurrency(subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-1">
+                        <span>折扣金額</span>
+                        <span className="text-red-600 dark:text-red-400">-{formatCurrency(discountAmount)}</span>
+                      </div>
+                      <div className="flex justify-between text-base font-semibold text-gray-900 dark:text-gray-100 border-t border-gray-300 dark:border-gray-700 pt-2 mt-2">
+                        <span>新總額</span>
+                        <span>{formatCurrency(newTotal)}</span>
+                      </div>
+                      {difference !== 0 && (
+                        <div className={`flex justify-between text-sm mt-2 ${difference > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          <span>差額</span>
+                          <span>{difference > 0 ? '+' : ''}{formatCurrency(difference)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => {
+                    setShowDiscountModal(false)
+                    setSelectedSale(null)
+                  }}
+                  className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleDiscountUpdate}
+                  disabled={updatingDiscount}
+                  className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400"
+                >
+                  {updatingDiscount ? '處理中...' : '確認更新'}
                 </button>
               </div>
             </div>

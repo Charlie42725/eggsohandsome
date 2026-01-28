@@ -1067,7 +1067,7 @@ export default function POSPage() {
           }`}>
           <div className="flex items-center gap-4">
             <h1 className="text-xl font-bold text-white">
-              🏪 收銀系統
+              收銀系統
             </h1>
           </div>
           <div className="flex items-center gap-2">
@@ -1155,7 +1155,7 @@ export default function POSPage() {
                         }
                       }, 100)
                     }}
-                    placeholder="🔍 掃描或搜尋商品..."
+                    placeholder="掃描或搜尋商品..."
                     className="w-full rounded-lg px-3 py-2.5 text-sm text-white bg-slate-700 border border-slate-600 focus:border-indigo-500 focus:outline-none placeholder-slate-400"
                   />
                 </div>
@@ -1286,7 +1286,7 @@ export default function POSPage() {
                             (kuji.barcode && kuji.barcode.toLowerCase().includes(searchLower))
                         }).length === 0 && (
                             <div className="col-span-3 text-center text-gray-500 dark:text-gray-400 py-10">
-                              <div className="text-4xl mb-2">🎁</div>
+                              <div className="text-4xl mb-2"></div>
                               <div>{searchQuery ? '找不到相關的一番賞' : '目前沒有一番賞'}</div>
                             </div>
                           )}
@@ -1369,7 +1369,7 @@ export default function POSPage() {
             <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2">
               {cart.length === 0 ? (
                 <div className="text-center text-slate-500 mt-20">
-                  <div className="text-4xl mb-2">🛒</div>
+                  <div className="text-4xl mb-2"></div>
                   <div className="text-slate-400">請點選商品</div>
                 </div>
               ) : (
@@ -1537,7 +1537,7 @@ export default function POSPage() {
                     return (
                       <div key={kuji_id} className="mb-3 p-2 bg-emerald-900/30 border border-emerald-600 rounded-lg">
                         <div className="text-sm font-medium text-emerald-400">
-                          🎉 {info.kuji?.name} 組合優惠
+                          {info.kuji?.name} 組合優惠
                         </div>
                         <div className="text-xs text-emerald-500">
                           {info.applicableCombo.draws} 抽 {formatCurrency(info.applicableCombo.price)} (已購 {info.totalCount} 抽)
@@ -1675,7 +1675,7 @@ export default function POSPage() {
                 <label className="block font-medium mb-1.5 text-sm text-slate-300">付款方式</label>
                 <div className="grid grid-cols-2 gap-2">
                   {accounts.map((account) => {
-                    const icon = account.account_type === 'cash' ? '💵' : account.account_type === 'bank' ? '🏦' : '💰'
+                    const icon = ''
                     return (
                       <button
                         key={account.id}
@@ -1689,7 +1689,7 @@ export default function POSPage() {
                           : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                           }`}
                       >
-                        {icon} {account.account_name}
+                        {account.account_name}
                       </button>
                     )
                   })}
@@ -1704,7 +1704,7 @@ export default function POSPage() {
                       : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                       }`}
                   >
-                    ❓ 待定
+                    待定
                   </button>
                 </div>
               </div>
@@ -1773,7 +1773,7 @@ export default function POSPage() {
                 {cart.some(item => item.isDelivered === false) && (
                   <div className="flex-1 flex items-center gap-2 rounded-lg px-3 py-2.5 bg-orange-600/30 border border-orange-500">
                     <span className="text-sm text-orange-400">
-                      🚚 {cart.filter(item => item.isDelivered === false).length} 項未出貨
+                      {cart.filter(item => item.isDelivered === false).length} 項未出貨
                     </span>
                   </div>
                 )}
@@ -1852,7 +1852,7 @@ export default function POSPage() {
               <div className="p-4 overflow-y-auto custom-scrollbar max-h-[calc(80vh-80px)]">
                 {drafts.length === 0 ? (
                   <div className="text-center text-gray-500 dark:text-gray-400 py-10">
-                    <div className="text-4xl mb-2">📋</div>
+                    <div className="text-4xl mb-2"></div>
                     <div>目前沒有暫存訂單</div>
                   </div>
                 ) : (
@@ -1914,14 +1914,14 @@ export default function POSPage() {
               <div className={`text-white px-6 py-4 rounded-t-lg flex items-center justify-between ${salesMode === 'live' ? 'bg-pink-600' : 'bg-blue-500'
                 }`}>
                 <h2 className="text-xl font-bold">
-                  今日交易 - {salesMode === 'live' ? '📱 直播模式' : '🏪 店裡模式'}
+                  今日交易 - {salesMode === 'live' ? '直播模式' : '店裡模式'}
                 </h2>
                 <button onClick={() => setShowTodaySales(false)} className="text-2xl hover:text-gray-200">×</button>
               </div>
               <div className="p-4 overflow-y-auto custom-scrollbar max-h-[calc(80vh-80px)]">
                 {todaySales.length === 0 ? (
                   <div className="text-center text-gray-500 dark:text-gray-400 py-10">
-                    <div className="text-4xl mb-2">📊</div>
+                    <div className="text-4xl mb-2"></div>
                     <div>今天還沒有交易記錄</div>
                   </div>
                 ) : (
@@ -2133,7 +2133,7 @@ export default function POSPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-4 border-2 border-emerald-200 dark:border-emerald-700">
                     <div className="text-sm font-medium text-emerald-800 dark:text-emerald-400 mb-1">
-                      ✅ 已收款
+                      已收款
                     </div>
                     <div className="text-xl font-bold text-emerald-600 dark:text-emerald-300">
                       {formatCurrency(closingStats.paid_sales || 0)}
@@ -2144,7 +2144,7 @@ export default function POSPage() {
                   </div>
                   <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4 border-2 border-orange-200 dark:border-orange-700">
                     <div className="text-sm font-medium text-orange-800 dark:text-orange-400 mb-1">
-                      ⏳ 未收款
+                      未收款
                     </div>
                     <div className="text-xl font-bold text-orange-600 dark:text-orange-300">
                       {formatCurrency(closingStats.unpaid_sales || 0)}
@@ -2157,7 +2157,7 @@ export default function POSPage() {
 
                 {/* 已收款明細 */}
                 <div className="border-t dark:border-gray-700 pt-4">
-                  <h3 className="font-semibold text-lg mb-3 text-gray-900 dark:text-gray-100">✅ 已收款明細</h3>
+                  <h3 className="font-semibold text-lg mb-3 text-gray-900 dark:text-gray-100">已收款明細</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex justify-between items-center bg-emerald-50 dark:bg-emerald-900/20 rounded px-4 py-2 border border-emerald-200 dark:border-emerald-700">
                       <span className="text-emerald-700 dark:text-emerald-300">現金</span>

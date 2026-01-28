@@ -523,12 +523,32 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 6.5. 更新帳戶餘額（僅當已付款時）
-    if (draft.is_paid) {
+    // 6.5. 更新帳戶餘額（已付款 或 部分收款時）
+    const partialPayment = body.partial_payment
+    const hasPartialPayment = partialPayment && partialPayment.amount > 0 && partialPayment.amount < total
+
+    if (draft.is_paid || hasPartialPayment) {
       // Determine payments to process
-      const paymentsToProcess = draft.payments && draft.payments.length > 0
-        ? draft.payments
-        : [{ method: draft.payment_method, account_id: accountId, amount: total }]
+      let paymentsToProcess: { method: string; account_id: string | null; amount: number }[]
+
+      if (hasPartialPayment) {
+        // 部分收款：只處理已收金額
+        paymentsToProcess = [{
+          method: partialPayment.method || draft.payment_method,
+          account_id: partialPayment.account_id || accountId,
+          amount: partialPayment.amount
+        }]
+      } else if (draft.payments && draft.payments.length > 0) {
+        // 多元付款
+        paymentsToProcess = draft.payments.map((p: any) => ({
+          method: p.method,
+          account_id: p.account_id || null,
+          amount: p.amount
+        }))
+      } else {
+        // 一般付款
+        paymentsToProcess = [{ method: draft.payment_method, account_id: accountId, amount: total }]
+      }
 
       // Process each payment
       for (const payment of paymentsToProcess) {
@@ -568,9 +588,11 @@ export async function POST(request: NextRequest) {
             transactionType: 'sale',
             referenceId: sale.id,
             referenceNo: sale.sale_no,
-            note: draft.payments && draft.payments.length > 1
-              ? `多元付款 - ${payment.method}: $${payment.amount}`
-              : draft.note
+            note: hasPartialPayment
+              ? `部分收款 - $${payment.amount}（訂單總額 $${total}）`
+              : draft.payments && draft.payments.length > 1
+                ? `多元付款 - ${payment.method}: $${payment.amount}`
+                : draft.note
           })
 
           if (!accountUpdate.success) {
@@ -847,8 +869,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 11. 自動創建應收帳款（AR）記錄 - 如果客戶未付款且有應收金額
-    if (draft.customer_code && !draft.is_paid && total > 0) {
+    // 11. 自動創建應收帳款（AR）記錄 - 如果客戶未付款且有應收金額，或部分收款有未收金額
+    // 計算應收金額：部分收款 = total - 已收金額，完全未付 = total
+    const unpaidAmount = hasPartialPayment
+      ? total - partialPayment.amount
+      : (!draft.is_paid ? total : 0)
+
+    if (draft.customer_code && unpaidAmount > 0) {
       // 計算每個商品的到期日（預設 7 天後）
       const dueDate = new Date(taiwanTime)
       dueDate.setDate(dueDate.getDate() + 7)
@@ -857,17 +884,17 @@ export async function POST(request: NextRequest) {
       // 計算總小計（用於按比例分配）
       const totalSubtotal = insertedSaleItems.reduce((sum: number, item: any) => sum + item.subtotal, 0)
 
-      // 為每個銷售明細創建 AR 記錄（按比例分配扣除購物金後的金額）
-      let remainingAmount = total // 用於處理四捨五入誤差
+      // 為每個銷售明細創建 AR 記錄（按比例分配未收金額）
+      let remainingArAmount = unpaidAmount // 用於處理四捨五入誤差
       const arRecords = insertedSaleItems.map((saleItem: any, index: number) => {
         let itemAmount: number
         if (index === insertedSaleItems.length - 1) {
           // 最後一筆用剩餘金額，避免四捨五入誤差
-          itemAmount = remainingAmount
+          itemAmount = remainingArAmount
         } else {
           // 按比例分配
-          itemAmount = Math.round(total * (saleItem.subtotal / totalSubtotal))
-          remainingAmount -= itemAmount
+          itemAmount = Math.round(unpaidAmount * (saleItem.subtotal / totalSubtotal))
+          remainingArAmount -= itemAmount
         }
 
         return {
@@ -881,7 +908,9 @@ export async function POST(request: NextRequest) {
           received_paid: 0,
           due_date: dueDateStr,
           status: 'unpaid',
-          note: `銷售單 ${sale.sale_no}`,
+          note: hasPartialPayment
+            ? `銷售單 ${sale.sale_no}（部分收款，未收 $${unpaidAmount}）`
+            : `銷售單 ${sale.sale_no}`,
         }
       }).filter((ar: any) => ar.amount > 0) // 過濾掉金額為 0 的記錄
 
@@ -893,6 +922,8 @@ export async function POST(request: NextRequest) {
         if (arError) {
           console.error('Failed to create AR records:', arError)
           // AR 創建失敗不影響銷售流程，只記錄錯誤
+        } else {
+          console.log(`[Sales API] 銷售 ${sale.sale_no} 建立 AR 記錄，未收金額: $${unpaidAmount}`)
         }
       }
     }

@@ -66,7 +66,7 @@ export async function GET(
   }
 }
 
-// PATCH /api/sales/:id - Update sale payment method
+// PATCH /api/sales/:id - Update sale (payment method, discount)
 export async function PATCH(
   request: NextRequest,
   context: RouteContext
@@ -85,12 +85,12 @@ export async function PATCH(
       )
     }
 
-    const { payment_method } = validation.data
+    const { payment_method, discount_type, discount_value } = validation.data
 
     // 1. 讀取舊的 sale 記錄
     const { data: oldSale, error: fetchError } = await (supabaseServer
       .from('sales') as any)
-      .select('account_id, total, payment_method')
+      .select('account_id, total, payment_method, is_paid, customer_code, sale_no, discount_type, discount_value')
       .eq('id', id)
       .single()
 
@@ -102,101 +102,220 @@ export async function PATCH(
     }
 
     const oldAccountId = oldSale.account_id
-    const saleTotal = oldSale.total
+    const oldTotal = oldSale.total
 
-    // 2. 取得新的 account_id
-    const { data: account } = await (supabaseServer
-      .from('accounts') as any)
-      .select('id')
-      .eq('payment_method_code', payment_method)
-      .eq('is_active', true)
-      .single()
+    // 取得台灣時間 (UTC+8)
+    const now = new Date()
+    const taiwanTime = new Date(now.getTime() + 8 * 60 * 60 * 1000)
 
-    const newAccountId = account?.id || null
+    // 檢查是否有折扣變更
+    const hasDiscountChange = discount_type !== undefined || discount_value !== undefined
 
-    // 3. 如果帳戶有變更，處理餘額轉移
-    if (oldAccountId !== newAccountId) {
-      // 3.1 還原舊帳戶餘額
-      if (oldAccountId) {
-        // 刪除舊的 account_transactions
-        await (supabaseServer
-          .from('account_transactions') as any)
-          .delete()
-          .eq('ref_type', 'sale')
-          .eq('ref_id', id.toString())
+    let newTotal = oldTotal
+    let adjustmentAmount = 0
 
-        // 還原舊帳戶餘額（減去收入）
-        const { data: oldAccount } = await (supabaseServer
-          .from('accounts') as any)
-          .select('balance')
-          .eq('id', oldAccountId)
-          .single()
+    if (hasDiscountChange) {
+      // 計算新的總額
+      // 取得銷售項目來計算小計
+      const { data: saleItems } = await (supabaseServer
+        .from('sale_items') as any)
+        .select('quantity, price')
+        .eq('sale_id', id)
 
-        if (oldAccount) {
-          const restoredBalance = oldAccount.balance - saleTotal
-          await (supabaseServer
-            .from('accounts') as any)
-            .update({
-              balance: restoredBalance,
-              updated_at: getTaiwanTime()
-            })
-            .eq('id', oldAccountId)
+      const subtotal = saleItems?.reduce((sum: number, item: any) => sum + (item.quantity * item.price), 0) || 0
 
-          console.log(`[Sale PATCH ${id}] Restored old account ${oldAccountId}: -${saleTotal}`)
-        }
+      const newDiscountType = discount_type ?? oldSale.discount_type
+      const newDiscountValue = discount_value ?? oldSale.discount_value
+
+      let discountAmount = 0
+      if (newDiscountType === 'percent') {
+        discountAmount = (subtotal * newDiscountValue) / 100
+      } else if (newDiscountType === 'amount') {
+        discountAmount = newDiscountValue
       }
 
-      // 3.2 記錄新帳戶交易
-      if (newAccountId) {
-        const { data: newAccount } = await (supabaseServer
-          .from('accounts') as any)
-          .select('balance')
-          .eq('id', newAccountId)
-          .single()
+      newTotal = Math.max(0, subtotal - discountAmount)
+      adjustmentAmount = newTotal - oldTotal
 
-        if (newAccount) {
-          const newBalance = newAccount.balance + saleTotal
+      console.log(`[Sale PATCH ${id}] Discount change: ${oldSale.discount_type}/${oldSale.discount_value} -> ${newDiscountType}/${newDiscountValue}`)
+      console.log(`[Sale PATCH ${id}] Total change: ${oldTotal} -> ${newTotal} (adjustment: ${adjustmentAmount})`)
 
-          // 更新新帳戶餘額
-          await (supabaseServer
+      // 處理金流和帳款連動
+      if (adjustmentAmount !== 0) {
+        if (oldSale.is_paid && oldAccountId) {
+          // 已付款：調整帳戶餘額
+          // 如果新總額較高，帳戶餘額增加（多收款）
+          // 如果新總額較低，帳戶餘額減少（少收款，但已收的錢需要退回）
+          const { data: account } = await (supabaseServer
             .from('accounts') as any)
-            .update({
-              balance: newBalance,
-              updated_at: getTaiwanTime()
-            })
-            .eq('id', newAccountId)
+            .select('balance')
+            .eq('id', oldAccountId)
+            .single()
 
-          // 建立新的 account_transactions
-          await (supabaseServer
-            .from('account_transactions') as any)
-            .insert({
-              account_id: newAccountId,
-              transaction_type: 'sale',
-              amount: saleTotal,
-              balance_before: newAccount.balance,
-              balance_after: newBalance,
-              ref_type: 'sale',
-              ref_id: id.toString(),
-              note: `銷售單 ${id} - 變更支付方式為 ${payment_method}`
-            })
+          if (account) {
+            const newBalance = account.balance + adjustmentAmount
 
-          console.log(`[Sale PATCH ${id}] Recorded new account ${newAccountId}: +${saleTotal}`)
+            await (supabaseServer
+              .from('accounts') as any)
+              .update({
+                balance: newBalance,
+                updated_at: getTaiwanTime()
+              })
+              .eq('id', oldAccountId)
+
+            // 記錄調整交易
+            await (supabaseServer
+              .from('account_transactions') as any)
+              .insert({
+                account_id: oldAccountId,
+                transaction_type: 'adjustment',
+                amount: adjustmentAmount,
+                balance_before: account.balance,
+                balance_after: newBalance,
+                ref_type: 'sale',
+                ref_id: id.toString(),
+                note: `銷售單 ${oldSale.sale_no} - 折扣調整 (${adjustmentAmount > 0 ? '+' : ''}${adjustmentAmount})`
+              })
+
+            console.log(`[Sale PATCH ${id}] Adjusted paid account ${oldAccountId}: ${adjustmentAmount > 0 ? '+' : ''}${adjustmentAmount}`)
+          }
+        } else if (!oldSale.is_paid && oldSale.customer_code) {
+          // 未付款有客戶：調整應收帳款 (AR)
+          const { data: arRecords } = await (supabaseServer
+            .from('partner_accounts') as any)
+            .select('id, amount, balance, received_paid')
+            .eq('ref_type', 'sale')
+            .eq('ref_id', id.toString())
+            .eq('direction', 'AR')
+
+          if (arRecords && arRecords.length > 0) {
+            // 計算總AR金額和調整比例
+            const totalArAmount = arRecords.reduce((sum: number, ar: any) => sum + ar.amount, 0)
+
+            for (const ar of arRecords) {
+              // 按比例調整每個 AR 記錄
+              const ratio = ar.amount / totalArAmount
+              const arAdjustment = Math.round(adjustmentAmount * ratio)
+              const newArAmount = ar.amount + arAdjustment
+              const newArBalance = ar.balance + arAdjustment
+
+              await (supabaseServer
+                .from('partner_accounts') as any)
+                .update({
+                  amount: newArAmount,
+                  balance: newArBalance,
+                  note: `銷售單 ${oldSale.sale_no} - 折扣調整`
+                })
+                .eq('id', ar.id)
+
+              console.log(`[Sale PATCH ${id}] Adjusted AR ${ar.id}: amount ${ar.amount} -> ${newArAmount}`)
+            }
+          }
         }
       }
     }
 
-    // 4. 取得台灣時間 (UTC+8)
-    const now = new Date()
-    const taiwanTime = new Date(now.getTime() + 8 * 60 * 60 * 1000)
+    // 處理付款方式變更
+    let newAccountId = oldAccountId
+    if (payment_method) {
+      // 取得新的 account_id
+      const { data: account } = await (supabaseServer
+        .from('accounts') as any)
+        .select('id')
+        .eq('payment_method_code', payment_method)
+        .eq('is_active', true)
+        .single()
 
-    // 5. Update sale payment method and account_id
+      newAccountId = account?.id || null
+
+      // 如果帳戶有變更，處理餘額轉移
+      if (oldAccountId !== newAccountId && oldSale.is_paid) {
+        // 還原舊帳戶餘額
+        if (oldAccountId) {
+          await (supabaseServer
+            .from('account_transactions') as any)
+            .delete()
+            .eq('ref_type', 'sale')
+            .eq('ref_id', id.toString())
+
+          const { data: oldAccount } = await (supabaseServer
+            .from('accounts') as any)
+            .select('balance')
+            .eq('id', oldAccountId)
+            .single()
+
+          if (oldAccount) {
+            const restoredBalance = oldAccount.balance - newTotal
+            await (supabaseServer
+              .from('accounts') as any)
+              .update({
+                balance: restoredBalance,
+                updated_at: getTaiwanTime()
+              })
+              .eq('id', oldAccountId)
+
+            console.log(`[Sale PATCH ${id}] Restored old account ${oldAccountId}: -${newTotal}`)
+          }
+        }
+
+        // 記錄新帳戶交易
+        if (newAccountId) {
+          const { data: newAccount } = await (supabaseServer
+            .from('accounts') as any)
+            .select('balance')
+            .eq('id', newAccountId)
+            .single()
+
+          if (newAccount) {
+            const updatedBalance = newAccount.balance + newTotal
+
+            await (supabaseServer
+              .from('accounts') as any)
+              .update({
+                balance: updatedBalance,
+                updated_at: getTaiwanTime()
+              })
+              .eq('id', newAccountId)
+
+            await (supabaseServer
+              .from('account_transactions') as any)
+              .insert({
+                account_id: newAccountId,
+                transaction_type: 'sale',
+                amount: newTotal,
+                balance_before: newAccount.balance,
+                balance_after: updatedBalance,
+                ref_type: 'sale',
+                ref_id: id.toString(),
+                note: `銷售單 ${oldSale.sale_no} - 變更支付方式為 ${payment_method}`
+              })
+
+            console.log(`[Sale PATCH ${id}] Recorded new account ${newAccountId}: +${newTotal}`)
+          }
+        }
+      }
+    }
+
+    // 構建更新資料
+    const updateData: any = {
+      updated_at: taiwanTime.toISOString(),
+    }
+
+    if (payment_method) {
+      updateData.payment_method = payment_method
+      updateData.account_id = newAccountId
+    }
+
+    if (hasDiscountChange) {
+      if (discount_type !== undefined) updateData.discount_type = discount_type
+      if (discount_value !== undefined) updateData.discount_value = discount_value
+      updateData.total = newTotal
+    }
+
+    // 更新銷售單
     const { data: sale, error } = await (supabaseServer
       .from('sales') as any)
-      .update({
-        payment_method,
-        account_id: newAccountId,
-        updated_at: taiwanTime.toISOString(),
-      })
+      .update(updateData)
       .eq('id', id)
       .select()
       .single()
@@ -208,8 +327,17 @@ export async function PATCH(
       )
     }
 
-    return NextResponse.json({ ok: true, data: sale })
+    return NextResponse.json({
+      ok: true,
+      data: sale,
+      adjustment: hasDiscountChange ? {
+        old_total: oldTotal,
+        new_total: newTotal,
+        adjustment_amount: adjustmentAmount
+      } : undefined
+    })
   } catch (error) {
+    console.error('[Sale PATCH] Error:', error)
     return NextResponse.json(
       { ok: false, error: 'Internal server error' },
       { status: 500 }

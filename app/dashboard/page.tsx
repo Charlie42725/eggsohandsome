@@ -506,6 +506,7 @@ export default function DashboardPage() {
                 }`}
             >
               📅 按日期查看
+              按日期查看
             </button>
             <button
               onClick={() => setReportMode('by_business_day')}
@@ -514,7 +515,7 @@ export default function DashboardPage() {
                 : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                 }`}
             >
-              💼 按營業日查看
+              按營業日查看
             </button>
           </div>
         </div>
@@ -536,7 +537,7 @@ export default function DashboardPage() {
                       : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                       }`}
                   >
-                    📆 當日
+                    當日
                   </button>
                   <button
                     onClick={() => handleQuickDateSelect('week')}
@@ -545,7 +546,7 @@ export default function DashboardPage() {
                       : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                       }`}
                   >
-                    📅 當周
+                    當周
                   </button>
                   <button
                     onClick={() => handleQuickDateSelect('month')}
@@ -554,7 +555,7 @@ export default function DashboardPage() {
                       : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                       }`}
                   >
-                    🗓️ 當月
+                    當月
                   </button>
                   <button
                     onClick={() => setQuickDateRange('custom')}
@@ -563,7 +564,7 @@ export default function DashboardPage() {
                       : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                       }`}
                   >
-                    🔧 自訂
+                    自訂
                   </button>
                   <div className="flex-1" />
                   <button
@@ -573,7 +574,7 @@ export default function DashboardPage() {
                       : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                       }`}
                   >
-                    📊 同期比較
+                    同期比較
                   </button>
                 </div>
               </div>
@@ -629,7 +630,7 @@ export default function DashboardPage() {
                         : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                         }`}
                     >
-                      🏪 店裡
+                      店裡
                     </button>
                     <button
                       onClick={() => setSourceFilter('live')}
@@ -638,7 +639,7 @@ export default function DashboardPage() {
                         : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                         }`}
                     >
-                      📱 直播
+                      直播
                     </button>
                   </div>
                 </div>
@@ -670,7 +671,7 @@ export default function DashboardPage() {
 
                       return (
                         <option key={closing.id} value={closing.id}>
-                          {startTime} → {endTime} (💰 {formatCurrency(closing.total_sales)} | {closing.sales_count} 筆)
+                          {startTime} → {endTime} ({formatCurrency(closing.total_sales)} | {closing.sales_count} 筆)
                         </option>
                       )
                     })
@@ -689,7 +690,7 @@ export default function DashboardPage() {
                       : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                       }`}
                   >
-                    🏪 店裡
+                    店裡
                   </button>
                   <button
                     onClick={() => setSourceFilter('live')}
@@ -698,7 +699,7 @@ export default function DashboardPage() {
                       : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                       }`}
                   >
-                    📱 直播
+                    直播
                   </button>
                 </div>
               </div>
@@ -762,7 +763,7 @@ export default function DashboardPage() {
         {/* Comparison Section */}
         {showComparison && reportMode === 'by_date' && comparisonData.length > 0 && (
           <div className="mb-6 rounded-lg bg-white dark:bg-gray-800 p-4 shadow">
-            <h3 className="mb-4 text-lg font-bold text-gray-900 dark:text-gray-100">📊 同期比較分析</h3>
+            <h3 className="mb-4 text-lg font-bold text-gray-900 dark:text-gray-100">同期比較分析</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -859,7 +860,7 @@ export default function DashboardPage() {
           {/* AP 即將到期 */}
           {stats.apDueSoon && stats.apDueSoon.length > 0 && (
             <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow border-l-4 border-yellow-500">
-              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">⏰ 應付帳款即將到期 (7天內)</h2>
+              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">應付帳款即將到期 (7天內)</h2>
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {stats.apDueSoon.map((item, index) => (
                   <div key={index} className="flex justify-between items-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded">
@@ -879,7 +880,7 @@ export default function DashboardPage() {
           {/* AP 已逾期 */}
           {stats.apOverdueList && stats.apOverdueList.length > 0 && (
             <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow border-l-4 border-red-500">
-              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">🚨 應付帳款已逾期</h2>
+              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">應付帳款已逾期</h2>
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {stats.apOverdueList.map((item, index) => (
                   <div key={index} className="flex justify-between items-center p-2 bg-red-50 dark:bg-red-900/20 rounded">
@@ -898,7 +899,7 @@ export default function DashboardPage() {
         {/* 毛利率趨勢 */}
         {stats.profitTrend && stats.profitTrend.length > 0 && (
           <div className="mb-6 rounded-lg bg-white dark:bg-gray-800 p-6 shadow">
-            <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">📈 近7天毛利率趨勢</h2>
+            <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">近7天毛利率趨勢</h2>
             <div className="overflow-x-auto">
               <div className="flex items-end gap-4 min-w-max" style={{ height: '180px' }}>
                 {stats.profitTrend.map((day, index) => {
@@ -928,10 +929,10 @@ export default function DashboardPage() {
                 })}
               </div>
               <div className="mt-4 flex justify-center gap-6 text-xs text-gray-500">
-                <span>🟢 ≥30%</span>
-                <span>🟡 20-30%</span>
-                <span>🟠 10-20%</span>
-                <span>🔴 &lt;10%</span>
+                <span>≥30%</span>
+                <span>20-30%</span>
+                <span>10-20%</span>
+                <span>&lt;10%</span>
               </div>
             </div>
           </div>
