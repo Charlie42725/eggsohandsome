@@ -48,6 +48,7 @@ type GroupedOrder = {
     productId: string
     quantity: number
     price: number
+    isShipped: boolean // 每個商品的出貨狀態
   }[]
   errors: string[]
   warnings: string[]
@@ -421,11 +422,7 @@ export async function POST(request: NextRequest) {
           rowNumbers: [],
         })
       } else {
-        // 如果任一行標記為未出貨，則整個訂單標記為未出貨
-        const order = orderMap.get(row.orderNo)!
-        if (!row.isShipped) {
-          order.isShipped = false
-        }
+        // 不再在這裡處理 isShipped，每個商品獨立處理
       }
 
       const order = orderMap.get(row.orderNo)!
@@ -438,6 +435,7 @@ export async function POST(request: NextRequest) {
           productId: row.productId,
           quantity: row.quantity,
           price: row.price || 0,
+          isShipped: row.isShipped, // 保存每個商品的出貨狀態
         })
       } else if (row.barcode && !row.productId) {
         // 找不到商品，標記為需要建立
@@ -663,6 +661,7 @@ export async function POST(request: NextRequest) {
               productId: row.productId,
               quantity: row.quantity,
               price: row.price || 0,
+              isShipped: row.isShipped,
             })
           } else if (row.barcode && !row.productId) {
             order.errors.push(`第 ${row.rowNumber} 行：找不到商品「${row.barcode}」且未選擇建立`)
@@ -916,8 +915,17 @@ export async function POST(request: NextRequest) {
         }
 
         // 建立銷售單（sale_no 由資料庫自動生成）
-        // fulfillment_status 根據 isShipped 決定
-        const fulfillmentStatus = order.isShipped ? 'completed' : 'none'
+        // fulfillment_status 根據每個商品的出貨狀態決定
+        const shippedCount = order.items.filter(item => item.isShipped).length
+        const totalCount = order.items.length
+        let fulfillmentStatus: 'none' | 'partial' | 'completed' = 'none'
+        if (shippedCount === 0) {
+          fulfillmentStatus = 'none'
+        } else if (shippedCount < totalCount) {
+          fulfillmentStatus = 'partial'
+        } else {
+          fulfillmentStatus = 'completed'
+        }
         const { data: sale, error: saleError } = await (supabaseServer
           .from('sales') as any)
           .insert({
@@ -993,8 +1001,9 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        // 只有已出貨才建立出貨單和扣庫存
-        if (order.isShipped && insertedSaleItems) {
+        // 只對已出貨的商品建立出貨單和扣庫存
+        const shippedItems = order.items.filter(item => item.isShipped)
+        if (shippedItems.length > 0 && insertedSaleItems) {
           const { data: delivery, error: deliveryError } = await (supabaseServer
             .from('deliveries') as any)
             .insert({
@@ -1008,9 +1017,11 @@ export async function POST(request: NextRequest) {
             .single()
 
           if (!deliveryError && delivery) {
-            // 建立出貨明細並扣庫存，關聯 sale_item_id
+            // 只對已出貨的商品建立出貨明細並扣庫存
             for (let i = 0; i < order.items.length; i++) {
               const item = order.items[i]
+              if (!item.isShipped) continue // 跳過未出貨的商品
+
               const saleItem = insertedSaleItems[i]
 
               // 建立出貨明細（包含 sale_item_id）
@@ -1035,8 +1046,8 @@ export async function POST(request: NextRequest) {
                 })
             }
           }
-        } else {
-          // 未出貨，不遞增出貨單號
+        } else if (shippedItems.length === 0) {
+          // 全部未出貨，不遞增出貨單號
           deliveryNumber--
         }
 
