@@ -20,6 +20,9 @@ type ImportRow = {
   // 解析後的資料
   productId?: string
   productName?: string
+  // 找不到商品時，標記為需要新增
+  needsNewProduct?: boolean
+  newProductName?: string // 使用者輸入的商品名稱（用於快速新增）
 }
 
 type GroupedOrder = {
@@ -33,6 +36,13 @@ type GroupedOrder = {
     quantity: number
     cost: number
   }[]
+  // 需要快速新增的商品
+  newProductItems: {
+    productName: string
+    quantity: number
+    cost: number
+    rowNumber: number
+  }[]
   errors: string[]
   warnings: string[]
   rowNumbers: number[]
@@ -44,6 +54,7 @@ type GroupedOrder = {
 type ImportResult = {
   success: number
   failed: number
+  newProductsCreated: number // 新增的商品數量
   errors: { orderNo: string; message: string }[]
   warnings: { orderNo: string; message: string }[]
 }
@@ -148,6 +159,7 @@ export async function POST(request: NextRequest) {
     // 獲取所有商品（用於條碼對應）- 使用分頁突破 Supabase 1000 筆限制
     const barcodeToProduct = new Map<string, { id: string; name: string; cost: number }>()
     const itemCodeToProduct = new Map<string, { id: string; name: string; cost: number }>()
+    const productNameToProduct = new Map<string, { id: string; name: string; cost: number }>()
 
     const PAGE_SIZE = 1000
     let offset = 0
@@ -169,6 +181,7 @@ export async function POST(request: NextRequest) {
         productBatch.forEach((p: any) => {
           if (p.barcode) barcodeToProduct.set(p.barcode, { id: p.id, name: p.name, cost: p.cost || 0 })
           if (p.item_code) itemCodeToProduct.set(p.item_code.toLowerCase(), { id: p.id, name: p.name, cost: p.cost || 0 })
+          if (p.name) productNameToProduct.set(p.name.toLowerCase().trim(), { id: p.id, name: p.name, cost: p.cost || 0 })
         })
         offset += PAGE_SIZE
         hasMoreProducts = productBatch.length === PAGE_SIZE
@@ -177,7 +190,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log(`[Purchase Import] Loaded ${barcodeToProduct.size} barcodes and ${itemCodeToProduct.size} item_codes for lookup`)
+    console.log(`[Purchase Import] Loaded ${barcodeToProduct.size} barcodes, ${itemCodeToProduct.size} item_codes, and ${productNameToProduct.size} product names for lookup`)
 
     // 解析資料列
     const rows: ImportRow[] = []
@@ -225,14 +238,21 @@ export async function POST(request: NextRequest) {
       } else if (quantity <= 0 || !Number.isInteger(quantity)) {
         importRow.error = '數量必須為正整數'
       } else {
-        // 查找商品
+        // 查找商品：先用條碼 -> 再用商品編號 -> 再用商品名稱
         let product = barcodeToProduct.get(barcode)
         if (!product) {
           // 嘗試用 item_code 查找
           product = itemCodeToProduct.get(barcode.toLowerCase())
         }
         if (!product) {
-          importRow.error = `找不到商品：${barcode}`
+          // 嘗試用商品名稱查找
+          product = productNameToProduct.get(barcode.toLowerCase().trim())
+        }
+        if (!product) {
+          // 找不到商品，標記為需要新增（而非直接報錯）
+          importRow.needsNewProduct = true
+          importRow.newProductName = barcode // 將輸入的內容當作商品名稱
+          importRow.warning = `找不到商品「${barcode}」，將快速新增`
         } else {
           importRow.productId = product.id
           importRow.productName = product.name
@@ -277,6 +297,7 @@ export async function POST(request: NextRequest) {
           isPaid: row.isPaid,
           note: row.note,
           items: [],
+          newProductItems: [],
           errors: [],
           warnings: [],
           rowNumbers: [],
@@ -293,6 +314,14 @@ export async function POST(request: NextRequest) {
           productId: row.productId,
           quantity: row.quantity,
           cost: row.cost || 0,
+        })
+      } else if (row.needsNewProduct && row.newProductName) {
+        // 需要快速新增的商品
+        order.newProductItems.push({
+          productName: row.newProductName,
+          quantity: row.quantity,
+          cost: row.cost || 0,
+          rowNumber: row.rowNumber,
         })
       }
 
@@ -338,33 +367,56 @@ export async function POST(request: NextRequest) {
     const preview = formData.get('preview') === 'true'
     if (preview) {
       const duplicateCount = groupedOrders.filter(o => o.isDuplicate).length
-      const previewData = groupedOrders.map(order => ({
-        orderNo: order.orderNo,
-        vendorCode: order.vendorCode,
-        purchaseDate: order.purchaseDate,
-        isPaid: order.isPaid,
-        note: order.note,
-        itemCount: order.items.length,
-        total: order.items.reduce((sum, item) => sum + item.cost * item.quantity, 0),
-        errors: order.errors,
-        warnings: order.warnings,
-        rowNumbers: order.rowNumbers,
-        isDuplicate: order.isDuplicate,
-        existingPurchaseNo: order.existingPurchaseNo,
-      }))
+      // 收集所有需要新增的商品名稱（去重）
+      const newProductNames = new Set<string>()
+      groupedOrders.forEach(order => {
+        order.newProductItems.forEach(item => {
+          newProductNames.add(item.productName)
+        })
+      })
+
+      const previewData = groupedOrders.map(order => {
+        const existingTotal = order.items.reduce((sum, item) => sum + item.cost * item.quantity, 0)
+        const newProductTotal = order.newProductItems.reduce((sum, item) => sum + item.cost * item.quantity, 0)
+        return {
+          orderNo: order.orderNo,
+          vendorCode: order.vendorCode,
+          purchaseDate: order.purchaseDate,
+          isPaid: order.isPaid,
+          note: order.note,
+          itemCount: order.items.length + order.newProductItems.length,
+          total: existingTotal + newProductTotal,
+          errors: order.errors,
+          warnings: order.warnings,
+          rowNumbers: order.rowNumbers,
+          isDuplicate: order.isDuplicate,
+          existingPurchaseNo: order.existingPurchaseNo,
+          // 新增：需要快速新增的商品
+          newProductItems: order.newProductItems,
+        }
+      })
+
+      // 訂單有效的定義：沒有錯誤，且（有既有商品 或 有需要新增的商品）
+      const validOrders = groupedOrders.filter(o =>
+        o.errors.length === 0 &&
+        (o.items.length > 0 || o.newProductItems.length > 0) &&
+        !o.isDuplicate
+      ).length
 
       return NextResponse.json({
         ok: true,
         preview: true,
         data: previewData,
         rows: rows, // 原始行資料供明細查看
+        newProducts: Array.from(newProductNames), // 需要新增的商品清單
         summary: {
           totalOrders: groupedOrders.length,
-          validOrders: groupedOrders.filter(o => o.errors.length === 0 && o.items.length > 0 && !o.isDuplicate).length,
-          invalidOrders: groupedOrders.filter(o => o.errors.length > 0 || o.items.length === 0).length,
+          validOrders,
+          invalidOrders: groupedOrders.filter(o => o.errors.length > 0 || (o.items.length === 0 && o.newProductItems.length === 0)).length,
           duplicateOrders: duplicateCount,
           totalItems: rows.filter(r => !r.error).length,
           warningOrders: groupedOrders.filter(o => o.warnings.length > 0 && !o.isDuplicate).length,
+          newProductCount: newProductNames.size, // 需要新增的商品數量
         }
       })
     }
@@ -388,6 +440,7 @@ export async function POST(request: NextRequest) {
     const result: ImportResult = {
       success: 0,
       failed: 0,
+      newProductsCreated: 0,
       errors: [],
       warnings: [],
     }
@@ -410,11 +463,17 @@ export async function POST(request: NextRequest) {
       purchaseNumber = maxNumber
     }
 
+    // 是否要快速新增找不到的商品
+    const createNewProducts = formData.get('createNewProducts') === 'true'
+
     // 重新標記重複訂單（需要從 groupedOrders 重新獲取）
     for (const order of groupedOrders) {
-      if (order.errors.length > 0 || order.items.length === 0) continue
+      const hasItems = order.items.length > 0 || order.newProductItems.length > 0
+      if (order.errors.length > 0 || !hasItems) continue
 
-      const total = order.items.reduce((sum, item) => sum + item.cost * item.quantity, 0)
+      const existingTotal = order.items.reduce((sum, item) => sum + item.cost * item.quantity, 0)
+      const newProductTotal = order.newProductItems.reduce((sum, item) => sum + item.cost * item.quantity, 0)
+      const total = existingTotal + newProductTotal
       const purchaseDate = order.purchaseDate || new Date().toISOString().split('T')[0]
       const key = `${purchaseDate}_${order.vendorCode}_${total}`
 
@@ -438,12 +497,23 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      if (order.items.length === 0) {
-        result.failed++
-        result.errors.push({
-          orderNo: order.orderNo,
-          message: '訂單沒有有效的商品明細',
-        })
+      // 檢查是否有商品（含需要新增的商品）
+      const hasNewProductItems = createNewProducts && order.newProductItems.length > 0
+      if (order.items.length === 0 && !hasNewProductItems) {
+        // 如果有需要新增的商品但用戶沒有啟用快速新增，提示錯誤
+        if (order.newProductItems.length > 0) {
+          result.failed++
+          result.errors.push({
+            orderNo: order.orderNo,
+            message: `訂單包含 ${order.newProductItems.length} 個找不到的商品，請啟用「快速新增商品」功能`,
+          })
+        } else {
+          result.failed++
+          result.errors.push({
+            orderNo: order.orderNo,
+            message: '訂單沒有有效的商品明細',
+          })
+        }
         continue
       }
 
@@ -503,7 +573,66 @@ export async function POST(request: NextRequest) {
       try {
         purchaseNumber++
         const purchaseNo = generateCode('P', purchaseNumber - 1)
-        const total = order.items.reduce((sum, item) => sum + item.cost * item.quantity, 0)
+
+        // 如果有需要新增的商品，先創建商品
+        const createdProductIds: { productName: string; productId: string; quantity: number; cost: number }[] = []
+        if (createNewProducts && order.newProductItems.length > 0) {
+          // 先獲取當前最大的 item_code 編號（只查詢一次）
+          const { data: maxItemCode } = await (supabaseServer
+            .from('products') as any)
+            .select('item_code')
+            .order('item_code', { ascending: false })
+            .limit(1)
+            .single()
+
+          let nextItemCodeNum = 1
+          if (maxItemCode?.item_code) {
+            const match = maxItemCode.item_code.match(/\d+/)
+            if (match) {
+              nextItemCodeNum = parseInt(match[0], 10) + 1
+            }
+          }
+
+          for (const newItem of order.newProductItems) {
+            // 生成商品編號（每次遞增）
+            const newItemCode = `P${String(nextItemCodeNum).padStart(5, '0')}`
+            nextItemCodeNum++ // 確保下一個商品有不同的編號
+
+            // 創建商品
+            const { data: newProduct, error: productError } = await (supabaseServer
+              .from('products') as any)
+              .insert({
+                item_code: newItemCode,
+                name: newItem.productName,
+                unit: '個',
+                price: newItem.cost, // 預設售價 = 進貨價
+                cost: newItem.cost,
+                stock: 0,
+                avg_cost: newItem.cost,
+                allow_negative: true, // 允許負庫存，方便進貨
+                is_active: true,
+                tags: ['快速新增'],
+              })
+              .select()
+              .single()
+
+            if (productError) {
+              throw new Error(`創建商品「${newItem.productName}」失敗：${productError.message}`)
+            }
+
+            createdProductIds.push({
+              productName: newItem.productName,
+              productId: newProduct.id,
+              quantity: newItem.quantity,
+              cost: newItem.cost,
+            })
+          }
+        }
+
+        // 計算總金額（含新增商品）
+        const existingTotal = order.items.reduce((sum, item) => sum + item.cost * item.quantity, 0)
+        const newProductTotal = createdProductIds.reduce((sum, item) => sum + item.cost * item.quantity, 0)
+        const total = existingTotal + newProductTotal
 
         // 解析進貨日期
         let purchaseDate = new Date().toISOString().split('T')[0] // 預設當天
@@ -548,13 +677,21 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        // 建立進貨明細
-        const purchaseItemsData = order.items.map(item => ({
-          purchase_id: purchase.id,
-          product_id: item.productId,
-          quantity: item.quantity,
-          cost: item.cost,
-        }))
+        // 建立進貨明細（含既有商品和新增商品）
+        const purchaseItemsData = [
+          ...order.items.map(item => ({
+            purchase_id: purchase.id,
+            product_id: item.productId,
+            quantity: item.quantity,
+            cost: item.cost,
+          })),
+          ...createdProductIds.map(item => ({
+            purchase_id: purchase.id,
+            product_id: item.productId,
+            quantity: item.quantity,
+            cost: item.cost,
+          })),
+        ]
 
         const { data: insertedPurchaseItems, error: itemsError } = await (supabaseServer
           .from('purchase_items') as any)
@@ -600,10 +737,21 @@ export async function POST(request: NextRequest) {
         }
 
         result.success++
+        result.newProductsCreated += createdProductIds.length
+
+        // 記錄警告和新增商品的信息
+        const messages: string[] = []
         if (order.warnings.length > 0) {
+          messages.push(...order.warnings)
+        }
+        if (createdProductIds.length > 0) {
+          const productNames = createdProductIds.map(p => p.productName).join('、')
+          messages.push(`已快速新增商品：${productNames}`)
+        }
+        if (messages.length > 0) {
           result.warnings.push({
             orderNo: order.orderNo,
-            message: order.warnings.join('; '),
+            message: messages.join('; '),
           })
         }
       } catch (err: any) {

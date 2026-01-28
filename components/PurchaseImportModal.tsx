@@ -16,6 +16,13 @@ type PreviewOrder = {
   rowNumbers: number[]
   isDuplicate?: boolean
   existingPurchaseNo?: string
+  // 需要快速新增的商品
+  newProductItems?: {
+    productName: string
+    quantity: number
+    cost: number
+    rowNumber: number
+  }[]
 }
 
 type ImportSummary = {
@@ -25,11 +32,13 @@ type ImportSummary = {
   duplicateOrders: number
   totalItems: number
   warningOrders: number
+  newProductCount?: number // 需要新增的商品數量
 }
 
 type ImportResult = {
   success: number
   failed: number
+  newProductsCreated?: number
   errors: { orderNo: string; message: string }[]
   warnings: { orderNo: string; message: string }[]
 }
@@ -55,6 +64,8 @@ export default function PurchaseImportModal({ isOpen, onClose, onSuccess }: Purc
   const [error, setError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [duplicateActions, setDuplicateActions] = useState<DuplicateAction[]>([])
+  const [newProducts, setNewProducts] = useState<string[]>([]) // 需要新增的商品名稱清單
+  const [createNewProducts, setCreateNewProducts] = useState(true) // 是否快速新增商品（預設開啟）
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const reset = () => {
@@ -64,6 +75,8 @@ export default function PurchaseImportModal({ isOpen, onClose, onSuccess }: Purc
     setImportResult(null)
     setError(null)
     setDuplicateActions([])
+    setNewProducts([])
+    setCreateNewProducts(true)
   }
 
   const handleClose = () => {
@@ -127,6 +140,8 @@ export default function PurchaseImportModal({ isOpen, onClose, onSuccess }: Purc
           orderNo: o.orderNo,
           action: 'skip' as const,
         })))
+        // 設置需要新增的商品清單
+        setNewProducts(data.newProducts || [])
       }
     } catch (err: any) {
       setError(err.message || '解析檔案失敗')
@@ -167,6 +182,8 @@ export default function PurchaseImportModal({ isOpen, onClose, onSuccess }: Purc
       formData.append('preview', 'false')
       // 傳送每個訂單的處理方式
       formData.append('duplicateActions', JSON.stringify(duplicateActions))
+      // 是否要快速新增商品
+      formData.append('createNewProducts', createNewProducts ? 'true' : 'false')
 
       const res = await fetch('/api/purchases/import', {
         method: 'POST',
@@ -267,6 +284,9 @@ export default function PurchaseImportModal({ isOpen, onClose, onSuccess }: Purc
               <div className="text-green-700 dark:text-green-400">
                 <p>成功：{importResult.success} 筆訂單</p>
                 <p>失敗：{importResult.failed} 筆訂單</p>
+                {(importResult.newProductsCreated || 0) > 0 && (
+                  <p>快速新增：{importResult.newProductsCreated} 個商品</p>
+                )}
               </div>
               {importResult.warnings.length > 0 && (
                 <div className="mt-3">
@@ -357,7 +377,7 @@ export default function PurchaseImportModal({ isOpen, onClose, onSuccess }: Purc
                     <tr><td className="py-1">廠商代碼/名稱</td><td>必填</td><td>必須為已存在的廠商</td></tr>
                     <tr><td className="py-1">進貨日期</td><td>選填</td><td>格式 YYYY-MM-DD，預設當天</td></tr>
                     <tr><td className="py-1">是否已付款</td><td>選填</td><td>是/否，預設 否（建立應付帳款）</td></tr>
-                    <tr><td className="py-1">商品條碼</td><td>必填</td><td>商品條碼或貨號</td></tr>
+                    <tr><td className="py-1">商品條碼</td><td>必填</td><td>商品條碼、貨號或商品名稱（找不到可快速新增）</td></tr>
                     <tr><td className="py-1">數量</td><td>必填</td><td>必須為正整數</td></tr>
                     <tr><td className="py-1">進貨價</td><td>選填</td><td>不填則使用商品成本</td></tr>
                     <tr><td className="py-1">備註</td><td>選填</td><td>訂單備註</td></tr>
@@ -370,6 +390,53 @@ export default function PurchaseImportModal({ isOpen, onClose, onSuccess }: Purc
           {/* Preview Data */}
           {previewData && !importResult && (
             <>
+              {/* New Products Section */}
+              {newProducts.length > 0 && (
+                <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 rounded-lg">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-bold text-blue-800 dark:text-blue-300 mb-2">
+                        發現 {newProducts.length} 個找不到的商品
+                      </h3>
+                      <p className="text-sm text-blue-700 dark:text-blue-400 mb-3">
+                        以下商品名稱/條碼/編號在系統中找不到對應商品，可選擇是否自動快速新增：
+                      </p>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {newProducts.slice(0, 10).map((name, i) => (
+                          <span
+                            key={i}
+                            className="px-2 py-1 bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 text-xs rounded"
+                          >
+                            {name}
+                          </span>
+                        ))}
+                        {newProducts.length > 10 && (
+                          <span className="px-2 py-1 text-blue-600 dark:text-blue-400 text-xs">
+                            ...還有 {newProducts.length - 10} 個
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer ml-4">
+                      <input
+                        type="checkbox"
+                        checked={createNewProducts}
+                        onChange={(e) => setCreateNewProducts(e.target.checked)}
+                        className="w-4 h-4 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-blue-700 dark:text-blue-300 whitespace-nowrap">
+                        快速新增商品
+                      </span>
+                    </label>
+                  </div>
+                  {createNewProducts && (
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      新商品將以「商品名稱」建立，單位預設為「個」，成本/售價為匯入的進貨價，並標記「快速新增」標籤。
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Duplicate Action Quick Selection */}
               {summary && (summary.duplicateOrders || 0) > 0 && (
                 <div className="mb-4 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700 rounded-lg">
@@ -433,6 +500,15 @@ export default function PurchaseImportModal({ isOpen, onClose, onSuccess }: Purc
                     <span className="text-blue-600 dark:text-blue-400 text-sm">商品明細：</span>
                     <span className="font-bold text-blue-700 dark:text-blue-300 ml-1">{summary.totalItems} 項</span>
                   </div>
+                  {(summary.newProductCount || 0) > 0 && (
+                    <div className="px-4 py-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                      <span className="text-purple-600 dark:text-purple-400 text-sm">快速新增：</span>
+                      <span className="font-bold text-purple-700 dark:text-purple-300 ml-1">
+                        {summary.newProductCount} 商品
+                        {createNewProducts ? '' : '（未啟用）'}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -454,6 +530,7 @@ export default function PurchaseImportModal({ isOpen, onClose, onSuccess }: Purc
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {previewData.map((order) => {
                         const orderAction = getOrderAction(order.orderNo)
+                        const hasNewProducts = (order.newProductItems?.length || 0) > 0
                         return (
                           <tr
                             key={order.orderNo}
@@ -462,6 +539,8 @@ export default function PurchaseImportModal({ isOpen, onClose, onSuccess }: Purc
                                 ? 'bg-red-50 dark:bg-red-900/20'
                                 : order.isDuplicate
                                 ? 'bg-orange-50 dark:bg-orange-900/20'
+                                : hasNewProducts
+                                ? 'bg-blue-50 dark:bg-blue-900/20'
                                 : order.warnings.length > 0
                                 ? 'bg-yellow-50 dark:bg-yellow-900/20'
                                 : 'bg-white dark:bg-gray-800'
@@ -498,6 +577,23 @@ export default function PurchaseImportModal({ isOpen, onClose, onSuccess }: Purc
                                     <option value="overwrite">覆蓋（刪除舊的）</option>
                                   </select>
                                 </div>
+                              ) : hasNewProducts ? (
+                                <div>
+                                  <div className="text-blue-600 dark:text-blue-400 text-xs mb-1">
+                                    含 {order.newProductItems?.length} 個新商品
+                                  </div>
+                                  <div className="text-xs text-blue-500 dark:text-blue-400">
+                                    {order.newProductItems?.slice(0, 2).map((item, i) => (
+                                      <span key={i} className="mr-1">「{item.productName}」</span>
+                                    ))}
+                                    {(order.newProductItems?.length || 0) > 2 && '...'}
+                                  </div>
+                                  {createNewProducts ? (
+                                    <span className="text-green-600 dark:text-green-400 text-xs">將自動新增</span>
+                                  ) : (
+                                    <span className="text-red-600 dark:text-red-400 text-xs">需啟用快速新增</span>
+                                  )}
+                                </div>
                               ) : order.warnings.length > 0 ? (
                                 <div className="text-yellow-600 dark:text-yellow-400 text-xs">
                                   {order.warnings.map((w, i) => (
@@ -527,9 +623,16 @@ export default function PurchaseImportModal({ isOpen, onClose, onSuccess }: Purc
                 {(() => {
                   const newCount = summary?.validOrders || 0
                   const totalToProcess = newCount + overwriteCount
-                  const actionText = overwriteCount > 0
-                    ? `確認匯入（${newCount} 新增 + ${overwriteCount} 覆蓋）`
-                    : `確認匯入 (${newCount} 筆訂單)`
+                  const newProductCount = createNewProducts ? (summary?.newProductCount || 0) : 0
+
+                  let actionText = `確認匯入 (${newCount} 筆訂單)`
+                  if (overwriteCount > 0 && newProductCount > 0) {
+                    actionText = `確認匯入（${newCount} 新增 + ${overwriteCount} 覆蓋 + ${newProductCount} 新商品）`
+                  } else if (overwriteCount > 0) {
+                    actionText = `確認匯入（${newCount} 新增 + ${overwriteCount} 覆蓋）`
+                  } else if (newProductCount > 0) {
+                    actionText = `確認匯入（${newCount} 筆 + ${newProductCount} 新商品）`
+                  }
 
                   return (
                     <button
