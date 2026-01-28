@@ -252,7 +252,9 @@ export async function POST(request: NextRequest) {
       const barcode = columnMap['barcode'] !== undefined ? String(row[columnMap['barcode']] || '').trim() : ''
       const quantity = columnMap['quantity'] !== undefined ? parseInt(row[columnMap['quantity']]) || 0 : 0
       const priceRaw = columnMap['price'] !== undefined ? row[columnMap['price']] : null
-      const price = priceRaw !== null && priceRaw !== '' ? parseFloat(priceRaw) : null
+      // 只有當有有效數字時才使用用戶輸入的價格，否則為 null（之後會用商品定價）
+      const parsedPrice = priceRaw !== null && priceRaw !== '' ? parseFloat(priceRaw) : NaN
+      const price = !isNaN(parsedPrice) ? parsedPrice : null
       const note = columnMap['note'] !== undefined ? String(row[columnMap['note']] || '').trim() || null : null
 
       // 解析來源
