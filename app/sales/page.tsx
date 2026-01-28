@@ -138,6 +138,8 @@ export default function SalesPage() {
   const [groupByCustomer, setGroupByCustomer] = useState(false)
   const [sourceFilter, setSourceFilter] = useState<'all' | 'pos' | 'live'>('all')
   const [currentPage, setCurrentPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
   const itemsPerPage = 50
   const [productStats, setProductStats] = useState<ProductStats | null>(null)
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set())
@@ -187,11 +189,16 @@ export default function SalesPage() {
     setExpandedSales(newExpanded)
   }
 
-  const fetchSales = async () => {
+  const fetchSales = async (page: number = 1, resetPage: boolean = true) => {
     setLoading(true)
-    setCurrentPage(1) // 重置到第一頁
+    if (resetPage) {
+      setCurrentPage(1)
+      page = 1
+    }
     try {
       const params = new URLSearchParams()
+      params.set('page', page.toString())
+      params.set('pageSize', itemsPerPage.toString())
       if (keyword) params.set('keyword', keyword)
       if (productKeyword) params.set('product_keyword', productKeyword)
       if (sourceFilter !== 'all') params.set('source', sourceFilter)
@@ -200,6 +207,12 @@ export default function SalesPage() {
       const data = await res.json()
       if (data.ok) {
         const allSales = data.data || []
+
+        // 更新分頁資訊
+        if (data.pagination) {
+          setTotalCount(data.pagination.total)
+          setTotalPages(data.pagination.totalPages)
+        }
 
         // 計算商品統計（只在有商品關鍵字時）
         if (productKeyword && allSales.length > 0) {
@@ -315,8 +328,14 @@ export default function SalesPage() {
   }
 
   useEffect(() => {
-    fetchSales()
+    fetchSales(1, true)
   }, [showUndeliveredOnly, groupByCustomer, sourceFilter])
+
+  // 頁碼改變時重新載入（但不重置頁碼）
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    fetchSales(page, false)
+  }
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -390,11 +409,8 @@ export default function SalesPage() {
   // 全選/取消全選當前頁面的銷售
   const toggleSelectAll = () => {
     if (!groupByCustomer) {
-      // 非分組模式：使用當前頁面的銷售
-      const allSales = customerGroups[0]?.sales || []
-      const startIndex = (currentPage - 1) * itemsPerPage
-      const endIndex = startIndex + itemsPerPage
-      const currentPageSales = allSales.slice(startIndex, endIndex)
+      // 非分組模式：資料已經在 API 端分頁，直接使用
+      const currentPageSales = customerGroups[0]?.sales || []
       const currentPageSaleIds = currentPageSales.map((s: any) => s.id)
       const allSelected = currentPageSaleIds.length > 0 && currentPageSaleIds.every((id: string) => selectedSaleIds.has(id))
 
@@ -1294,12 +1310,12 @@ export default function SalesPage() {
             // 原始列表视图
             <>
               {/* 分頁資訊 */}
-              {customerGroups[0]?.sales && customerGroups[0].sales.length > 0 && (
+              {totalCount > 0 && (
                 <div className="mb-4 flex items-center justify-between">
                   <div className="text-sm text-gray-600 dark:text-gray-400">
-                    共 {customerGroups[0].sales.length} 筆記錄
-                    {customerGroups[0].sales.length > itemsPerPage && (
-                      <span> · 顯示第 {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, customerGroups[0].sales.length)} 筆</span>
+                    共 {totalCount} 筆記錄
+                    {totalPages > 1 && (
+                      <span> · 顯示第 {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, totalCount)} 筆</span>
                     )}
                   </div>
                 </div>
@@ -1310,11 +1326,8 @@ export default function SalesPage() {
                 <div className="md:hidden divide-y divide-gray-200 dark:divide-gray-700">
                   {(() => {
                     const allSales = customerGroups[0]?.sales || []
-                    const startIndex = (currentPage - 1) * itemsPerPage
-                    const endIndex = startIndex + itemsPerPage
-                    const paginatedSales = allSales.slice(startIndex, endIndex)
-
-                    return paginatedSales.map((sale) => (
+                    // 資料已經在 API 端分頁，直接使用
+                    return allSales.map((sale) => (
                       <div key={sale.id} className="p-4">
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <div className="flex items-center gap-3">
@@ -1365,10 +1378,8 @@ export default function SalesPage() {
                             type="checkbox"
                             checked={(() => {
                               const allSales = customerGroups[0]?.sales || []
-                              const startIndex = (currentPage - 1) * itemsPerPage
-                              const endIndex = startIndex + itemsPerPage
-                              const currentPageSales = allSales.slice(startIndex, endIndex)
-                              return currentPageSales.length > 0 && currentPageSales.every((s: any) => selectedSaleIds.has(s.id))
+                              // 資料已經在 API 端分頁，直接使用
+                              return allSales.length > 0 && allSales.every((s: any) => selectedSaleIds.has(s.id))
                             })()}
                             onChange={toggleSelectAll}
                             className="h-4 w-4 rounded border-gray-500 bg-gray-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800 cursor-pointer"
@@ -1389,11 +1400,8 @@ export default function SalesPage() {
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                     {(() => {
                       const allSales = customerGroups[0]?.sales || []
-                      const startIndex = (currentPage - 1) * itemsPerPage
-                      const endIndex = startIndex + itemsPerPage
-                      const paginatedSales = allSales.slice(startIndex, endIndex)
-
-                      return paginatedSales.map((sale) => (
+                      // 資料已經在 API 端分頁，直接使用
+                      return allSales.map((sale) => (
                         <React.Fragment key={sale.id}>
                           <tr
                             className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
@@ -1614,59 +1622,56 @@ export default function SalesPage() {
               </div>
 
               {/* 分頁導航 */}
-              {(() => {
-                const allSales = customerGroups[0]?.sales || []
-                const totalPages = Math.ceil(allSales.length / itemsPerPage)
+              {totalPages > 1 && (
+                <div className="mt-4 flex items-center justify-center gap-2">
+                  <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">
+                    共 {totalCount} 筆
+                  </span>
+                  <button
+                    onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1 || loading}
+                    className="rounded bg-gray-200 dark:bg-gray-700 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    上一頁
+                  </button>
 
-                if (totalPages <= 1) return null
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
+                      // 顯示前 3 頁、當前頁周圍、最後 3 頁
+                      const showPage = page <= 3 || page > totalPages - 3 || Math.abs(page - currentPage) <= 1
+                      const showEllipsis = (page === 4 && currentPage > 5) || (page === totalPages - 3 && currentPage < totalPages - 4)
 
-                return (
-                  <div className="mt-4 flex items-center justify-center gap-2">
-                    <button
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                      className="rounded bg-gray-200 dark:bg-gray-700 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      上一頁
-                    </button>
+                      if (showEllipsis) {
+                        return <span key={page} className="px-2 text-gray-500">...</span>
+                      }
 
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
-                        // 顯示前 3 頁、當前頁周圍、最後 3 頁
-                        const showPage = page <= 3 || page > totalPages - 3 || Math.abs(page - currentPage) <= 1
-                        const showEllipsis = (page === 4 && currentPage > 5) || (page === totalPages - 3 && currentPage < totalPages - 4)
+                      if (!showPage) return null
 
-                        if (showEllipsis) {
-                          return <span key={page} className="px-2 text-gray-500">...</span>
-                        }
-
-                        if (!showPage) return null
-
-                        return (
-                          <button
-                            key={page}
-                            onClick={() => setCurrentPage(page)}
-                            className={`min-w-[2.5rem] rounded px-3 py-2 text-sm font-medium ${currentPage === page
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-                              }`}
-                          >
-                            {page}
-                          </button>
-                        )
-                      })}
-                    </div>
-
-                    <button
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                      className="rounded bg-gray-200 dark:bg-gray-700 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      下一頁
-                    </button>
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => handlePageChange(page)}
+                          disabled={loading}
+                          className={`min-w-[2.5rem] rounded px-3 py-2 text-sm font-medium ${currentPage === page
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                            } disabled:opacity-50`}
+                        >
+                          {page}
+                        </button>
+                      )
+                    })}
                   </div>
-                )
-              })()}
+
+                  <button
+                    onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages || loading}
+                    className="rounded bg-gray-200 dark:bg-gray-700 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    下一頁
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>

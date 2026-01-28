@@ -22,6 +22,11 @@ export async function GET(request: NextRequest) {
     const pageSize = parseInt(searchParams.get('pageSize') || '50') // Default to 50 for better performance
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : null
 
+    // Build count query first for pagination
+    let countQuery = (supabaseServer
+      .from('sales') as any)
+      .select('id', { count: 'exact', head: true })
+
     let query = (supabaseServer
       .from('sales') as any)
       .select(`
@@ -49,27 +54,33 @@ export async function GET(request: NextRequest) {
 
     if (dateFrom) {
       query = query.gte('sale_date', dateFrom)
+      countQuery = countQuery.gte('sale_date', dateFrom)
     }
 
     if (dateTo) {
       query = query.lte('sale_date', dateTo)
+      countQuery = countQuery.lte('sale_date', dateTo)
     }
 
     if (createdFrom) {
       // 使用 gt (大於) 避免邊界重複，日結時間點的訂單已經在上一個營業日中
       query = query.gt('created_at', createdFrom)
+      countQuery = countQuery.gt('created_at', createdFrom)
     }
 
     if (createdTo) {
       query = query.lte('created_at', createdTo)
+      countQuery = countQuery.lte('created_at', createdTo)
     }
 
     if (customerCode) {
       query = query.eq('customer_code', customerCode)
+      countQuery = countQuery.eq('customer_code', customerCode)
     }
 
     if (source) {
       query = query.eq('source', source)
+      countQuery = countQuery.eq('source', source)
     }
 
     // Search by keyword in sale_no, customer_code, or customer_name
@@ -85,10 +96,15 @@ export async function GET(request: NextRequest) {
       // Build the search query
       if (matchingCodes.length > 0) {
         query = query.or(`sale_no.ilike.%${keyword}%,customer_code.in.(${matchingCodes.join(',')})`)
+        countQuery = countQuery.or(`sale_no.ilike.%${keyword}%,customer_code.in.(${matchingCodes.join(',')})`)
       } else {
         query = query.ilike('sale_no', `%${keyword}%`)
+        countQuery = countQuery.ilike('sale_no', `%${keyword}%`)
       }
     }
+
+    // Get total count first
+    const { count: totalCount } = await countQuery
 
     // Apply pagination
     if (limit) {
@@ -96,8 +112,6 @@ export async function GET(request: NextRequest) {
     } else {
       const from = (page - 1) * pageSize
       const to = from + pageSize - 1
-      // Only apply pagination if it's not a request for ALL data (e.g. export) which usually doesn't send page params
-      // defaulting to 1000 items to prevent accidental full table scans
       query = query.range(from, to)
     }
 
@@ -202,7 +216,16 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({ ok: true, data: salesWithSummary })
+    return NextResponse.json({
+      ok: true,
+      data: salesWithSummary,
+      pagination: {
+        page,
+        pageSize,
+        total: totalCount || 0,
+        totalPages: Math.ceil((totalCount || 0) / pageSize)
+      }
+    })
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: 'Internal server error' },
