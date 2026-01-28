@@ -52,11 +52,7 @@ export async function GET(request: NextRequest) {
           quantity,
           price,
           snapshot_name,
-          product_id,
-          products (
-            item_code,
-            unit
-          )
+          product_id
         )
       `)
       .order('sale_date', { ascending: false })
@@ -163,50 +159,7 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Get delivery status for all sale_items - 單次查詢取代分批迴圈
-    const allSaleItemIds = filteredData?.flatMap((sale: any) =>
-      sale.sale_items?.map((item: any) => item.id) || []
-    ) || []
-
-    const deliveryQuantityMap: { [key: string]: number } = {}
-
-    if (allSaleItemIds.length > 0) {
-      // 分批查詢避免 URL 過長（每批最多 100 個 ID），並行執行
-      const BATCH_SIZE = 100
-      const batches: string[][] = []
-
-      for (let i = 0; i < allSaleItemIds.length; i += BATCH_SIZE) {
-        batches.push(allSaleItemIds.slice(i, i + BATCH_SIZE))
-      }
-
-      // 並行執行所有批次查詢
-      const batchResults = await Promise.all(
-        batches.map(batchIds =>
-          (supabaseServer
-            .from('delivery_items') as any)
-            .select(`
-              sale_item_id,
-              quantity,
-              deliveries!inner (
-                status
-              )
-            `)
-            .in('sale_item_id', batchIds)
-            .eq('deliveries.status', 'confirmed')
-        )
-      )
-
-      // 合併所有結果
-      const allDeliveryItems = batchResults.flatMap(result => result.data || [])
-
-      // 計算每個 sale_item 已出貨的數量
-      allDeliveryItems.forEach((di: any) => {
-        const currentQty = deliveryQuantityMap[di.sale_item_id] || 0
-        deliveryQuantityMap[di.sale_item_id] = currentQty + di.quantity
-      })
-    }
-
-    // Calculate summary for each sale and add delivery status to items
+    // 計算每筆銷售的摘要資訊（不再查詢出貨狀態，使用 fulfillment_status 欄位）
     const salesWithSummary = filteredData?.map((sale: any) => {
       const items = sale.sale_items || []
       const totalQuantity = items.reduce((sum: number, item: any) => sum + item.quantity, 0)
@@ -214,22 +167,11 @@ export async function GET(request: NextRequest) {
         ? items.reduce((sum: number, item: any) => sum + item.price, 0) / items.length
         : 0
 
-      // Add delivery status and quantity to each item
-      const itemsWithDeliveryStatus = items.map((item: any) => {
-        const deliveredQty = deliveryQuantityMap[item.id] || 0
-        return {
-          ...item,
-          delivered_quantity: deliveredQty,
-          is_delivered: deliveredQty >= item.quantity
-        }
-      })
-
       return {
         ...sale,
         item_count: items.length,
         total_quantity: totalQuantity,
-        avg_price: avgPrice,
-        sale_items: itemsWithDeliveryStatus
+        avg_price: avgPrice
       }
     })
 

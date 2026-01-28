@@ -72,7 +72,7 @@ type SaleItem = {
   price: number
   snapshot_name: string
   product_id: string
-  products: {
+  products?: {
     item_code: string
     unit: string
   }
@@ -230,7 +230,7 @@ export default function SalesPage() {
                 if (!stats[productKey]) {
                   stats[productKey] = {
                     product_name: item.snapshot_name,
-                    item_code: item.products.item_code,
+                    item_code: item.products?.item_code || '',
                     total_quantity: 0,
                     total_sales: 0,
                     customer_purchases: []
@@ -462,7 +462,7 @@ export default function SalesPage() {
       return
     }
 
-    const qtyInput = prompt(`出貨數量（剩餘: ${remainingQty} ${item.products.unit}）：`, remainingQty.toString())
+    const qtyInput = prompt(`出貨數量（剩餘: ${remainingQty} ${item.products?.unit || ''}）：`, remainingQty.toString())
 
     if (qtyInput === null) {
       return // 用戶取消
@@ -1243,10 +1243,10 @@ export default function SalesPage() {
                                             const remainingQty = item.quantity - deliveredQty
                                             return (
                                               <tr key={item.id}>
-                                                <td className="py-1 text-gray-700 dark:text-gray-300">{item.products.item_code}</td>
+                                                <td className="py-1 text-gray-700 dark:text-gray-300">{item.products?.item_code || ''}</td>
                                                 <td className="py-1 text-gray-700 dark:text-gray-300">{item.snapshot_name}</td>
                                                 <td className="py-1 text-right text-gray-700 dark:text-gray-300">
-                                                  {item.quantity} {item.products.unit}
+                                                  {item.quantity} {item.products?.unit || ''}
                                                 </td>
                                                 <td className="py-1 text-right">
                                                   <span
@@ -1560,10 +1560,10 @@ export default function SalesPage() {
                                         const remainingQty = item.quantity - deliveredQty
                                         return (
                                           <tr key={item.id}>
-                                            <td className="py-2 text-sm text-gray-900 dark:text-gray-100">{item.products.item_code}</td>
+                                            <td className="py-2 text-sm text-gray-900 dark:text-gray-100">{item.products?.item_code || ''}</td>
                                             <td className="py-2 text-sm text-gray-900 dark:text-gray-100">{item.snapshot_name}</td>
                                             <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
-                                              {item.quantity} {item.products.unit}
+                                              {item.quantity} {item.products?.unit || ''}
                                             </td>
                                             <td className="py-2 text-right text-sm">
                                               <span
@@ -1724,7 +1724,7 @@ export default function SalesPage() {
                       <tr key={item.id}>
                         <td className="py-2 text-sm text-gray-900 dark:text-gray-100">
                           <div>{item.snapshot_name}</div>
-                          <div className="text-xs text-gray-500">{item.products.item_code}</div>
+                          <div className="text-xs text-gray-500">{item.products?.item_code || ''}</div>
                         </td>
                         <td className="py-2 text-right text-sm text-gray-500">{item.quantity}</td>
                         <td className="py-2 text-right">
