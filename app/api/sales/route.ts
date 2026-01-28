@@ -30,7 +30,20 @@ export async function GET(request: NextRequest) {
     let query = (supabaseServer
       .from('sales') as any)
       .select(`
-        *,
+        id,
+        sale_no,
+        customer_code,
+        sale_date,
+        source,
+        payment_method,
+        is_paid,
+        note,
+        total,
+        status,
+        fulfillment_status,
+        created_at,
+        discount_type,
+        discount_value,
         customers:customer_code (
           customer_name
         ),
@@ -40,12 +53,9 @@ export async function GET(request: NextRequest) {
           price,
           snapshot_name,
           product_id,
-          cost,
           products (
             item_code,
-            unit,
-            avg_cost,
-            cost
+            unit
           )
         )
       `)
@@ -103,9 +113,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Get total count first
-    const { count: totalCount } = await countQuery
-
     // Apply pagination
     if (limit) {
       query = query.limit(limit)
@@ -115,7 +122,14 @@ export async function GET(request: NextRequest) {
       query = query.range(from, to)
     }
 
-    const { data, error } = await query
+    // 並行執行 count 和主查詢
+    const [countResult, queryResult] = await Promise.all([
+      countQuery,
+      query
+    ])
+
+    const totalCount = countResult.count
+    const { data, error } = queryResult
 
     if (error) {
       console.error('[Sales API] Query error:', {
@@ -157,36 +171,39 @@ export async function GET(request: NextRequest) {
     const deliveryQuantityMap: { [key: string]: number } = {}
 
     if (allSaleItemIds.length > 0) {
-      // 分批查詢避免 URL 過長（每批最多 50 個 ID）
-      const BATCH_SIZE = 50
-      const allDeliveryItems: any[] = []
+      // 分批查詢避免 URL 過長（每批最多 100 個 ID），並行執行
+      const BATCH_SIZE = 100
+      const batches: string[][] = []
 
       for (let i = 0; i < allSaleItemIds.length; i += BATCH_SIZE) {
-        const batchIds = allSaleItemIds.slice(i, i + BATCH_SIZE)
-        const { data: batchItems, error: batchError } = await (supabaseServer
-          .from('delivery_items') as any)
-          .select(`
-            sale_item_id,
-            quantity,
-            deliveries!inner (
-              status
-            )
-          `)
-          .in('sale_item_id', batchIds)
-          .eq('deliveries.status', 'confirmed')
-
-        if (!batchError && batchItems) {
-          allDeliveryItems.push(...batchItems)
-        }
+        batches.push(allSaleItemIds.slice(i, i + BATCH_SIZE))
       }
+
+      // 並行執行所有批次查詢
+      const batchResults = await Promise.all(
+        batches.map(batchIds =>
+          (supabaseServer
+            .from('delivery_items') as any)
+            .select(`
+              sale_item_id,
+              quantity,
+              deliveries!inner (
+                status
+              )
+            `)
+            .in('sale_item_id', batchIds)
+            .eq('deliveries.status', 'confirmed')
+        )
+      )
+
+      // 合併所有結果
+      const allDeliveryItems = batchResults.flatMap(result => result.data || [])
 
       // 計算每個 sale_item 已出貨的數量
       allDeliveryItems.forEach((di: any) => {
         const currentQty = deliveryQuantityMap[di.sale_item_id] || 0
         deliveryQuantityMap[di.sale_item_id] = currentQty + di.quantity
       })
-
-      console.log('[Sales API] deliveryQuantityMap entries:', Object.keys(deliveryQuantityMap).length)
     }
 
     // Calculate summary for each sale and add delivery status to items

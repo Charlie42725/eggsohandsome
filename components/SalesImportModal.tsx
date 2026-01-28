@@ -21,6 +21,16 @@ type PreviewOrder = {
   existingSaleNo?: string
 }
 
+type ImportRow = {
+  rowNumber: number
+  orderNo: string
+  barcode: string
+  productName?: string
+  quantity: number
+  price: number | null
+  error?: string
+}
+
 type MissingProduct = {
   barcode: string
   suggestedName: string
@@ -75,6 +85,8 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
   const [missingProducts, setMissingProducts] = useState<MissingProduct[]>([])
   const [productsToCreate, setProductsToCreate] = useState<ProductToCreate[]>([])
   const [duplicateActions, setDuplicateActions] = useState<DuplicateAction[]>([])
+  const [rawRows, setRawRows] = useState<ImportRow[]>([])
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set())
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const reset = () => {
@@ -86,6 +98,8 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
     setMissingProducts([])
     setProductsToCreate([])
     setDuplicateActions([])
+    setRawRows([])
+    setExpandedOrders(new Set())
   }
 
   const handleClose = () => {
@@ -163,6 +177,10 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
           orderNo: o.orderNo,
           action: 'skip' as const,
         })))
+        // 儲存原始行資料（用於展開明細）
+        if (data.rows) {
+          setRawRows(data.rows)
+        }
       }
     } catch (err: any) {
       setError(err.message || '解析檔案失敗')
@@ -195,6 +213,24 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
   const getOrderAction = (orderNo: string): 'skip' | 'overwrite' | null => {
     const action = duplicateActions.find(da => da.orderNo === orderNo)
     return action?.action || null
+  }
+
+  // 切換訂單展開/收合
+  const toggleOrderExpand = (orderNo: string) => {
+    setExpandedOrders(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(orderNo)) {
+        newSet.delete(orderNo)
+      } else {
+        newSet.add(orderNo)
+      }
+      return newSet
+    })
+  }
+
+  // 取得訂單的商品明細
+  const getOrderItems = (orderNo: string) => {
+    return rawRows.filter(row => row.orderNo === orderNo && !row.error)
   }
 
   const handleImport = async () => {
@@ -358,11 +394,10 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
-                  isDragOver
+                className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${isDragOver
                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                     : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                }`}
+                  }`}
               >
                 <input
                   ref={fileInputRef}
@@ -432,21 +467,19 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
                   <div className="flex gap-3">
                     <button
                       onClick={() => setAllDuplicateActions('skip')}
-                      className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                        duplicateActions.filter(da => da.action === 'skip').length === duplicateActions.length
+                      className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${duplicateActions.filter(da => da.action === 'skip').length === duplicateActions.length
                           ? 'bg-orange-200 dark:bg-orange-800 border-orange-400 dark:border-orange-600'
                           : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:bg-orange-100 dark:hover:bg-orange-900/30'
-                      }`}
+                        }`}
                     >
                       全部略過
                     </button>
                     <button
                       onClick={() => setAllDuplicateActions('overwrite')}
-                      className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                        duplicateActions.filter(da => da.action === 'overwrite').length === duplicateActions.length
+                      className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${duplicateActions.filter(da => da.action === 'overwrite').length === duplicateActions.length
                           ? 'bg-orange-200 dark:bg-orange-800 border-orange-400 dark:border-orange-600'
                           : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:bg-orange-100 dark:hover:bg-orange-900/30'
-                      }`}
+                        }`}
                     >
                       全部覆蓋
                     </button>
@@ -467,9 +500,8 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
                     {productsToCreate.map((product, index) => (
                       <div
                         key={product.barcode}
-                        className={`flex items-center gap-3 p-2 rounded-lg ${
-                          product.selected ? 'bg-orange-100 dark:bg-orange-900/30' : 'bg-gray-100 dark:bg-gray-700/50'
-                        }`}
+                        className={`flex items-center gap-3 p-2 rounded-lg ${product.selected ? 'bg-orange-100 dark:bg-orange-900/30' : 'bg-gray-100 dark:bg-gray-700/50'
+                          }`}
                       >
                         <input
                           type="checkbox"
@@ -605,70 +637,105 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {previewData.map((order) => {
                         const orderAction = getOrderAction(order.orderNo)
+                        const isExpanded = expandedOrders.has(order.orderNo)
+                        const orderItems = getOrderItems(order.orderNo)
                         return (
-                          <tr
-                            key={order.orderNo}
-                            className={`${
-                              order.errors.length > 0
-                                ? 'bg-red-50 dark:bg-red-900/20'
-                                : order.isDuplicate
-                                ? 'bg-orange-50 dark:bg-orange-900/20'
-                                : order.warnings.length > 0
-                                ? 'bg-yellow-50 dark:bg-yellow-900/20'
-                                : 'bg-white dark:bg-gray-800'
-                            }`}
-                          >
-                            <td className="px-3 py-2 text-gray-900 dark:text-white font-medium">{order.orderNo}</td>
-                            <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{order.customerCode || '散客'}</td>
-                            <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{order.saleDate || '今天'}</td>
-                            <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
-                              {order.source === 'pos' ? '店裡' : order.source === 'live' ? '直播' : '手動'}
-                            </td>
-                            <td className="px-3 py-2">
-                              <span className={`inline-flex items-center gap-1 ${order.isPaid ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}`}>
-                                {order.isPaid ? '已付' : '未付'}
-                                <span className="text-gray-400 text-xs">({order.paymentMethod})</span>
-                              </span>
-                            </td>
-                            <td className="px-3 py-2">
-                              <span className={order.isShipped ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}>
-                                {order.isShipped ? '已出貨' : '待出貨'}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2 text-right text-gray-900 dark:text-white">{order.itemCount}</td>
-                            <td className="px-3 py-2 text-right text-gray-900 dark:text-white font-medium">{formatCurrency(order.total)}</td>
-                            <td className="px-3 py-2">
-                              {order.errors.length > 0 ? (
-                                <div className="text-red-600 dark:text-red-400 text-xs">
-                                  {order.errors.map((e, i) => (
-                                    <div key={i}>{e}</div>
-                                  ))}
-                                </div>
-                              ) : order.isDuplicate ? (
-                                <div>
-                                  <div className="text-orange-600 dark:text-orange-400 text-xs mb-1">
-                                    可能與 {order.existingSaleNo} 重複
+                          <>
+                            <tr
+                              key={order.orderNo}
+                              onClick={() => toggleOrderExpand(order.orderNo)}
+                              className={`cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 ${order.errors.length > 0
+                                  ? 'bg-red-50 dark:bg-red-900/20'
+                                  : order.isDuplicate
+                                    ? 'bg-orange-50 dark:bg-orange-900/20'
+                                    : order.warnings.length > 0
+                                      ? 'bg-yellow-50 dark:bg-yellow-900/20'
+                                      : 'bg-white dark:bg-gray-800'
+                                }`}
+                            >
+                              <td className="px-3 py-2 text-gray-900 dark:text-white font-medium">
+                                <span className="mr-2 text-gray-400">{isExpanded ? '▼' : '▶'}</span>
+                                {order.orderNo}
+                              </td>
+                              <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{order.customerCode || '散客'}</td>
+                              <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{order.saleDate || '今天'}</td>
+                              <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
+                                {order.source === 'pos' ? '店裡' : order.source === 'live' ? '直播' : '手動'}
+                              </td>
+                              <td className="px-3 py-2">
+                                <span className={`inline-flex items-center gap-1 ${order.isPaid ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}`}>
+                                  {order.isPaid ? '已付' : '未付'}
+                                  <span className="text-gray-400 text-xs">({order.paymentMethod})</span>
+                                </span>
+                              </td>
+                              <td className="px-3 py-2">
+                                <span className={order.isShipped ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}>
+                                  {order.isShipped ? '已出貨' : '待出貨'}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-right text-gray-900 dark:text-white">{order.itemCount}</td>
+                              <td className="px-3 py-2 text-right text-gray-900 dark:text-white font-medium">{formatCurrency(order.total)}</td>
+                              <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                                {order.errors.length > 0 ? (
+                                  <div className="text-red-600 dark:text-red-400 text-xs">
+                                    {order.errors.map((e, i) => (
+                                      <div key={i}>{e}</div>
+                                    ))}
                                   </div>
-                                  <select
-                                    value={orderAction || 'skip'}
-                                    onChange={(e) => updateDuplicateAction(order.orderNo, e.target.value as 'skip' | 'overwrite')}
-                                    className="text-xs px-2 py-1 rounded border border-orange-300 dark:border-orange-600 bg-white dark:bg-gray-700 text-orange-700 dark:text-orange-300"
-                                  >
-                                    <option value="skip">略過（保留原有）</option>
-                                    <option value="overwrite">覆蓋（刪除舊的）</option>
-                                  </select>
-                                </div>
-                              ) : order.warnings.length > 0 ? (
-                                <div className="text-yellow-600 dark:text-yellow-400 text-xs">
-                                  {order.warnings.map((w, i) => (
-                                    <div key={i}>{w}</div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span className="text-green-600 dark:text-green-400 text-xs">可匯入</span>
-                              )}
-                            </td>
-                          </tr>
+                                ) : order.isDuplicate ? (
+                                  <div>
+                                    <div className="text-orange-600 dark:text-orange-400 text-xs mb-1">
+                                      可能與 {order.existingSaleNo} 重複
+                                    </div>
+                                    <select
+                                      value={orderAction || 'skip'}
+                                      onChange={(e) => updateDuplicateAction(order.orderNo, e.target.value as 'skip' | 'overwrite')}
+                                      className="text-xs px-2 py-1 rounded border border-orange-300 dark:border-orange-600 bg-white dark:bg-gray-700 text-orange-700 dark:text-orange-300"
+                                    >
+                                      <option value="skip">略過（保留原有）</option>
+                                      <option value="overwrite">覆蓋（刪除舊的）</option>
+                                    </select>
+                                  </div>
+                                ) : order.warnings.length > 0 ? (
+                                  <div className="text-yellow-600 dark:text-yellow-400 text-xs">
+                                    {order.warnings.map((w, i) => (
+                                      <div key={i}>{w}</div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-green-600 dark:text-green-400 text-xs">可匯入</span>
+                                )}
+                              </td>
+                            </tr>
+                            {/* 展開的商品明細 */}
+                            {isExpanded && orderItems.length > 0 && (
+                              <tr key={`${order.orderNo}-items`} className="bg-gray-50 dark:bg-gray-900">
+                                <td colSpan={9} className="px-6 py-3">
+                                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">商品明細</div>
+                                  <table className="w-full text-sm">
+                                    <thead>
+                                      <tr className="text-left text-gray-500 dark:text-gray-400 text-xs">
+                                        <th className="pb-1 pr-4">商品</th>
+                                        <th className="pb-1 pr-4 text-right">數量</th>
+                                        <th className="pb-1 pr-4 text-right">售價</th>
+                                        <th className="pb-1 text-right">小計</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {orderItems.map((item, idx) => (
+                                        <tr key={idx} className="text-gray-700 dark:text-gray-300">
+                                          <td className="py-1 pr-4">{item.productName || item.barcode}</td>
+                                          <td className="py-1 pr-4 text-right">{item.quantity}</td>
+                                          <td className="py-1 pr-4 text-right">{formatCurrency(item.price || 0)}</td>
+                                          <td className="py-1 text-right font-medium">{formatCurrency((item.price || 0) * item.quantity)}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </td>
+                              </tr>
+                            )}
+                          </>
                         )
                       })}
                     </tbody>
