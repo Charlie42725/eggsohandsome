@@ -10,6 +10,7 @@ type PreviewOrder = {
   source: string
   paymentMethod: string
   isPaid: boolean
+  isShipped: boolean
   note: string | null
   itemCount: number
   total: number
@@ -248,11 +249,11 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
 
     // 建立範本資料
     const templateData = [
-      ['訂單編號', '客戶', '銷售日期', '來源', '付款方式', '是否已付款', '商品（條碼/品號/名稱）', '數量', '售價', '備註'],
-      ['ORD-001', '王小明', '2026-01-15', 'live', '現金', '是', '4710088012345', 2, 199, '用條碼匹配'],
-      ['ORD-001', '王小明', '2026-01-15', 'live', '現金', '是', 'A001', 1, 299, '用品號匹配'],
-      ['ORD-002', '李大華', '2026-01-16', 'pos', 'pending', '否', '海賊王公仔', 3, 199, '用商品名稱匹配'],
-      ['ORD-003', '新客戶', '2026-01-17', 'manual', '', '否', '新商品名稱', 1, 500, '客戶和商品都會自動建立'],
+      ['訂單編號', '客戶', '銷售日期', '來源', '付款方式', '是否已付款', '是否已出貨', '商品（條碼/品號/名稱）', '數量', '售價', '備註'],
+      ['ORD-001', '王小明', '2026-01-15', 'live', '現金', '是', '是', '4710088012345', 2, 199, '已付款已出貨'],
+      ['ORD-001', '王小明', '2026-01-15', 'live', '現金', '是', '是', 'A001', 1, 299, ''],
+      ['ORD-002', '李大華', '2026-01-16', 'pos', 'pending', '否', '是', '海賊王公仔', 3, 199, '未付款已出貨（產生應收）'],
+      ['ORD-003', '新客戶', '2026-01-17', 'manual', '', '否', '否', '新商品名稱', 1, 500, '未付款未出貨（待處理）'],
     ]
 
     // 建立工作表
@@ -266,10 +267,11 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
       { wch: 8 },  // 來源
       { wch: 10 }, // 付款方式
       { wch: 10 }, // 是否已付款
+      { wch: 10 }, // 是否已出貨
       { wch: 22 }, // 商品（條碼/品號/名稱）
       { wch: 6 },  // 數量
       { wch: 8 },  // 售價
-      { wch: 15 }, // 備註
+      { wch: 20 }, // 備註
     ]
 
     // 建立工作簿
@@ -403,7 +405,8 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
                     <tr><td className="py-1">銷售日期</td><td>選填</td><td>格式 YYYY-MM-DD，預設當天</td></tr>
                     <tr><td className="py-1">來源</td><td>選填</td><td>pos/live/manual，預設 manual</td></tr>
                     <tr><td className="py-1">付款方式</td><td>選填</td><td>帳戶名稱，預設 pending（待收款）</td></tr>
-                    <tr><td className="py-1">是否已付款</td><td>選填</td><td>是/否，預設 否</td></tr>
+                    <tr><td className="py-1">是否已付款</td><td>選填</td><td>是/否，預設 否（未付款會產生應收帳款）</td></tr>
+                    <tr><td className="py-1">是否已出貨</td><td>選填</td><td>是/否，預設 是（已出貨會扣庫存）</td></tr>
                     <tr><td className="py-1">商品</td><td>必填</td><td><b>條碼、品號、商品名稱</b>擇一，找不到可快速建立</td></tr>
                     <tr><td className="py-1">數量</td><td>必填</td><td>必須為正整數</td></tr>
                     <tr><td className="py-1">售價</td><td>選填</td><td>不填則使用商品定價</td></tr>
@@ -593,6 +596,7 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
                         <th className="px-3 py-2 text-left text-gray-700 dark:text-gray-300">日期</th>
                         <th className="px-3 py-2 text-left text-gray-700 dark:text-gray-300">來源</th>
                         <th className="px-3 py-2 text-left text-gray-700 dark:text-gray-300">付款</th>
+                        <th className="px-3 py-2 text-left text-gray-700 dark:text-gray-300">出貨</th>
                         <th className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">品項</th>
                         <th className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">金額</th>
                         <th className="px-3 py-2 text-left text-gray-700 dark:text-gray-300">狀態/處理</th>
@@ -624,6 +628,11 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
                               <span className={`inline-flex items-center gap-1 ${order.isPaid ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}`}>
                                 {order.isPaid ? '已付' : '未付'}
                                 <span className="text-gray-400 text-xs">({order.paymentMethod})</span>
+                              </span>
+                            </td>
+                            <td className="px-3 py-2">
+                              <span className={order.isShipped ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}>
+                                {order.isShipped ? '已出貨' : '待出貨'}
                               </span>
                             </td>
                             <td className="px-3 py-2 text-right text-gray-900 dark:text-white">{order.itemCount}</td>

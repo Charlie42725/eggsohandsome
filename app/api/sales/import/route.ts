@@ -13,6 +13,7 @@ type ImportRow = {
   source: string
   paymentMethod: string
   isPaid: boolean
+  isShipped: boolean // 是否已出貨
   barcode: string
   quantity: number
   price: number | null
@@ -40,6 +41,7 @@ type GroupedOrder = {
   source: string
   paymentMethod: string
   isPaid: boolean
+  isShipped: boolean // 是否已出貨
   note: string | null
   accountId: string | null
   items: {
@@ -116,6 +118,8 @@ export async function POST(request: NextRequest) {
         columnMap['paymentMethod'] = index
       } else if (h.includes('已付款') || h.includes('是否已付') || h === 'is_paid') {
         columnMap['isPaid'] = index
+      } else if (h.includes('已出貨') || h.includes('是否已出') || h === 'is_shipped' || h === 'shipped') {
+        columnMap['isShipped'] = index
       } else if (h.includes('商品') || h.includes('條碼') || h.includes('品號') || h === 'barcode' || h === 'product') {
         columnMap['barcode'] = index
       } else if (h.includes('數量') || h === 'quantity' || h === 'qty') {
@@ -244,6 +248,7 @@ export async function POST(request: NextRequest) {
       const sourceRaw = columnMap['source'] !== undefined ? String(row[columnMap['source']] || '').trim().toLowerCase() : 'manual'
       const paymentMethod = columnMap['paymentMethod'] !== undefined ? String(row[columnMap['paymentMethod']] || '').trim() : 'pending'
       const isPaidRaw = columnMap['isPaid'] !== undefined ? String(row[columnMap['isPaid']] || '').trim().toLowerCase() : ''
+      const isShippedRaw = columnMap['isShipped'] !== undefined ? String(row[columnMap['isShipped']] || '').trim().toLowerCase() : ''
       const barcode = columnMap['barcode'] !== undefined ? String(row[columnMap['barcode']] || '').trim() : ''
       const quantity = columnMap['quantity'] !== undefined ? parseInt(row[columnMap['quantity']]) || 0 : 0
       const priceRaw = columnMap['price'] !== undefined ? row[columnMap['price']] : null
@@ -260,6 +265,10 @@ export async function POST(request: NextRequest) {
       const isPaidFromMethod = paymentMethod.toLowerCase() === '是' || paymentMethod.toLowerCase() === 'yes' || paymentMethod.toLowerCase() === 'true' || paymentMethod === '1'
       const isPaid = isPaidRaw === '是' || isPaidRaw === 'yes' || isPaidRaw === 'true' || isPaidRaw === '1' || isPaidFromMethod
 
+      // 解析是否已出貨（預設為「是」，與原本行為一致）
+      // 如果沒有此欄位或為空，預設已出貨；填「否」才是未出貨
+      const isShipped = isShippedRaw === '' || isShippedRaw === '是' || isShippedRaw === 'yes' || isShippedRaw === 'true' || isShippedRaw === '1'
+
       const importRow: ImportRow = {
         rowNumber: i + 1,
         orderNo,
@@ -269,6 +278,7 @@ export async function POST(request: NextRequest) {
         source,
         paymentMethod,
         isPaid,
+        isShipped,
         barcode,
         quantity,
         price,
@@ -400,6 +410,7 @@ export async function POST(request: NextRequest) {
           source: row.source,
           paymentMethod: row.paymentMethod,
           isPaid: row.isPaid,
+          isShipped: row.isShipped,
           note: row.note,
           accountId: row.accountId || null,
           items: [],
@@ -484,6 +495,7 @@ export async function POST(request: NextRequest) {
         source: order.source,
         paymentMethod: order.paymentMethod,
         isPaid: order.isPaid,
+        isShipped: order.isShipped,
         note: order.note,
         itemCount: order.items.length,
         total: order.items.reduce((sum, item) => sum + item.price * item.quantity, 0),
@@ -623,6 +635,7 @@ export async function POST(request: NextRequest) {
               source: row.source,
               paymentMethod: row.paymentMethod,
               isPaid: row.isPaid,
+              isShipped: row.isShipped,
               note: row.note,
               accountId: row.accountId || null,
               items: [],
@@ -891,6 +904,8 @@ export async function POST(request: NextRequest) {
         }
 
         // 建立銷售單（sale_no 由資料庫自動生成）
+        // fulfillment_status 根據 isShipped 決定
+        const fulfillmentStatus = order.isShipped ? 'completed' : 'pending'
         const { data: sale, error: saleError } = await (supabaseServer
           .from('sales') as any)
           .insert({
@@ -902,7 +917,7 @@ export async function POST(request: NextRequest) {
             is_paid: order.isPaid,
             total,
             status: 'confirmed',
-            fulfillment_status: 'completed', // 匯入預設為已完成出貨
+            fulfillment_status: fulfillmentStatus,
             note: order.note,
             created_at: createdAt,
           })
@@ -966,46 +981,51 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        // 建立出貨單
-        const { data: delivery, error: deliveryError } = await (supabaseServer
-          .from('deliveries') as any)
-          .insert({
-            delivery_no: deliveryNo,
-            sale_id: sale.id,
-            status: 'confirmed',
-            delivery_date: createdAt,
-            note: '匯入時自動建立',
-          })
-          .select()
-          .single()
+        // 只有已出貨才建立出貨單和扣庫存
+        if (order.isShipped && insertedSaleItems) {
+          const { data: delivery, error: deliveryError } = await (supabaseServer
+            .from('deliveries') as any)
+            .insert({
+              delivery_no: deliveryNo,
+              sale_id: sale.id,
+              status: 'confirmed',
+              delivery_date: createdAt,
+              note: '匯入時自動建立',
+            })
+            .select()
+            .single()
 
-        if (!deliveryError && delivery && insertedSaleItems) {
-          // 建立出貨明細並扣庫存，關聯 sale_item_id
-          for (let i = 0; i < order.items.length; i++) {
-            const item = order.items[i]
-            const saleItem = insertedSaleItems[i]
+          if (!deliveryError && delivery) {
+            // 建立出貨明細並扣庫存，關聯 sale_item_id
+            for (let i = 0; i < order.items.length; i++) {
+              const item = order.items[i]
+              const saleItem = insertedSaleItems[i]
 
-            // 建立出貨明細（包含 sale_item_id）
-            await (supabaseServer
-              .from('delivery_items') as any)
-              .insert({
-                delivery_id: delivery.id,
-                sale_item_id: saleItem.id,
-                product_id: item.productId,
-                quantity: item.quantity,
-              })
+              // 建立出貨明細（包含 sale_item_id）
+              await (supabaseServer
+                .from('delivery_items') as any)
+                .insert({
+                  delivery_id: delivery.id,
+                  sale_item_id: saleItem.id,
+                  product_id: item.productId,
+                  quantity: item.quantity,
+                })
 
-            // 建立庫存日誌（trigger 會自動扣庫存）
-            await (supabaseServer
-              .from('inventory_logs') as any)
-              .insert({
-                product_id: item.productId,
-                ref_type: 'delivery',
-                ref_id: delivery.id,
-                qty_change: -item.quantity,
-                memo: `銷售出貨 ${sale.sale_no}`,
-              })
+              // 建立庫存日誌（trigger 會自動扣庫存）
+              await (supabaseServer
+                .from('inventory_logs') as any)
+                .insert({
+                  product_id: item.productId,
+                  ref_type: 'delivery',
+                  ref_id: delivery.id,
+                  qty_change: -item.quantity,
+                  memo: `銷售出貨 ${sale.sale_no}`,
+                })
+            }
           }
+        } else {
+          // 未出貨，不遞增出貨單號
+          deliveryNumber--
         }
 
         // 如果已付款，更新帳戶餘額
