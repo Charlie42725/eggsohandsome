@@ -907,7 +907,7 @@ export async function POST(request: NextRequest) {
 
         // 建立銷售單（sale_no 由資料庫自動生成）
         // fulfillment_status 根據 isShipped 決定
-        const fulfillmentStatus = order.isShipped ? 'completed' : 'pending'
+        const fulfillmentStatus = order.isShipped ? 'completed' : 'none'
         const { data: sale, error: saleError } = await (supabaseServer
           .from('sales') as any)
           .insert({
