@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback } from 'react'
 import { formatCurrency } from '@/lib/utils'
 
 type PreviewOrder = {
@@ -395,8 +395,8 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
                 className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${isDragOver
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                  : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                   }`}
               >
                 <input
@@ -468,8 +468,8 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
                     <button
                       onClick={() => setAllDuplicateActions('skip')}
                       className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${duplicateActions.filter(da => da.action === 'skip').length === duplicateActions.length
-                          ? 'bg-orange-200 dark:bg-orange-800 border-orange-400 dark:border-orange-600'
-                          : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:bg-orange-100 dark:hover:bg-orange-900/30'
+                        ? 'bg-orange-200 dark:bg-orange-800 border-orange-400 dark:border-orange-600'
+                        : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:bg-orange-100 dark:hover:bg-orange-900/30'
                         }`}
                     >
                       全部略過
@@ -477,8 +477,8 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
                     <button
                       onClick={() => setAllDuplicateActions('overwrite')}
                       className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${duplicateActions.filter(da => da.action === 'overwrite').length === duplicateActions.length
-                          ? 'bg-orange-200 dark:bg-orange-800 border-orange-400 dark:border-orange-600'
-                          : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:bg-orange-100 dark:hover:bg-orange-900/30'
+                        ? 'bg-orange-200 dark:bg-orange-800 border-orange-400 dark:border-orange-600'
+                        : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:bg-orange-100 dark:hover:bg-orange-900/30'
                         }`}
                     >
                       全部覆蓋
@@ -640,17 +640,16 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
                         const isExpanded = expandedOrders.has(order.orderNo)
                         const orderItems = getOrderItems(order.orderNo)
                         return (
-                          <>
+                          <React.Fragment key={order.orderNo}>
                             <tr
-                              key={order.orderNo}
                               onClick={() => toggleOrderExpand(order.orderNo)}
                               className={`cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 ${order.errors.length > 0
-                                  ? 'bg-red-50 dark:bg-red-900/20'
-                                  : order.isDuplicate
-                                    ? 'bg-orange-50 dark:bg-orange-900/20'
-                                    : order.warnings.length > 0
-                                      ? 'bg-yellow-50 dark:bg-yellow-900/20'
-                                      : 'bg-white dark:bg-gray-800'
+                                ? 'bg-red-50 dark:bg-red-900/20'
+                                : order.isDuplicate
+                                  ? 'bg-orange-50 dark:bg-orange-900/20'
+                                  : order.warnings.length > 0
+                                    ? 'bg-yellow-50 dark:bg-yellow-900/20'
+                                    : 'bg-white dark:bg-gray-800'
                                 }`}
                             >
                               <td className="px-3 py-2 text-gray-900 dark:text-white font-medium">
@@ -735,7 +734,7 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
                                 </td>
                               </tr>
                             )}
-                          </>
+                          </React.Fragment>
                         )
                       })}
                     </tbody>
