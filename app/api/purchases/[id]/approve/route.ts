@@ -187,12 +187,12 @@ export async function POST(
       }
     }
 
-    // 6. Update purchase to confirmed
+    // 6. Update purchase to approved (庫存已入，等待收貨確認)
     const { data: confirmedPurchase, error: confirmError } = await (supabaseServer
       .from('purchases') as any)
       .update({
         total,
-        status: 'confirmed',
+        status: 'approved',
       })
       .eq('id', id)
       .select()

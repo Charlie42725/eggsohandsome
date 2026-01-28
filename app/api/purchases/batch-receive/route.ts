@@ -91,13 +91,14 @@ export async function POST(request: NextRequest) {
         let itemsReceivedCount = 0
 
         // 4. Process each item
+        // 注意：庫存已在 approve 時入庫，這裡只更新收貨狀態，不再重複入庫
         for (const item of itemsToReceive) {
           const receivedQuantity = item.received_quantity || 0
           const remainingQuantity = item.quantity - receivedQuantity
 
           if (remainingQuantity <= 0) continue
 
-          // Update purchase_item
+          // Update purchase_item (只更新收貨狀態，不入庫)
           const { error: updateItemError } = await (supabaseServer
             .from('purchase_items') as any)
             .update({
@@ -109,45 +110,6 @@ export async function POST(request: NextRequest) {
           if (updateItemError) {
             console.error(`Failed to update purchase_item ${item.id}:`, updateItemError.message)
             continue
-          }
-
-          // Create inventory log
-          const { error: logError } = await (supabaseServer
-            .from('inventory_logs') as any)
-            .insert({
-              product_id: item.product_id,
-              ref_type: 'purchase',
-              ref_id: purchaseId,
-              qty_change: remainingQuantity,
-              memo: `批量收貨 - 進貨單: ${purchase.purchase_no} (收貨數量: ${remainingQuantity})`,
-            })
-
-          if (logError) {
-            console.error(`Failed to create inventory log for item ${item.id}:`, logError.message)
-            continue
-          }
-
-          // Update product avg_cost
-          const { data: product } = await (supabaseServer
-            .from('products') as any)
-            .select('stock, avg_cost')
-            .eq('id', item.product_id)
-            .single()
-
-          if (product) {
-            const currentStock = product.stock
-            const oldAvgCost = product.avg_cost || 0
-
-            let newAvgCost = oldAvgCost
-            if (currentStock > 0) {
-              const oldStock = currentStock - remainingQuantity
-              newAvgCost = ((oldStock * oldAvgCost) + (remainingQuantity * item.cost)) / currentStock
-            }
-
-            await (supabaseServer
-              .from('products') as any)
-              .update({ avg_cost: newAvgCost })
-              .eq('id', item.product_id)
           }
 
           itemsReceivedCount++

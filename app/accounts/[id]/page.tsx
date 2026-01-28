@@ -26,6 +26,8 @@ type Transaction = {
     ref_id: string
     ref_no: string | null
     note: string | null
+    partner_code: string | null
+    partner_name: string | null
 }
 
 const TRANSACTION_TYPE_LABELS: Record<string, string> = {
@@ -197,6 +199,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
                                 <tr>
                                     <th className="px-6 py-3">時間</th>
                                     <th className="px-6 py-3">類型</th>
+                                    <th className="px-6 py-3">客戶/廠商</th>
                                     <th className="px-6 py-3">單號 / 備註</th>
                                     <th className="px-6 py-3 text-right">金額</th>
                                     <th className="px-6 py-3 text-right">變動後餘額</th>
@@ -205,13 +208,13 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
                             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                                 {loading && transactions.length === 0 ? (
                                     <tr>
-                                        <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                                        <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                                             載入中...
                                         </td>
                                     </tr>
                                 ) : transactions.length === 0 ? (
                                     <tr>
-                                        <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                                        <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                                             尚無符合條件的交易記錄
                                         </td>
                                     </tr>
@@ -229,25 +232,39 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${['sale', 'customer_payment', 'transfer_in'].includes(tx.transaction_type)
-                                                        ? 'bg-green-100 text-green-800'
+                                                        ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
                                                         : ['expense', 'purchase_payment', 'transfer_out'].includes(tx.transaction_type)
-                                                            ? 'bg-red-100 text-red-800'
-                                                            : 'bg-gray-100 text-gray-800'
+                                                            ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                                                            : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                                                         }`}>
                                                         {TRANSACTION_TYPE_LABELS[tx.transaction_type] || tx.transaction_type}
                                                     </span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    {tx.partner_name ? (
+                                                        <div>
+                                                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                                                {tx.partner_name}
+                                                            </div>
+                                                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                                                                {tx.partner_code}
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-gray-400 dark:text-gray-500">-</span>
+                                                    )}
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <div className="text-sm text-gray-900 dark:text-gray-100">
                                                         {tx.ref_no || '-'}
                                                     </div>
                                                     {tx.note && (
-                                                        <div className="text-xs text-gray-500">
+                                                        <div className="text-xs text-gray-500 dark:text-gray-400">
                                                             {tx.note}
                                                         </div>
                                                     )}
                                                 </td>
-                                                <td className={`px-6 py-4 text-right font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                                                <td className={`px-6 py-4 text-right font-medium ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                                                     {isPositive ? '+' : ''}{formatCurrency(tx.amount)}
                                                 </td>
                                                 <td className="px-6 py-4 text-right text-gray-900 dark:text-gray-100">

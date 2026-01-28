@@ -56,6 +56,13 @@ type CustomerGroup = {
   unpaid_count: number
 }
 
+type PaymentAccount = {
+  id: string
+  account_name: string
+  account_type: string
+  balance: number
+}
+
 export default function ARPageV2() {
   const [customerGroups, setCustomerGroups] = useState<CustomerGroup[]>([])
   const [loading, setLoading] = useState(true)
@@ -64,6 +71,8 @@ export default function ARPageV2() {
   const [showReceiptModal, setShowReceiptModal] = useState(false)
   const [receiptAmount, setReceiptAmount] = useState('')
   const [receiptMethod, setReceiptMethod] = useState('cash')
+  const [selectedPaymentAccountId, setSelectedPaymentAccountId] = useState<string>('')
+  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([])
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState('')
   const [keyword, setKeyword] = useState('')
@@ -274,8 +283,26 @@ export default function ARPageV2() {
     }
   }
 
+  // 獲取帳戶列表（用於收款）
+  const fetchPaymentAccounts = async () => {
+    try {
+      const res = await fetch('/api/accounts')
+      const data = await res.json()
+      if (data.ok) {
+        const activeAccounts = (data.data || []).filter((a: PaymentAccount) => a.account_type !== 'petty_cash')
+        setPaymentAccounts(activeAccounts)
+        if (activeAccounts.length > 0 && !selectedPaymentAccountId) {
+          setSelectedPaymentAccountId(activeAccounts[0].id)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch payment accounts:', err)
+    }
+  }
+
   useEffect(() => {
     fetchAccounts()
+    fetchPaymentAccounts()
   }, [groupMode])
 
   const handleSearch = (e: React.FormEvent) => {
@@ -383,12 +410,17 @@ export default function ARPageV2() {
         }
       }).filter(a => a.amount > 0)
 
+      // 找到選中帳戶的名稱作為付款方式
+      const selectedAccount = paymentAccounts.find(a => a.id === selectedPaymentAccountId)
+      const methodName = selectedAccount?.account_name || 'cash'
+
       const res = await fetch('/api/receipts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           partner_code: currentCustomer,
-          method: receiptMethod,
+          method: methodName,
+          account_id: selectedPaymentAccountId || null,
           amount,
           allocations
         })
@@ -933,24 +965,26 @@ export default function ARPageV2() {
 
             <div className="mb-6">
               <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
-                收款方式
+                收款帳戶
               </label>
               <select
-                value={receiptMethod}
-                onChange={(e) => setReceiptMethod(e.target.value)}
+                value={selectedPaymentAccountId}
+                onChange={(e) => setSelectedPaymentAccountId(e.target.value)}
                 className="w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
               >
-                <option value="cash">現金</option>
-                <option value="card">刷卡</option>
-                <optgroup label="轉帳">
-                  <option value="transfer_cathay">轉帳 - 國泰</option>
-                  <option value="transfer_fubon">轉帳 - 富邦</option>
-                  <option value="transfer_esun">轉帳 - 玉山</option>
-                  <option value="transfer_union">轉帳 - 聯邦</option>
-                  <option value="transfer_linepay">轉帳 - LINE Pay</option>
-                </optgroup>
-                <option value="cod">貨到付款</option>
+                {paymentAccounts.length === 0 ? (
+                  <option value="">載入中...</option>
+                ) : (
+                  paymentAccounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.account_name} ({formatCurrency(account.balance)})
+                    </option>
+                  ))
+                )}
               </select>
+              {paymentAccounts.length === 0 && (
+                <p className="mt-1 text-xs text-gray-500">請先在帳戶管理中設定收款帳戶</p>
+              )}
             </div>
 
             <div className="flex gap-2">

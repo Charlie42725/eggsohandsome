@@ -39,6 +39,34 @@ type Purchase = {
 }
 
 type UserRole = 'admin' | 'staff'
+type ViewMode = 'normal' | 'grouped'
+
+type VendorGroupItem = {
+  purchase_id: string
+  purchase_no: string
+  purchase_date: string
+  purchase_status: string
+  item_id: string
+  product_id: string
+  item_code: string
+  product_name: string
+  unit: string
+  quantity: number
+  received_quantity: number
+  is_received: boolean
+  cost: number
+  subtotal: number
+}
+
+type VendorGroup = {
+  vendor_code: string
+  vendor_name: string
+  items: VendorGroupItem[]
+  total_amount: number
+  total_items: number
+  total_quantity: number
+}
+
 
 export default function PurchasesPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([])
@@ -66,6 +94,10 @@ export default function PurchasesPage() {
 
   // Import modal state
   const [showImportModal, setShowImportModal] = useState(false)
+
+  // View mode state (normal or grouped by vendor)
+  const [viewMode, setViewMode] = useState<ViewMode>('normal')
+  const [expandedVendors, setExpandedVendors] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     // Fetch current user role
@@ -289,6 +321,70 @@ export default function PurchasesPage() {
     return 0
   })
 
+  // Compute vendor groups for grouped view
+  const vendorGroups: VendorGroup[] = React.useMemo(() => {
+    const groupMap = new Map<string, VendorGroup>()
+
+    for (const purchase of purchases) {
+      const vendorCode = purchase.vendor_code
+      const vendorName = purchase.vendors?.vendor_name || vendorCode
+
+      if (!groupMap.has(vendorCode)) {
+        groupMap.set(vendorCode, {
+          vendor_code: vendorCode,
+          vendor_name: vendorName,
+          items: [],
+          total_amount: 0,
+          total_items: 0,
+          total_quantity: 0,
+        })
+      }
+
+      const group = groupMap.get(vendorCode)!
+
+      // Add each purchase item to the group
+      if (purchase.purchase_items) {
+        for (const item of purchase.purchase_items) {
+          group.items.push({
+            purchase_id: purchase.id,
+            purchase_no: purchase.purchase_no,
+            purchase_date: purchase.purchase_date,
+            purchase_status: purchase.status,
+            item_id: item.id,
+            product_id: item.product_id,
+            item_code: item.products.item_code,
+            product_name: item.products.name,
+            unit: item.products.unit,
+            quantity: item.quantity,
+            received_quantity: item.received_quantity || 0,
+            is_received: item.is_received,
+            cost: item.cost,
+            subtotal: item.quantity * item.cost,
+          })
+          group.total_amount += item.quantity * item.cost
+          group.total_items += 1
+          group.total_quantity += item.quantity
+        }
+      }
+    }
+
+    // Sort groups by vendor name
+    return Array.from(groupMap.values()).sort((a, b) =>
+      a.vendor_name.localeCompare(b.vendor_name)
+    )
+  }, [purchases])
+
+  // Toggle vendor expansion in grouped view
+  const toggleVendor = (vendorCode: string) => {
+    const newExpanded = new Set(expandedVendors)
+    if (newExpanded.has(vendorCode)) {
+      newExpanded.delete(vendorCode)
+    } else {
+      newExpanded.add(vendorCode)
+    }
+    setExpandedVendors(newExpanded)
+  }
+
   // Check if a purchase can be selected for batch receiving
   const canSelectForReceiving = (purchase: Purchase) => {
     return purchase.status === 'approved' && purchase.receiving_status !== 'completed'
@@ -478,6 +574,28 @@ export default function PurchasesPage() {
               </button>
             </div>
           </form>
+
+          {/* View mode toggle */}
+          <div className="mt-4 flex gap-2">
+            <button
+              onClick={() => setViewMode('normal')}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${viewMode === 'normal'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+            >
+              一般模式
+            </button>
+            <button
+              onClick={() => setViewMode('grouped')}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${viewMode === 'grouped'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+            >
+              按廠商分組
+            </button>
+          </div>
         </div>
 
         <div className="rounded-lg bg-white dark:bg-gray-800 shadow">
@@ -499,335 +617,469 @@ export default function PurchasesPage() {
                 </div>
               )}
 
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="border-b bg-gray-50 dark:bg-gray-900">
-                    <tr>
-                      {/* Checkbox column */}
-                      <th className="px-3 py-3 text-center">
-                        <input
-                          type="checkbox"
-                          checked={getSelectablePurchases().length > 0 && getSelectablePurchases().every(p => selectedPurchases.has(p.id))}
-                          onChange={toggleSelectAll}
-                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          title="全選可收貨訂單"
-                        />
-                      </th>
-                      <th
-                        className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
-                        onClick={() => handleSort('purchase_no')}
-                      >
-                        進貨單號<SortIndicator field="purchase_no" />
-                      </th>
-                      <th
-                        className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
-                        onClick={() => handleSort('vendor_name')}
-                      >
-                        廠商名稱<SortIndicator field="vendor_name" />
-                      </th>
-                      {isAdmin && (
-                        <th
-                          className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
-                          onClick={() => handleSort('total')}
+              {/* Grouped View */}
+              {viewMode === 'grouped' ? (
+                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {vendorGroups.length === 0 ? (
+                    <div className="p-8 text-center text-gray-500 dark:text-gray-400">沒有資料</div>
+                  ) : (
+                    vendorGroups.map((group) => (
+                      <div key={group.vendor_code}>
+                        {/* Vendor Header */}
+                        <div
+                          className="px-6 py-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors flex items-center justify-between"
+                          onClick={() => toggleVendor(group.vendor_code)}
                         >
-                          總金額<SortIndicator field="total" />
-                        </th>
-                      )}
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">商品摘要</th>
-                      <th
-                        className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
-                        onClick={() => handleSort('purchase_date')}
-                      >
-                        進貨日期<SortIndicator field="purchase_date" />
-                      </th>
-                      <th
-                        className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
-                        onClick={() => handleSort('status')}
-                      >
-                        審核<SortIndicator field="status" />
-                      </th>
-                      <th
-                        className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
-                        onClick={() => handleSort('is_paid')}
-                      >
-                        付款<SortIndicator field="is_paid" />
-                      </th>
-                      <th
-                        className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
-                        onClick={() => handleSort('receiving_status')}
-                      >
-                        收貨<SortIndicator field="receiving_status" />
-                      </th>
-                      {isAdmin && (
-                        <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">操作</th>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {(() => {
-                      const startIndex = (currentPage - 1) * itemsPerPage
-                      const endIndex = startIndex + itemsPerPage
-                      const paginatedPurchases = sortedPurchases.slice(startIndex, endIndex)
+                          <div className="flex items-center gap-3">
+                            <span className="text-gray-400 text-xs">
+                              {expandedVendors.has(group.vendor_code) ? '▾' : '▸'}
+                            </span>
+                            <span className="font-semibold text-gray-900 dark:text-gray-100">
+                              {group.vendor_name}
+                            </span>
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              ({group.total_items} 項 / {group.total_quantity} 件)
+                            </span>
+                          </div>
+                          {isAdmin && (
+                            <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                              {formatCurrency(group.total_amount)}
+                            </span>
+                          )}
+                        </div>
 
-                      return paginatedPurchases.map((purchase) => (
-                        <React.Fragment key={purchase.id}>
-                          <tr
-                            className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 cursor-pointer transition-colors"
-                            onClick={() => toggleRow(purchase.id)}
-                          >
-                            {/* Checkbox cell */}
-                            <td className="px-3 py-4 text-center" onClick={(e) => e.stopPropagation()}>
-                              {canSelectForReceiving(purchase) ? (
-                                <input
-                                  type="checkbox"
-                                  checked={selectedPurchases.has(purchase.id)}
-                                  onChange={() => togglePurchaseSelection(purchase.id)}
-                                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                />
-                              ) : (
-                                <span className="text-gray-300 dark:text-gray-600">—</span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">
-                              <div className="flex items-center gap-2">
-                                <span className="text-gray-400 text-xs">
-                                  {expandedRows.has(purchase.id) ? '▾' : '▸'}
-                                </span>
-                                {purchase.purchase_no}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{purchase.vendors?.vendor_name || purchase.vendor_code}</td>
-                            {isAdmin && (
-                              <td className={`px-6 py-4 text-right text-lg font-semibold ${purchase.total > 0
-                                ? 'text-gray-900 dark:text-gray-100'
-                                : 'text-gray-400 dark:text-gray-500'
-                                }`}>
-                                {formatCurrency(purchase.total)}
-                              </td>
-                            )}
-                            <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
-                              {purchase.item_count || 0} 項 / {purchase.total_quantity || 0} 件
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100" onClick={(e) => e.stopPropagation()}>
-                              {editingDateId === purchase.id ? (
-                                <div className="flex items-center gap-1">
-                                  <input
-                                    type="date"
-                                    value={editingDate}
-                                    onChange={(e) => setEditingDate(e.target.value)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') saveDate(purchase.id)
-                                      if (e.key === 'Escape') cancelEditingDate()
-                                    }}
-                                    className="rounded border border-gray-300 dark:border-gray-600 px-2 py-1 text-sm bg-white dark:bg-gray-700"
-                                    autoFocus
-                                  />
-                                  <button
-                                    onClick={() => saveDate(purchase.id)}
-                                    className="text-green-600 hover:text-green-700 dark:text-green-400 text-lg"
-                                    title="儲存"
-                                  >
-                                    ✓
-                                  </button>
-                                  <button
-                                    onClick={cancelEditingDate}
-                                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 text-lg"
-                                    title="取消"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => isAdmin && startEditingDate(purchase)}
-                                  className={`hover:underline ${isAdmin ? 'cursor-pointer hover:text-blue-600 dark:hover:text-blue-400' : 'cursor-default'}`}
-                                  title={isAdmin ? '點擊編輯日期' : ''}
-                                >
-                                  {formatDate(purchase.purchase_date)}
-                                </button>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 text-center text-sm">
-                              <span
-                                className={`inline-flex items-center gap-1 text-xs ${purchase.status === 'approved'
-                                  ? 'text-green-600 dark:text-green-400'
-                                  : 'text-orange-500 dark:text-orange-400'
-                                  }`}
-                              >
-                                {purchase.status === 'approved' ? '✓ 已審核' : '○ 待審核'}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-center text-sm">
-                              <span
-                                className={`inline-flex items-center gap-1 text-xs ${purchase.is_paid
-                                  ? 'text-green-600 dark:text-green-400'
-                                  : 'text-gray-500 dark:text-gray-400'
-                                  }`}
-                              >
-                                {purchase.is_paid ? '✓ 已付' : '○ 未付'}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-center text-sm">
-                              <span
-                                className={`inline-flex items-center gap-1 text-xs ${purchase.receiving_status === 'completed'
-                                  ? 'text-blue-600 dark:text-blue-400'
-                                  : purchase.receiving_status === 'partial'
-                                    ? 'text-amber-600 dark:text-amber-400'
-                                    : 'text-gray-500 dark:text-gray-400'
-                                  }`}
-                              >
-                                {purchase.receiving_status === 'completed'
-                                  ? '📦 已收貨'
-                                  : purchase.receiving_status === 'partial'
-                                    ? '⚡ 部分收貨'
-                                    : '• 未收貨'}
-                              </span>
-                            </td>
-                            {isAdmin && (
-                              <td className="px-6 py-4 text-center text-sm" onClick={(e) => e.stopPropagation()}>
-                                <div className="flex gap-2 justify-center">
-                                  {purchase.status === 'pending' && (
-                                    <Link
-                                      href={`/purchases/${purchase.id}/review`}
-                                      className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
-                                    >
-                                      審核
-                                    </Link>
-                                  )}
-                                  <button
-                                    onClick={() => {
-                                      if (confirm(`確定要刪除進貨單 ${purchase.purchase_no} 嗎？此操作無法復原。`)) {
-                                        handleDeletePurchase(purchase.id, purchase.purchase_no)
-                                      }
-                                    }}
-                                    disabled={deleting === purchase.id}
-                                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-lg font-bold disabled:text-gray-300 disabled:cursor-not-allowed"
-                                    title="更多操作"
-                                  >
-                                    {deleting === purchase.id ? '...' : '⋯'}
-                                  </button>
-                                </div>
-                              </td>
-                            )}
-                          </tr>
-                          {expandedRows.has(purchase.id) && purchase.purchase_items && (
-                            <tr key={`${purchase.id}-details`}>
-                              <td colSpan={isAdmin ? 10 : 8} className="bg-gray-50 dark:bg-gray-900 px-6 py-4">
-                                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-                                  <h4 className="mb-3 font-semibold text-gray-900 dark:text-gray-100">進貨明細</h4>
-                                  <table className="w-full">
-                                    <thead className="border-b">
-                                      <tr>
-                                        <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">品號</th>
-                                        <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">商品名稱</th>
-                                        <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">進貨數量</th>
-                                        <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">已收貨</th>
+                        {/* Expanded Items */}
+                        {expandedVendors.has(group.vendor_code) && (
+                          <div className="bg-gray-50 dark:bg-gray-900 px-6 py-4">
+                            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden">
+                              <table className="w-full">
+                                <thead className="border-b bg-gray-50 dark:bg-gray-900">
+                                  <tr>
+                                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">品號</th>
+                                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">商品名稱</th>
+                                    <th className="px-4 py-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">數量</th>
+                                    <th className="px-4 py-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">已收貨</th>
+                                    {isAdmin && (
+                                      <>
+                                        <th className="px-4 py-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">成本</th>
+                                        <th className="px-4 py-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">小計</th>
+                                      </>
+                                    )}
+                                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">進貨單號</th>
+                                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">日期</th>
+                                    <th className="px-4 py-2 text-center text-xs font-semibold text-gray-900 dark:text-gray-100">操作</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y dark:divide-gray-700">
+                                  {group.items.map((item) => {
+                                    const remainingQty = item.quantity - item.received_quantity
+                                    return (
+                                      <tr key={item.item_id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                        <td className="px-4 py-2 text-sm">
+                                          <Link
+                                            href={`/products/${item.product_id}/edit`}
+                                            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+                                          >
+                                            {item.item_code}
+                                          </Link>
+                                        </td>
+                                        <td className="px-4 py-2 text-sm">
+                                          <Link
+                                            href={`/products/${item.product_id}/edit`}
+                                            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+                                          >
+                                            {item.product_name}
+                                          </Link>
+                                        </td>
+                                        <td className="px-4 py-2 text-right text-sm text-gray-900 dark:text-gray-100">
+                                          {item.quantity} {item.unit}
+                                        </td>
+                                        <td className="px-4 py-2 text-right text-sm">
+                                          <span
+                                            className={`font-medium ${item.is_received
+                                              ? 'text-green-600 dark:text-green-400'
+                                              : item.received_quantity > 0
+                                                ? 'text-yellow-600 dark:text-yellow-400'
+                                                : 'text-gray-600 dark:text-gray-400'
+                                              }`}
+                                          >
+                                            {item.received_quantity} / {item.quantity}
+                                          </span>
+                                        </td>
                                         {isAdmin && (
                                           <>
-                                            <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">成本</th>
-                                            <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">小計</th>
+                                            <td className="px-4 py-2 text-right text-sm text-gray-900 dark:text-gray-100">
+                                              {formatCurrency(item.cost)}
+                                            </td>
+                                            <td className="px-4 py-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                              {formatCurrency(item.subtotal)}
+                                            </td>
                                           </>
                                         )}
-                                        {(isAdmin || purchase.status === 'approved') && (
-                                          <th className="pb-2 text-center text-xs font-semibold text-gray-900 dark:text-gray-100">操作</th>
-                                        )}
+                                        <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                                          {item.purchase_no}
+                                        </td>
+                                        <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                                          {formatDate(item.purchase_date)}
+                                        </td>
+                                        <td className="px-4 py-2 text-center text-sm">
+                                          {!item.is_received && item.purchase_status === 'approved' && (
+                                            <button
+                                              onClick={() => handleReceiveItem(item.item_id, item.product_name, remainingQty)}
+                                              disabled={deleting === item.item_id}
+                                              className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                            >
+                                              {deleting === item.item_id ? '收貨中' : '收貨'}
+                                            </button>
+                                          )}
+                                          {item.is_received && (
+                                            <span className="text-green-600 dark:text-green-400 text-xs">✓ 已收貨</span>
+                                          )}
+                                        </td>
                                       </tr>
-                                    </thead>
-                                    <tbody className="divide-y dark:divide-gray-700">
-                                      {purchase.purchase_items.map((item) => {
-                                        const remainingQty = item.quantity - (item.received_quantity || 0)
-                                        return (
-                                          <tr key={item.id}>
-                                            <td className="py-2 text-sm text-gray-900 dark:text-gray-100">
-                                              <Link
-                                                href={`/products/${item.product_id}/edit`}
-                                                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
-                                                onClick={(e) => e.stopPropagation()}
-                                              >
-                                                {item.products.item_code}
-                                              </Link>
-                                            </td>
-                                            <td className="py-2 text-sm text-gray-900 dark:text-gray-100">
-                                              <Link
-                                                href={`/products/${item.product_id}/edit`}
-                                                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
-                                                onClick={(e) => e.stopPropagation()}
-                                              >
-                                                {item.products.name}
-                                              </Link>
-                                            </td>
-                                            <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
-                                              {item.quantity} {item.products.unit}
-                                            </td>
-                                            <td className="py-2 text-right text-sm">
-                                              <span
-                                                className={`font-medium ${item.is_received
-                                                  ? 'text-green-600 dark:text-green-400'
-                                                  : item.received_quantity > 0
-                                                    ? 'text-yellow-600 dark:text-yellow-400'
-                                                    : 'text-gray-600 dark:text-gray-400'
-                                                  }`}
-                                              >
-                                                {item.received_quantity || 0} / {item.quantity}
-                                              </span>
-                                            </td>
-                                            {isAdmin && (
-                                              <>
-                                                <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
-                                                  {formatCurrency(item.cost)}
-                                                </td>
-                                                <td className="py-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                                  {formatCurrency(item.quantity * item.cost)}
-                                                </td>
-                                              </>
-                                            )}
-                                            {(isAdmin || purchase.status === 'approved') && (
-                                              <td className="py-2 text-center text-sm">
-                                                <div className="flex gap-2 justify-center">
-                                                  {!item.is_received && (
-                                                    <button
-                                                      onClick={() => handleReceiveItem(item.id, item.products.name, remainingQty)}
-                                                      disabled={deleting === item.id}
-                                                      className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                                                    >
-                                                      {deleting === item.id ? '收貨中' : '收貨'}
-                                                    </button>
-                                                  )}
-                                                  {isAdmin && (
-                                                    <button
-                                                      onClick={() => {
-                                                        if (confirm(`確定要刪除 ${item.products.name} 嗎？此操作無法復原。`)) {
-                                                          handleDeleteItem(item.id, item.products.name, purchase.id)
-                                                        }
-                                                      }}
-                                                      disabled={deleting === item.id}
-                                                      className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-base font-bold disabled:text-gray-300 disabled:cursor-not-allowed"
-                                                      title="刪除項目"
-                                                    >
-                                                      {deleting === item.id ? '...' : '⋯'}
-                                                    </button>
-                                                  )}
-                                                </div>
-                                              </td>
-                                            )}
-                                          </tr>
-                                        )
-                                      })}
-                                    </tbody>
-                                  </table>
+                                    )
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : (
+                /* Normal View */
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="border-b bg-gray-50 dark:bg-gray-900">
+                      <tr>
+                        {/* Checkbox column */}
+                        <th className="px-3 py-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={getSelectablePurchases().length > 0 && getSelectablePurchases().every(p => selectedPurchases.has(p.id))}
+                            onChange={toggleSelectAll}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            title="全選可收貨訂單"
+                          />
+                        </th>
+                        <th
+                          className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                          onClick={() => handleSort('purchase_no')}
+                        >
+                          進貨單號<SortIndicator field="purchase_no" />
+                        </th>
+                        <th
+                          className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                          onClick={() => handleSort('vendor_name')}
+                        >
+                          廠商名稱<SortIndicator field="vendor_name" />
+                        </th>
+                        {isAdmin && (
+                          <th
+                            className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                            onClick={() => handleSort('total')}
+                          >
+                            總金額<SortIndicator field="total" />
+                          </th>
+                        )}
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">商品摘要</th>
+                        <th
+                          className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                          onClick={() => handleSort('purchase_date')}
+                        >
+                          進貨日期<SortIndicator field="purchase_date" />
+                        </th>
+                        <th
+                          className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                          onClick={() => handleSort('status')}
+                        >
+                          審核<SortIndicator field="status" />
+                        </th>
+                        <th
+                          className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                          onClick={() => handleSort('is_paid')}
+                        >
+                          付款<SortIndicator field="is_paid" />
+                        </th>
+                        <th
+                          className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                          onClick={() => handleSort('receiving_status')}
+                        >
+                          收貨<SortIndicator field="receiving_status" />
+                        </th>
+                        {isAdmin && (
+                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100">操作</th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {(() => {
+                        const startIndex = (currentPage - 1) * itemsPerPage
+                        const endIndex = startIndex + itemsPerPage
+                        const paginatedPurchases = sortedPurchases.slice(startIndex, endIndex)
+
+                        return paginatedPurchases.map((purchase) => (
+                          <React.Fragment key={purchase.id}>
+                            <tr
+                              className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 cursor-pointer transition-colors"
+                              onClick={() => toggleRow(purchase.id)}
+                            >
+                              {/* Checkbox cell */}
+                              <td className="px-3 py-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                {canSelectForReceiving(purchase) ? (
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedPurchases.has(purchase.id)}
+                                    onChange={() => togglePurchaseSelection(purchase.id)}
+                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                  />
+                                ) : (
+                                  <span className="text-gray-300 dark:text-gray-600">—</span>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-400 text-xs">
+                                    {expandedRows.has(purchase.id) ? '▾' : '▸'}
+                                  </span>
+                                  {purchase.purchase_no}
                                 </div>
                               </td>
+                              <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{purchase.vendors?.vendor_name || purchase.vendor_code}</td>
+                              {isAdmin && (
+                                <td className={`px-6 py-4 text-right text-lg font-semibold ${purchase.total > 0
+                                  ? 'text-gray-900 dark:text-gray-100'
+                                  : 'text-gray-400 dark:text-gray-500'
+                                  }`}>
+                                  {formatCurrency(purchase.total)}
+                                </td>
+                              )}
+                              <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                                {purchase.item_count || 0} 項 / {purchase.total_quantity || 0} 件
+                              </td>
+                              <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100" onClick={(e) => e.stopPropagation()}>
+                                {editingDateId === purchase.id ? (
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="date"
+                                      value={editingDate}
+                                      onChange={(e) => setEditingDate(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') saveDate(purchase.id)
+                                        if (e.key === 'Escape') cancelEditingDate()
+                                      }}
+                                      className="rounded border border-gray-300 dark:border-gray-600 px-2 py-1 text-sm bg-white dark:bg-gray-700"
+                                      autoFocus
+                                    />
+                                    <button
+                                      onClick={() => saveDate(purchase.id)}
+                                      className="text-green-600 hover:text-green-700 dark:text-green-400 text-lg"
+                                      title="儲存"
+                                    >
+                                      ✓
+                                    </button>
+                                    <button
+                                      onClick={cancelEditingDate}
+                                      className="text-gray-500 hover:text-gray-700 dark:text-gray-400 text-lg"
+                                      title="取消"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => isAdmin && startEditingDate(purchase)}
+                                    className={`hover:underline ${isAdmin ? 'cursor-pointer hover:text-blue-600 dark:hover:text-blue-400' : 'cursor-default'}`}
+                                    title={isAdmin ? '點擊編輯日期' : ''}
+                                  >
+                                    {formatDate(purchase.purchase_date)}
+                                  </button>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 text-center text-sm">
+                                <span
+                                  className={`inline-flex items-center gap-1 text-xs ${purchase.status === 'approved'
+                                    ? 'text-green-600 dark:text-green-400'
+                                    : 'text-orange-500 dark:text-orange-400'
+                                    }`}
+                                >
+                                  {purchase.status === 'approved' ? '✓ 已審核' : '○ 待審核'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-center text-sm">
+                                <span
+                                  className={`inline-flex items-center gap-1 text-xs ${purchase.is_paid
+                                    ? 'text-green-600 dark:text-green-400'
+                                    : 'text-gray-500 dark:text-gray-400'
+                                    }`}
+                                >
+                                  {purchase.is_paid ? '✓ 已付' : '○ 未付'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-center text-sm">
+                                <span
+                                  className={`inline-flex items-center gap-1 text-xs ${purchase.receiving_status === 'completed'
+                                    ? 'text-blue-600 dark:text-blue-400'
+                                    : purchase.receiving_status === 'partial'
+                                      ? 'text-amber-600 dark:text-amber-400'
+                                      : 'text-gray-500 dark:text-gray-400'
+                                    }`}
+                                >
+                                  {purchase.receiving_status === 'completed'
+                                    ? '📦 已收貨'
+                                    : purchase.receiving_status === 'partial'
+                                      ? '⚡ 部分收貨'
+                                      : '• 未收貨'}
+                                </span>
+                              </td>
+                              {isAdmin && (
+                                <td className="px-6 py-4 text-center text-sm" onClick={(e) => e.stopPropagation()}>
+                                  <div className="flex gap-2 justify-center">
+                                    {purchase.status === 'pending' && (
+                                      <Link
+                                        href={`/purchases/${purchase.id}/review`}
+                                        className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
+                                      >
+                                        審核
+                                      </Link>
+                                    )}
+                                    <button
+                                      onClick={() => {
+                                        if (confirm(`確定要刪除進貨單 ${purchase.purchase_no} 嗎？此操作無法復原。`)) {
+                                          handleDeletePurchase(purchase.id, purchase.purchase_no)
+                                        }
+                                      }}
+                                      disabled={deleting === purchase.id}
+                                      className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-lg font-bold disabled:text-gray-300 disabled:cursor-not-allowed"
+                                      title="更多操作"
+                                    >
+                                      {deleting === purchase.id ? '...' : '⋯'}
+                                    </button>
+                                  </div>
+                                </td>
+                              )}
                             </tr>
-                          )}
-                        </React.Fragment>
-                      ))
-                    })()}
-                  </tbody>
-                </table>
-              </div>
+                            {expandedRows.has(purchase.id) && purchase.purchase_items && (
+                              <tr key={`${purchase.id}-details`}>
+                                <td colSpan={isAdmin ? 10 : 8} className="bg-gray-50 dark:bg-gray-900 px-6 py-4">
+                                  <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                                    <h4 className="mb-3 font-semibold text-gray-900 dark:text-gray-100">進貨明細</h4>
+                                    <table className="w-full">
+                                      <thead className="border-b">
+                                        <tr>
+                                          <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">品號</th>
+                                          <th className="pb-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100">商品名稱</th>
+                                          <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">進貨數量</th>
+                                          <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">已收貨</th>
+                                          {isAdmin && (
+                                            <>
+                                              <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">成本</th>
+                                              <th className="pb-2 text-right text-xs font-semibold text-gray-900 dark:text-gray-100">小計</th>
+                                            </>
+                                          )}
+                                          {(isAdmin || purchase.status === 'approved') && (
+                                            <th className="pb-2 text-center text-xs font-semibold text-gray-900 dark:text-gray-100">操作</th>
+                                          )}
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y dark:divide-gray-700">
+                                        {purchase.purchase_items.map((item) => {
+                                          const remainingQty = item.quantity - (item.received_quantity || 0)
+                                          return (
+                                            <tr key={item.id}>
+                                              <td className="py-2 text-sm text-gray-900 dark:text-gray-100">
+                                                <Link
+                                                  href={`/products/${item.product_id}/edit`}
+                                                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+                                                  onClick={(e) => e.stopPropagation()}
+                                                >
+                                                  {item.products.item_code}
+                                                </Link>
+                                              </td>
+                                              <td className="py-2 text-sm text-gray-900 dark:text-gray-100">
+                                                <Link
+                                                  href={`/products/${item.product_id}/edit`}
+                                                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+                                                  onClick={(e) => e.stopPropagation()}
+                                                >
+                                                  {item.products.name}
+                                                </Link>
+                                              </td>
+                                              <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
+                                                {item.quantity} {item.products.unit}
+                                              </td>
+                                              <td className="py-2 text-right text-sm">
+                                                <span
+                                                  className={`font-medium ${item.is_received
+                                                    ? 'text-green-600 dark:text-green-400'
+                                                    : item.received_quantity > 0
+                                                      ? 'text-yellow-600 dark:text-yellow-400'
+                                                      : 'text-gray-600 dark:text-gray-400'
+                                                    }`}
+                                                >
+                                                  {item.received_quantity || 0} / {item.quantity}
+                                                </span>
+                                              </td>
+                                              {isAdmin && (
+                                                <>
+                                                  <td className="py-2 text-right text-sm text-gray-900 dark:text-gray-100">
+                                                    {formatCurrency(item.cost)}
+                                                  </td>
+                                                  <td className="py-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                                    {formatCurrency(item.quantity * item.cost)}
+                                                  </td>
+                                                </>
+                                              )}
+                                              {(isAdmin || purchase.status === 'approved') && (
+                                                <td className="py-2 text-center text-sm">
+                                                  <div className="flex gap-2 justify-center">
+                                                    {!item.is_received && (
+                                                      <button
+                                                        onClick={() => handleReceiveItem(item.id, item.products.name, remainingQty)}
+                                                        disabled={deleting === item.id}
+                                                        className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                                      >
+                                                        {deleting === item.id ? '收貨中' : '收貨'}
+                                                      </button>
+                                                    )}
+                                                    {isAdmin && (
+                                                      <button
+                                                        onClick={() => {
+                                                          if (confirm(`確定要刪除 ${item.products.name} 嗎？此操作無法復原。`)) {
+                                                            handleDeleteItem(item.id, item.products.name, purchase.id)
+                                                          }
+                                                        }}
+                                                        disabled={deleting === item.id}
+                                                        className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-base font-bold disabled:text-gray-300 disabled:cursor-not-allowed"
+                                                        title="刪除項目"
+                                                      >
+                                                        {deleting === item.id ? '...' : '⋯'}
+                                                      </button>
+                                                    )}
+                                                  </div>
+                                                </td>
+                                              )}
+                                            </tr>
+                                          )
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        ))
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
-              {/* Pagination */}
-              {purchases.length > itemsPerPage && (
+              {/* Pagination - only in normal mode */}
+              {viewMode === 'normal' && purchases.length > itemsPerPage && (
                 <div className="mt-4 flex items-center justify-center gap-2">
                   <button
                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
