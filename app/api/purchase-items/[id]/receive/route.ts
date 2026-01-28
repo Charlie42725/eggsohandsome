@@ -52,12 +52,20 @@ export async function POST(
       )
     }
 
-    // 3. 获取进货单信息
+    // 3. 获取进货单信息並检查状态
     const { data: purchase } = await (supabaseServer
       .from('purchases') as any)
-      .select('purchase_no')
+      .select('purchase_no, status')
       .eq('id', purchaseItem.purchase_id)
       .single()
+
+    // 確保進貨單已批准才能收貨
+    if (purchase && purchase.status !== 'approved') {
+      return NextResponse.json(
+        { ok: false, error: '進貨單尚未批准，無法收貨' },
+        { status: 400 }
+      )
+    }
 
     // 4. 更新 purchase_item 的 received_quantity（如果字段存在）
     const updatedReceivedQty = receivedQuantity + quantity
