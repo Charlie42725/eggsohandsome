@@ -154,7 +154,9 @@ export async function POST(request: NextRequest) {
 
     const customerCodeSet = new Set<string>()
     const customerNameToCode = new Map<string, string>()
-    const customerNameSet = new Set<string>()
+    const customerNameSet = new Set<string>() // 只包含資料庫中已存在的客戶
+    // 臨時映射：用於追蹤本次匯入中待創建的新客戶（避免同一客戶重複生成代碼）
+    const pendingCustomerNameToCode = new Map<string, string>()
     let maxCustomerNumber = 0
     if (customers) {
       customers.forEach((c: any) => {
@@ -252,7 +254,11 @@ export async function POST(request: NextRequest) {
       const source = ['pos', 'live', 'manual'].includes(sourceRaw) ? sourceRaw : 'manual'
 
       // 解析是否已付款
-      const isPaid = isPaidRaw === '是' || isPaidRaw === 'yes' || isPaidRaw === 'true' || isPaidRaw === '1'
+      // 支援兩種方式：
+      // 1. 「是否已付款」欄位填寫「是」
+      // 2. 「付款方式」欄位填寫「是」（表示已付款但未指定方式）
+      const isPaidFromMethod = paymentMethod.toLowerCase() === '是' || paymentMethod.toLowerCase() === 'yes' || paymentMethod.toLowerCase() === 'true' || paymentMethod === '1'
+      const isPaid = isPaidRaw === '是' || isPaidRaw === 'yes' || isPaidRaw === 'true' || isPaidRaw === '1' || isPaidFromMethod
 
       const importRow: ImportRow = {
         rowNumber: i + 1,
@@ -305,28 +311,43 @@ export async function POST(request: NextRequest) {
 
         // 驗證客戶（如果有指定）- 找不到就之後自動建立（只需要名稱）
         if (customer) {
-          // 先嘗試用代碼匹配
+          // 先嘗試用代碼匹配（資料庫中已存在）
           if (customerCodeSet.has(customer)) {
             importRow.customerCode = customer
           } else {
-            // 再嘗試用名稱匹配
+            // 再嘗試用名稱匹配（資料庫中已存在）
             const codeByName = customerNameToCode.get(customer.toLowerCase())
             if (codeByName) {
               importRow.customerCode = codeByName
             } else {
-              // 都找不到，之後會自動建立（用名稱作為識別）
-              importRow.warning = `將自動建立客戶：${customer}`
-              // 自動生成客戶代碼
-              maxCustomerNumber++
-              const newCustomerCode = `C${String(maxCustomerNumber).padStart(3, '0')}`
-              importRow.customerCode = newCustomerCode
-              importRow.customerName = customer
+              // 檢查是否已在本次匯入中標記為待創建
+              const pendingCode = pendingCustomerNameToCode.get(customer.toLowerCase())
+              if (pendingCode) {
+                // 使用已生成的代碼，避免重複生成
+                importRow.customerCode = pendingCode
+                importRow.customerName = customer
+                importRow.warning = `將自動建立客戶：${customer}`
+              } else {
+                // 都找不到，之後會自動建立（用名稱作為識別）
+                importRow.warning = `將自動建立客戶：${customer}`
+                // 自動生成客戶代碼
+                maxCustomerNumber++
+                const newCustomerCode = `C${String(maxCustomerNumber).padStart(3, '0')}`
+                importRow.customerCode = newCustomerCode
+                importRow.customerName = customer
+                // 重要：加入臨時映射，避免同一客戶在多行時重複生成代碼
+                // 注意：不加入 customerNameSet，因為實際匯入時需要檢查並創建
+                customerCodeSet.add(newCustomerCode) // 避免代碼衝突
+                pendingCustomerNameToCode.set(customer.toLowerCase(), newCustomerCode)
+              }
             }
           }
         }
 
         // 查找帳戶（如果有指定付款方式且非 pending）
-        if (paymentMethod && paymentMethod.toLowerCase() !== 'pending') {
+        // 如果付款方式是「是」等表示已付款的值，不需要查找帳戶
+        const isPaidKeywords = ['是', 'yes', 'true', '1', 'pending']
+        if (paymentMethod && !isPaidKeywords.includes(paymentMethod.toLowerCase())) {
           const accountId = accountNameToId.get(paymentMethod.toLowerCase())
           if (!accountId) {
             importRow.warning = `找不到帳戶「${paymentMethod}」，將設為待收款`
@@ -523,6 +544,9 @@ export async function POST(request: NextRequest) {
       errors: [],
       warnings: [],
     }
+
+    // 追蹤本次匯入中已創建的客戶（客戶名稱 -> 實際使用的客戶代碼）
+    const createdCustomersMap = new Map<string, string>()
 
     // 處理要快速建立的商品
     const productsToCreateJson = formData.get('productsToCreate') as string | null
@@ -794,50 +818,78 @@ export async function POST(request: NextRequest) {
 
         // 自動建立不存在的客戶（只需要客戶名稱）
         if (order.customerName && !customerNameSet.has(order.customerName.toLowerCase())) {
-          // 檢查客戶代碼是否已存在，如果存在則重新生成
-          let customerCode = order.customerCode
-          while (customerCodeSet.has(customerCode!)) {
-            maxCustomerNumber++
-            customerCode = `C${String(maxCustomerNumber).padStart(3, '0')}`
-          }
-          order.customerCode = customerCode
+          // 檢查是否已在本次匯入中創建過（使用 createdCustomersMap）
+          const existingCreatedCode = createdCustomersMap.get(order.customerName.toLowerCase())
+          if (existingCreatedCode) {
+            // 已創建過，直接使用已創建的代碼
+            order.customerCode = existingCreatedCode
+          } else {
+            // 需要創建新客戶
+            // 檢查客戶代碼是否已存在於資料庫，如果存在則重新生成
+            let customerCode = order.customerCode
 
-          const { error: createCustomerError } = await (supabaseServer
-            .from('customers') as any)
-            .insert({
-              customer_code: customerCode,
-              customer_name: order.customerName,
-              phone: '',
-              address: '',
-              note: '匯入銷售時自動建立',
-            })
-
-          if (createCustomerError) {
-            // 如果是重複 key 錯誤（可能是並發導致），重新檢查是否已存在
-            const { data: existingCustomer } = await (supabaseServer
+            // 查詢資料庫確認代碼是否真的存在
+            const { data: existingByCode } = await (supabaseServer
               .from('customers') as any)
               .select('customer_code')
-              .or(`customer_code.eq.${customerCode},customer_name.ilike.${order.customerName}`)
+              .eq('customer_code', customerCode)
               .single()
 
-            if (existingCustomer) {
-              // 客戶已存在，使用既有的代碼
-              order.customerCode = existingCustomer.customer_code
-              customerCodeSet.add(existingCustomer.customer_code)
-              customerNameSet.add(order.customerName.toLowerCase())
-            } else {
-              // 真的建立失敗，報錯並跳過此訂單
-              result.failed++
-              result.errors.push({
-                orderNo: order.orderNo,
-                message: `自動建立客戶「${order.customerName}」失敗：${createCustomerError.message}`,
-              })
-              continue
+            if (existingByCode) {
+              // 代碼已存在，需要重新生成
+              let attempts = 0
+              do {
+                maxCustomerNumber++
+                customerCode = `C${String(maxCustomerNumber).padStart(3, '0')}`
+                const { data: checkCode } = await (supabaseServer
+                  .from('customers') as any)
+                  .select('customer_code')
+                  .eq('customer_code', customerCode)
+                  .single()
+                if (!checkCode) break
+                attempts++
+              } while (attempts < 100) // 防止無限循環
             }
-          } else {
-            // 建立成功，加入 set 避免重複建立
-            customerCodeSet.add(customerCode!)
-            customerNameSet.add(order.customerName.toLowerCase())
+
+            order.customerCode = customerCode
+
+            const { error: createCustomerError } = await (supabaseServer
+              .from('customers') as any)
+              .insert({
+                customer_code: customerCode,
+                customer_name: order.customerName,
+                phone: '',
+                address: '',
+                note: '匯入銷售時自動建立',
+              })
+
+            if (createCustomerError) {
+              // 如果是重複 key 錯誤（可能是並發導致），重新檢查是否已存在
+              const { data: existingCustomer } = await (supabaseServer
+                .from('customers') as any)
+                .select('customer_code')
+                .or(`customer_code.eq.${customerCode},customer_name.ilike.${order.customerName}`)
+                .single()
+
+              if (existingCustomer) {
+                // 客戶已存在，使用既有的代碼
+                order.customerCode = existingCustomer.customer_code
+                customerNameSet.add(order.customerName.toLowerCase())
+                createdCustomersMap.set(order.customerName.toLowerCase(), existingCustomer.customer_code)
+              } else {
+                // 真的建立失敗，報錯並跳過此訂單
+                result.failed++
+                result.errors.push({
+                  orderNo: order.orderNo,
+                  message: `自動建立客戶「${order.customerName}」失敗：${createCustomerError.message}`,
+                })
+                continue
+              }
+            } else {
+              // 建立成功，記錄已創建的客戶
+              customerNameSet.add(order.customerName.toLowerCase())
+              createdCustomersMap.set(order.customerName.toLowerCase(), customerCode!)
+            }
           }
         }
 
