@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useCallback } from 'react'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatDate } from '@/lib/utils'
 
 type PreviewOrder = {
   orderNo: string
@@ -657,7 +657,7 @@ export default function SalesImportModal({ isOpen, onClose, onSuccess }: SalesIm
                                 {order.orderNo}
                               </td>
                               <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{order.customerCode || '散客'}</td>
-                              <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{order.saleDate || '今天'}</td>
+                              <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{order.saleDate ? formatDate(order.saleDate) : '今天'}</td>
                               <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
                                 {order.source === 'pos' ? '店裡' : order.source === 'live' ? '直播' : '手動'}
                               </td>

@@ -421,10 +421,10 @@ export async function POST(request: NextRequest) {
           rowNumbers: [],
         })
       } else {
-        // 如果任一行標記為已出貨，則整個訂單標記為已出貨
+        // 如果任一行標記為未出貨，則整個訂單標記為未出貨
         const order = orderMap.get(row.orderNo)!
-        if (row.isShipped) {
-          order.isShipped = true
+        if (!row.isShipped) {
+          order.isShipped = false
         }
       }
 
