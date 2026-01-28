@@ -145,20 +145,39 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // 獲取所有商品（用於條碼對應）
-    const { data: products } = await (supabaseServer
-      .from('products') as any)
-      .select('id, barcode, item_code, name, cost')
-      .eq('is_active', true)
-
+    // 獲取所有商品（用於條碼對應）- 使用分頁突破 Supabase 1000 筆限制
     const barcodeToProduct = new Map<string, { id: string; name: string; cost: number }>()
     const itemCodeToProduct = new Map<string, { id: string; name: string; cost: number }>()
-    if (products) {
-      products.forEach((p: any) => {
-        if (p.barcode) barcodeToProduct.set(p.barcode, { id: p.id, name: p.name, cost: p.cost || 0 })
-        if (p.item_code) itemCodeToProduct.set(p.item_code.toLowerCase(), { id: p.id, name: p.name, cost: p.cost || 0 })
-      })
+
+    const PAGE_SIZE = 1000
+    let offset = 0
+    let hasMoreProducts = true
+
+    while (hasMoreProducts) {
+      const { data: productBatch, error: batchError } = await (supabaseServer
+        .from('products') as any)
+        .select('id, barcode, item_code, name, cost')
+        .eq('is_active', true)
+        .range(offset, offset + PAGE_SIZE - 1)
+
+      if (batchError) {
+        console.error(`[Purchase Import] Error fetching products batch at offset ${offset}:`, batchError)
+        break
+      }
+
+      if (productBatch && productBatch.length > 0) {
+        productBatch.forEach((p: any) => {
+          if (p.barcode) barcodeToProduct.set(p.barcode, { id: p.id, name: p.name, cost: p.cost || 0 })
+          if (p.item_code) itemCodeToProduct.set(p.item_code.toLowerCase(), { id: p.id, name: p.name, cost: p.cost || 0 })
+        })
+        offset += PAGE_SIZE
+        hasMoreProducts = productBatch.length === PAGE_SIZE
+      } else {
+        hasMoreProducts = false
+      }
     }
+
+    console.log(`[Purchase Import] Loaded ${barcodeToProduct.size} barcodes and ${itemCodeToProduct.size} item_codes for lookup`)
 
     // 解析資料列
     const rows: ImportRow[] = []

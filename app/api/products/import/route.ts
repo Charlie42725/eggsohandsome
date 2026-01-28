@@ -96,19 +96,38 @@ export async function POST(request: NextRequest) {
     }
 
     // 獲取所有現有商品（用於檢查重複）
-    const { data: existingProducts } = await (supabaseServer
-      .from('products') as any)
-      .select('id, barcode, name')
-
+    // 注意：Supabase 默認最多返回 1000 筆，需要分頁獲取全部資料
     const existingBarcodeMap = new Map<string, string>()  // barcode -> product id
     const existingNameMap = new Map<string, string>()     // name -> product id
 
-    if (existingProducts) {
-      existingProducts.forEach((p: any) => {
-        if (p.barcode) existingBarcodeMap.set(p.barcode, p.id)
-        if (p.name) existingNameMap.set(p.name, p.id)
-      })
+    const PAGE_SIZE = 1000
+    let offset = 0
+    let hasMore = true
+
+    while (hasMore) {
+      const { data: productBatch, error: batchError } = await (supabaseServer
+        .from('products') as any)
+        .select('id, barcode, name')
+        .range(offset, offset + PAGE_SIZE - 1)
+
+      if (batchError) {
+        console.error(`[Product Import] Error fetching products batch at offset ${offset}:`, batchError)
+        break
+      }
+
+      if (productBatch && productBatch.length > 0) {
+        productBatch.forEach((p: any) => {
+          if (p.barcode) existingBarcodeMap.set(p.barcode, p.id)
+          if (p.name) existingNameMap.set(p.name, p.id)
+        })
+        offset += PAGE_SIZE
+        hasMore = productBatch.length === PAGE_SIZE
+      } else {
+        hasMore = false
+      }
     }
+
+    console.log(`[Product Import] Loaded ${existingBarcodeMap.size} barcodes and ${existingNameMap.size} names for duplicate check`)
 
     // 解析資料列
     const rows: ImportRow[] = []
