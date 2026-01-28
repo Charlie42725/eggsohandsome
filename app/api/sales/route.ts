@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const keyword = searchParams.get('keyword')
     const productKeyword = searchParams.get('product_keyword')
     const page = parseInt(searchParams.get('page') || '1')
-    const pageSize = parseInt(searchParams.get('pageSize') || '1000') // Default to large number if not specified
+    const pageSize = parseInt(searchParams.get('pageSize') || '50') // Default to 50 for better performance
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : null
 
     let query = (supabaseServer

@@ -420,6 +420,12 @@ export async function POST(request: NextRequest) {
           warnings: [],
           rowNumbers: [],
         })
+      } else {
+        // 如果任一行標記為已出貨，則整個訂單標記為已出貨
+        const order = orderMap.get(row.orderNo)!
+        if (row.isShipped) {
+          order.isShipped = true
+        }
       }
 
       const order = orderMap.get(row.orderNo)!
@@ -721,14 +727,18 @@ export async function POST(request: NextRequest) {
         const deliveryNo = generateCode('D', deliveryNumber - 1)
         const total = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
 
-        // 解析銷售日期
+        // 解析銷售日期（使用本地時區，避免 UTC 轉換導致日期錯誤）
         let saleDate = new Date().toISOString().split('T')[0] // 預設當天
         let createdAt = getTaiwanTime()
         if (order.saleDate) {
           try {
             const parsedDate = new Date(order.saleDate)
             if (!isNaN(parsedDate.getTime())) {
-              saleDate = parsedDate.toISOString().split('T')[0]
+              // 使用本地時區的年月日，避免 UTC 轉換導致日期少一天
+              const year = parsedDate.getFullYear()
+              const month = String(parsedDate.getMonth() + 1).padStart(2, '0')
+              const day = String(parsedDate.getDate()).padStart(2, '0')
+              saleDate = `${year}-${month}-${day}`
               // 設定為當天的中午 12:00（避免時區問題）
               parsedDate.setHours(12, 0, 0, 0)
               createdAt = parsedDate.toISOString()
