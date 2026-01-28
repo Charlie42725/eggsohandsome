@@ -323,10 +323,10 @@ export async function POST(request: NextRequest) {
               // 檢查是否已在本次匯入中標記為待創建
               const pendingCode = pendingCustomerNameToCode.get(customer.toLowerCase())
               if (pendingCode) {
-                // 使用已生成的代碼，避免重複生成
+                // 使用已生成的代碼，避免重複生成（不再顯示警告，避免誤解）
                 importRow.customerCode = pendingCode
                 importRow.customerName = customer
-                importRow.warning = `將自動建立客戶：${customer}`
+                // 不設置 warning，因為已經在第一次出現時顯示過了
               } else {
                 // 都找不到，之後會自動建立（用名稱作為識別）
                 importRow.warning = `將自動建立客戶：${customer}`
@@ -858,9 +858,6 @@ export async function POST(request: NextRequest) {
               .insert({
                 customer_code: customerCode,
                 customer_name: order.customerName,
-                phone: '',
-                address: '',
-                note: '匯入銷售時自動建立',
               })
 
             if (createCustomerError) {
